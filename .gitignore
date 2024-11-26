@@ -1,0 +1,16 @@
+Makefile.coq
+Makefile.coq.conf
+_build
+docs
+*~
+*.#*
+*.d
+*.aux
+*.glob
+*.vo
+*.vio
+*.vok
+*.vos
+.lia.cache
+.coq-native
+dlstalk.install

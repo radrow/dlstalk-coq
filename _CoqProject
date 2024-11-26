@@ -1,0 +1,6 @@
+-Q theories DlStalk
+-arg -w -arg -notation-overridden
+
+theories/LTS.v
+theories/Tactics.v
+theories/ModelData.v

@@ -1,0 +1,63 @@
+---
+fullname: Deadlock Stalker (interceptive)
+shortname: dlstalki
+organization: DTU
+community: false
+action: true
+coqdoc: true
+coqdoc_index: 'docs/latest/coqdoc/toc.html'
+
+synopsis: Formalization of a local deadlock detection algorithm using interceptive monitors
+
+description: |-
+  Formalization of a message passing calculus and a correctness proof of a
+  distributed local-deadlock detection algorithm using interceptive monitors
+
+# publications:
+# - pub_url: 
+#   pub_title:
+#   pub_doi: 
+
+authors:
+- name: Radosław Rowicki
+  initial: true
+- name: Alceste Scalas
+- name: Adrian Francalanza
+  # orcid: 
+
+maintainers:
+- name: Radosław Rowicki
+  nickname: radrow / rjro
+
+# opam-file-maintainer: rjro@dtu.dk
+
+opam-file-version: dev
+
+# license:
+#   fullname: GNU Lesser General Public License v2.1 or later
+#   identifier: LGPL-2.1-or-later
+
+supported_coq_versions:
+  text: 8.20 or later
+  opam: '{(>= "8.20" & < "8.21~") | (= "dev")}'
+
+tested_coq_opam_versions:
+- version: 'dev'
+- version: '8.20'
+
+# ci_cron_schedule: '10 1 * * 0'
+
+namespace: 
+
+keywords:
+- name: deadlock detection
+- name: process calculus
+- name: message passing
+
+categories:
+- name: Computer Science/Decision Procedures and Certified Algorithms/Correctness proofs of algorithms
+- name: Miscellaneous/Extracted Programs/Combinatorics
+
+documentation: |-
+  Markdown goes here...
+---
