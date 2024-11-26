@@ -4,3 +4,6 @@
 theories/LTS.v
 theories/Tactics.v
 theories/ModelData.v
+theories/Que.v
+theories/Model.v
+theories/Network.v

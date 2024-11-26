@@ -997,5 +997,21 @@ Ltac2 consider_ (t : constr) (solver : (unit -> unit) option) :=
   try (autorewrite_LTS (Some i));
   first [progress (hsimpl in $i)| kill $i].
 
-Ltac2 Notation "consider" t(open_constr) s(opt(seq("by", thunk(tactic)))) :=
-  Control.enter (fun () => unshelve (consider_ t s)).
+Ltac2 Notation "consider" t(thunk(open_constr)) s(opt(seq("by", thunk(tactic)))) :=
+  Control.enter (fun () => unshelve (consider_ (t ()) s)).
+
+
+Ltac2 blast_cases_ () :=
+  match! goal with
+  | [_h : context [let (_, _) := ?t in _] |- _] =>
+      destruct $t eqn:?
+  | [_h : context [match ?t with _ => _ end] |- _] =>
+      destruct $t eqn:?
+  | [|- context [let (_, _) := ?t in _]] =>
+      destruct $t eqn:?
+  | [|- context [match ?t with _ => _ end]] =>
+      destruct $t eqn:?
+  end.
+
+Ltac2 Notation blast_cases :=
+  repeat (Control.enter (fun _ => blast_cases_ ())).
