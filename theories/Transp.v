@@ -1003,7 +1003,7 @@ Module Transp(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
 
 
     Lemma NV_Transp_completeness_recv : forall {n : Name} {nc : NChan} {v} {N0 N1 : PNet} {MN0},
-        net_deinstr MN0 = N0 ->
+        '' MN0 = N0 ->
         (NVTrans n (@recv PAct gen_Act_PAct nc v) N0 N1) ->
         exists MN1 mnpath MN2,
         (NVTrans n (@recv MAct gen_Act_MAct nc # v) MN0 MN1)
@@ -1011,8 +1011,44 @@ Module Transp(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
         /\ '' MN2 = N1
         /\ Forall (Flushing_NAct n) mnpath
         /\ MNPath_to_PNPath mnpath = [].
-    Admitted.
 
+    Proof.
+      intros.
+
+      destruct (NetMod.get n MN0) as [MQ0 M0 [I0 P0 O0]] eqn:?.
+
+      assert (NetMod.get n N0 = pq (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0)) by (unfold net_deinstr, deinstr in *; eattac).
+
+      compat_hsimpl in *.
+
+      pose (MN1 := NetMod.put n (mq (MQ0 ++ [TrRecv nc v]) M0 (pq I0 P0 O0)) MN0).
+
+      consider (exists mpath M1,
+                   (### mq (MQ0 ++ [TrRecv nc v]) M0 (pq I0 P0 O0) =[ mpath ]=> mq [TrRecv nc v] M1 (pq (I0 ++ MQ_r MQ0) P0 O0))
+                   /\ Forall Flushing_act mpath
+                   /\ ready M1
+               ) by eauto using flush_exists_until.
+
+      pose (mnpath :=  lift_flushing_path n mpath ltac:(auto with LTS)).
+
+      consider (exists MN2, MN1 =[ mnpath ]=> MN2) by (eapply Flushing_path_available; subst MN1; eattac).
+      assert (Forall (Flushing_NAct n) mnpath ) by attac.
+      assert (MNPath_to_PNPath mnpath = []).
+      enough (mpath >:~ []) by attac.
+      enough (MQ_Clear MQ0).
+      assert (mq MQ0 M0 (pq I0 P0 O0) =[ mpath ]=>
+                mq [] {| handle := h; state := MRecv s |} (pq (I0 ++ MQ_r MQ0) P0 O0)
+             ) by re_have eauto using Flushing_retract.
+      eattac.
+
+      exists MN1, mnpath, MN2.
+      eattac.
+
+      repeat split; attac.
+      eattac 15.
+      constructor.
+
+      assert (Forall (Flushing_NAct n) mnpath ) by attac.
 
     Lemma Net_Transp_completeness_tau : forall n I0 {N0 N1 : PNet},
         (N0 =(NTau n Tau)=> N1) ->
