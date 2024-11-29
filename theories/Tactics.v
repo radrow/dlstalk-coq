@@ -141,6 +141,9 @@ Ltac2 Notation "kill" h(ident) := kill h.
 Inductive HAVE (P : Prop) := HAVE_ : P -> HAVE P.
 Notation "### P" := (HAVE P) (at level 200) : type_scope.
 
+Lemma HAVE_inv : forall P, (### P) <-> P.
+Proof. split; intros H. inversion H; eauto. constructor. eauto. Qed.
+
 Ltac2 re_have_ (f : unit -> unit) :=
   let havs := List.map_filter
                 (fun (h, _v, t) =>
@@ -961,11 +964,10 @@ Ltac2 find_i (t : constr) (solv : (unit -> unit) option) : ident :=
        let i := Fresh.in_goal (guess_head_name t) in
 
        ltac1:(t i |- eassert t as i) (Ltac1.of_constr t) (Ltac1.of_ident i)
-             > [solv ()|];
+             > [repeat (setoid_rewrite HAVE_inv); solv ()|];
        i
    end
   ).
-
 
 
 Notation "`( t )" :=

@@ -325,8 +325,15 @@ Module Model(MD : MODEL_DATA).
   .
   #[export] Hint Constructors MAct : LTS.
 
-  #[global] Coercion MValM : Msg >-> MVal.
-  #[global] Coercion MValP : Val >-> MVal.
+  (* #[global] Coercion MValM : Msg >-> MVal. *)
+  (* #[global] Coercion MValP : Val >-> MVal. *)
+  Notation "# v" := (MValP v) (at level 1).
+  Notation "^ v" := (MValM v) (at level 1).
+
+  Ltac2 destruct_ma a :=
+    destruct $a as [[[? ?]|[? ?]|]|[[? ?]|[? ?]|]|[[? ?]|[? ?]|]].
+
+  Ltac2 Notation "destruct_ma" c(constr) := destruct_ma c.
 
 
   #[export]
@@ -359,11 +366,6 @@ Module Model(MD : MODEL_DATA).
   #[export] Hint Unfold gen_Act_MAct : LTS.
   #[export] Hint Transparent gen_Act_MAct : LTS.
 
-
-  (* Definition MPayload (v : @Payload MAct gen_Act_MAct) : MVal := v. *)
-  (* #[export] Hint Transparent MPayload : LTS typeclass_instances. *)
-  (* #[export] Hint Unfold MPayload : LTS typeclass_instances. *)
-  (* #[global] Coercion MPayload : Payload >-> MVal. *)
 
   Definition PayloadM (v : MVal) : @Payload MAct gen_Act_MAct := v.
   #[export] Hint Transparent PayloadM : LTS typeclass_instances.
@@ -681,13 +683,28 @@ Module Model(MD : MODEL_DATA).
   #[export] Hint Resolve bs_append : bullshit.
 
 
-  Lemma mq_preserve_handle [a MQ0 M0 S0 MQ1 M1 S1] :
+  Lemma mq_preserve_handle1 [a MQ0 M0 S0 MQ1 M1 S1] :
     (mq MQ0 M0 S0 =(a)=> mq MQ1 M1 S1) ->
     handle M0 = handle M1.
 
   Proof.
     intros.
     kill H; attac.
+  Qed.
+
+
+  Lemma mq_preserve_handle [mpath MQ0 M0 S0 MQ1 M1 S1] :
+    (mq MQ0 M0 S0 =[mpath]=> mq MQ1 M1 S1) ->
+    handle M0 = handle M1.
+
+  Proof.
+    intros.
+    generalize dependent MQ0 M0 S0.
+    induction mpath; eattac.
+    destruct N1 as [MQ0' M0' S0'].
+    transitivity '(handle M0').
+    - eauto using mq_preserve_handle1 with LTS.
+    - eauto.
   Qed.
 
 
@@ -1163,6 +1180,7 @@ Module Model(MD : MODEL_DATA).
   #[export] Hint Rewrite -> @MQ_r_app MQ_s_app using assumption : LTS LTS_concl.
   #[export] Hint Resolve MQ_r_app MQ_s_app : LTS.
 
+
   Lemma MQ_r_mrecv_nil MQ : MQ_Clear MQ -> MQ_r MQ = [].
   Proof. induction MQ; eattac. Qed.
 
@@ -1172,9 +1190,9 @@ Module Model(MD : MODEL_DATA).
   Lemma MQ_nil_mrecv MQ : MQ_r MQ = [] -> MQ_s MQ = [] -> MQ_Clear MQ.
   Proof. induction MQ; eattac. destruct a; eattac. Qed.
 
-  #[export] Hint Rewrite -> MQ_r_mrecv_nil MQ_s_mrecv_nil MQ_nil_mrecv using assumption : LTS LTS_concl.
+  #[export] Hint Rewrite -> @MQ_r_mrecv_nil @MQ_s_mrecv_nil using assumption : LTS LTS_concl.
   #[export] Hint Resolve MQ_r_mrecv_nil MQ_s_mrecv_nil MQ_nil_mrecv : LTS.
-
+  
 
   Lemma MQ_r_app_mrecv MQ0 MQ1 : MQ_Clear MQ1 -> MQ_r (MQ0 ++ MQ1) = MQ_r MQ0.
   Proof. eattac. Qed.
@@ -1272,313 +1290,185 @@ Module Model(MD : MODEL_DATA).
   Qed.
 
 
-  (** Relation describing correspondence of visible actions in a monitored and not-monitored path *)
-  Reserved Notation "mpath >:~ ppath" (at level 80).
-  Inductive path_corr :
-    list MAct -> (* instr proc path *)
-    list PAct -> (* process path *)
-    Prop :=
-
-  | PC_end : path_corr [] []
-
-  | PC_do : forall a mpath ppath,
-      a <> Tau ->
-      path_corr mpath ppath ->
-      path_corr (MActT a :: mpath) (a :: ppath)
-
-  | PC_tau_m : forall a mpath ppath,
-      path_corr mpath ppath ->
-      path_corr (MActP a :: mpath) ppath
-
-  | PC_mact_m : forall a mpath ppath,
-      path_corr mpath ppath ->
-      path_corr (MActM a :: mpath) ppath
-
-  | PC_tau_p : forall mpath ppath,
-      path_corr mpath ppath ->
-      path_corr mpath (Tau :: ppath)
-
-  where "mpath >:~ ppath" := (path_corr mpath ppath)  : type_scope.
-  #[export] Hint Constructors path_corr : LTS.
+  Definition MAct_to_PAct (ma : MAct) : option PAct :=
+    match ma with
+    | MActT (Send n v) => Some (Send n v)
+    | MActT (Recv n v) => Some (Recv n v)
+    | MActP Tau => Some Tau
+    | _ => None
+    end.
 
 
-  Lemma path_corr_end_p_inv ppath : [] >:~ ppath <-> Forall (eq Tau) ppath.
-  Proof. induction ppath; split; intros; eauto. constructor. kill H. attac. kill H. attac. Qed.
+  Fixpoint MPath_to_PPath (mpath : list MAct) : list PAct :=
+    match mpath with
+    | [] => []
+    | ma :: mpath' =>
+        match MAct_to_PAct ma with
+        | None => MPath_to_PPath mpath'
+        | Some a => a :: MPath_to_PPath mpath'
+        end
+    end.
 
-  Lemma path_corr_end_m_inv mpath : mpath >:~ [] <-> Forall (fun a => match a with MActT _ => False | _ => True end) mpath.
-  Proof. induction mpath; split; intros; eauto. constructor. kill H. attac. constructor; attac.
-         kill H. destruct a; attac.
+  Notation "ma >:- a" := (MAct_to_PAct ma = Some a) (at level 70) : type_scope.
+  Notation "mpath >:~ ppath" := (MPath_to_PPath mpath = ppath) (at level 70) : type_scope.
+
+
+  Lemma MPath_to_PPath_cons : forall ma mpath,
+      MPath_to_PPath (ma :: mpath) = MPath_to_PPath [ma] ++ MPath_to_PPath mpath.
+
+  Proof. intros; destruct_ma ma; attac. Qed.
+
+
+  Lemma MPath_to_PPath_app : forall mpath0 mpath1,
+      MPath_to_PPath (mpath0 ++ mpath1) = MPath_to_PPath mpath0 ++ MPath_to_PPath mpath1.
+
+  Proof.
+    induction mpath0; intros. 1: attac.
+    rewrite MPath_to_PPath_cons.
+    rewrite <- app_comm_cons in *.
+    rewrite <- app_assoc in *.
+    rewrite <- IHmpath0.
+    apply MPath_to_PPath_cons.
   Qed.
 
-  Lemma path_corr_do_inv a mpath ppath : a <> Tau -> (MActT a :: mpath) >:~ (a :: ppath) <-> mpath >:~ ppath.
-  Proof. split; intros. kill H0. attac. Qed.
+  #[export] Hint Rewrite MPath_to_PPath_app : LTS LTS_concl. (* TODO aren't the following invs a bit redundant? *)
 
-  Lemma path_corr_tau_m_inv a mpath ppath : (MActP a :: mpath) >:~ ppath <-> mpath >:~ ppath.
-  Proof. induction ppath; split; intros. kill H. attac. kill H. attac. attac. Qed.
 
-  Lemma path_corr_mact_m_inv a mpath ppath : (MActM a :: mpath) >:~ ppath <-> mpath >:~ ppath.
-  Proof. induction ppath; split; intros. kill H. attac. kill H. attac. attac. Qed.
+  Lemma path_corr_cons : forall ma mpath a ppath,
+      ma >:- a ->
+      mpath >:~ ppath ->
+      ma::mpath >:~ a::ppath.
 
-  Lemma path_corr_tau_p_inv mpath ppath : mpath >:~ (Tau::ppath) <-> mpath >:~ ppath.
-  Proof. revert ppath.
-         induction mpath; split; intros. kill H. kill H; attac.
-         kill H. constructor. apply IHmpath. auto. constructor. apply IHmpath. auto. constructor. auto.
+  Proof. attac. Qed.
+
+
+  Lemma path_corr_app : forall mpath0 mpath1 ppath0 ppath1,
+      mpath0 >:~ ppath0 ->
+      mpath1 >:~ ppath1 ->
+      mpath0 ++ mpath1 >:~ ppath0 ++ ppath1.
+
+  Proof.
+    induction mpath0. 1: attac.
+    intros.
+    rewrite <- app_comm_cons.
+    attac.
+    destruct_ma a; attac.
+    all: f_equal; eapply IHmpath0; eattac.
   Qed.
 
-  #[export] Hint Resolve <- path_corr_end_m_inv path_corr_end_p_inv : LTS.
 
-  #[export] Hint Rewrite -> @path_corr_end_p_inv @path_corr_end_m_inv using (intros ?; easy) : LTS LTS_concl.
-
-  #[export] Hint Rewrite -> @path_corr_do_inv @path_corr_tau_m_inv @path_corr_mact_m_inv @path_corr_tau_p_inv using (intros ?; easy) : LTS.
-
-
-  (* auto somehow fails to solve obvious bullshit eg Send = Tau *)
-  #[export] Hint Extern 4 (_ <> _) => solve [congruence] : LTS.
-
-
-  Definition visible_path_mon : list MAct -> list PAct :=
-    flat_map (
-        fun a => match a with
-                 | MActT (Recv _ _ as ap)  => [ap]
-                 | MActT (Send _ _ as ap)  => [ap]
-                 | _ => []
-                 end
-      ).
-
-  Definition visible_path_proc : list PAct -> list PAct :=
-    flat_map (fun a => match a with
-                       | Recv _ _ => [a]
-                       | Send _ _ => [a]
-                       | Tau => []
-                       end
-      ).
-
-
-  (** The correspondence relation actually maps actions 1:1 *)
-  Theorem path_corr_legit : forall [mpath ppath],
-      path_corr mpath ppath ->
-      visible_path_mon mpath = visible_path_proc ppath.
+  Lemma path_corr_app_nil_l : forall mpath0 mpath1 ppath,
+      mpath0 >:~ [] ->
+      mpath1 >:~ ppath ->
+      mpath0 ++ mpath1 >:~ ppath.
 
   Proof.
     intros.
-    induction H; simpl; auto with LTS.
-    rewrite IHpath_corr.
-    auto.
+    eapply path_corr_app with (ppath0:=[]); attac.
   Qed.
 
 
-  (** Correspondence is linear *)
-  Theorem path_corr_seq : forall [mpath0 mpath1 ppath0 ppath1],
-      path_corr mpath0 ppath0 ->
-      path_corr mpath1 ppath1 ->
-      path_corr (mpath0 ++ mpath1) (ppath0 ++ ppath1).
+  Lemma path_corr_app_nil_r : forall mpath0 mpath1 ppath,
+      mpath0 >:~ ppath ->
+      mpath1 >:~ [] ->
+      mpath0 ++ mpath1 >:~ ppath.
 
   Proof.
     intros.
-    induction H; simpl; auto with LTS.
+    replace ppath with (ppath ++ []) by attac.
+    eapply path_corr_app with (ppath1:=[]); attac.
   Qed.
 
-  #[export] Hint Resolve path_corr_seq : LTS.
+
+  Lemma path_corr_cons_nil_l : forall ma mpath ppath,
+      MAct_to_PAct ma = None ->
+      mpath >:~ ppath ->
+      ma :: mpath >:~ ppath.
+
+  Proof. attac. Qed.
 
 
-  (** Correspondence is homomorphic (cons case) *)
-  Theorem path_corr_seq1 : forall [mpatha mpath a ppath],
-      path_corr mpatha [a] ->
-      path_corr mpath ppath ->
-      path_corr (mpatha ++ mpath) (a :: ppath).
+
+  #[export] Hint Resolve path_corr_cons path_corr_app path_corr_app_nil_l path_corr_app_nil_r path_corr_cons_nil_l : LTS.
+
+  (* auto somehow fails to solve obvious bullshit eg Send <> Tau *)
+  #[export] Hint Extern 4 (_ <> _) => solve [congruence | discriminate] : LTS.
+
+
+  Lemma path_corr_uncons_nil_l : forall ma mpath,
+      ma :: mpath >:~ [] ->
+      MAct_to_PAct ma = None.
+
+  Proof. intros. destruct_ma ma; attac. Qed.
+
+
+  Lemma path_corr_uncons_nil_r : forall ma mpath,
+      ma :: mpath >:~ [] ->
+      mpath >:~ [].
+
+  Proof. intros. destruct_ma ma; attac. Qed.
+
+
+  Lemma path_corr_split_nil_l : forall mpath0 mpath1,
+      mpath0 ++ mpath1 >:~ [] ->
+      mpath0 >:~ [].
 
   Proof.
     intros.
-    assert (a::ppath = [a] ++ ppath) as Ha; auto.
-    rewrite Ha.
-    auto with LTS.
+    induction mpath0. 1: attac.
+    rewrite <- app_comm_cons in *.
+    assert (MAct_to_PAct a = None) by eauto using path_corr_uncons_nil_l.
+    attac.
   Qed.
 
-  #[export] Hint Resolve path_corr_seq1 : LTS.
 
-
-  (** Correspondence is homomorphic --- (app) nil case for convenience *)
-  Corollary path_corr_seq_nil_l : forall [mpath0 mpath1] [ppath],
-      path_corr mpath0 [] ->
-      path_corr mpath1 ppath ->
-      path_corr (mpath0 ++ mpath1) ppath.
+  Lemma path_corr_split_nil_r : forall mpath0 mpath1,
+      mpath0 ++ mpath1 >:~ [] ->
+      mpath1 >:~ [].
 
   Proof.
     intros.
-    rewrite <- app_nil_l.
-    apply path_corr_seq; auto with LTS.
-  Qed.
-
-  #[export] Hint Resolve path_corr_seq_nil_l : LTS.
-
-
-  (** Correspondence is homomorphic --- (app) nil case for convenience *)
-  Corollary path_corr_seq_nil_r : forall [mpath0 mpath1] [ppath],
-      path_corr mpath0 ppath ->
-      path_corr mpath1 [] ->
-      path_corr (mpath0 ++ mpath1) ppath.
-
-  Proof.
-    intros.
-    rewrite <- app_nil_r.
-    apply path_corr_seq; auto with LTS.
-  Qed.
-
-  #[export] Hint Resolve path_corr_seq_nil_r : LTS.
-
-
-  (** Correspondence is homomorphic --- (cons) nil case for convenience *)
-  Corollary path_corr_seq_nil_l1 : forall [ma mpath] [ppath],
-      path_corr [ma] [] ->
-      path_corr mpath ppath ->
-      path_corr (ma :: mpath) ppath.
-
-  Proof.
-    intros.
-    apply (path_corr_seq_nil_l H H0).
+    induction mpath0. 1: attac.
+    rewrite <- app_comm_cons in *.
+    assert (MAct_to_PAct a = None) by eauto using path_corr_uncons_nil_l.
+    attac.
   Qed.
 
 
-  (** Correspondence is homomorphic --- (cons) nil case for convenience *)
-  Corollary path_corr_seq_nil_r1 : forall [ma mpath] [ppath],
-      path_corr [ma] ppath ->
-      path_corr mpath [] ->
-      path_corr (ma :: mpath) ppath.
+  #[export] Hint Resolve path_corr_uncons_nil_r path_corr_uncons_nil_l path_corr_split_nil_r path_corr_split_nil_l : LTS.
 
-  Proof.
-    intros.
-    apply (path_corr_seq_nil_r H H0).
-  Qed.
-
-  Import Ltac2.Notations.
 
   (** Correspondence guarantees a split *)
   Theorem path_corr_split : forall [mpath0 mpath1 ppath],
-      path_corr (mpath0 ++ mpath1) ppath ->
+      (mpath0 ++ mpath1) >:~ ppath ->
       exists ppath0 ppath1,
         ppath = ppath0 ++ ppath1
-        /\ path_corr mpath0 ppath0
-        /\ path_corr mpath1 ppath1.
+        /\ mpath0 >:~ ppath0
+        /\ mpath1 >:~ ppath1.
 
   Proof with attac.
-    intros.
-    ltac1:(dependent induction H).
-    - apply eq_sym in x.
-      apply app_eq_nil in x as (HEq0 & HEq1). subst.
-      exists [], [].
-      repeat split; auto. constructor.
-      constructor.
-    - destruct mpath0; simpl in *; subst.
-      + specialize (IHpath_corr [] mpath)
-          as (ppath0 & ppath1 & HEq & HCorr0 & HCorr1); auto; subst.
-        exists [], (a :: ppath0 ++ ppath1).
-        simpl.
-        repeat split; auto.
-        constructor.
-        constructor; auto.
-      + inversion x; subst.
-        specialize (IHpath_corr mpath0 mpath1 eq_refl)
-          as (ppath0 & ppath1 & HEq & HCorr0 & HCorr1); auto; subst.
-        exists (a::ppath0), ppath1.
-        repeat split; auto.
-        constructor; auto.
-    - destruct mpath0; simpl in *; subst.
-      + specialize (IHpath_corr [] mpath)
-          as (ppath0 & ppath1 & HEq & HCorr0 & HCorr1); auto; subst.
-        exists [], (ppath0 ++ ppath1).
-        simpl.
-        repeat split; auto.
-        constructor.
-        constructor; auto.
-      + inversion x; subst.
-        specialize (IHpath_corr mpath0 mpath1 eq_refl)
-          as (ppath0 & ppath1 & HEq & HCorr0 & HCorr1); auto; subst.
-        exists ppath0, ppath1.
-        repeat split; auto.
-        constructor; auto.
-    - destruct mpath0; simpl in *; subst.
-      + specialize (IHpath_corr [] mpath)
-          as (ppath0 & ppath1 & HEq & HCorr0 & HCorr1); auto; subst.
-        exists [], (ppath0 ++ ppath1).
-        simpl.
-        repeat split; auto.
-        constructor.
-        constructor; auto.
-      + inversion x; subst.
-        specialize (IHpath_corr mpath0 mpath1 eq_refl)
-          as (ppath0 & ppath1 & HEq & HCorr0 & HCorr1); auto; subst.
-        exists ppath0, ppath1.
-        repeat split; auto.
-        constructor; auto.
-    - specialize (IHpath_corr mpath0 mpath1 eq_refl)
-        as (ppath0 & ppath1 & HEq & HCorr0 & HCorr1); subst.
-      exists (Tau :: ppath0), ppath1.
-      repeat split; auto; simpl; repeat constructor.
-      assumption.
+    induction mpath0; attac.
+    1: { exists [], (MPath_to_PPath mpath1)... }
+
+    specialize (IHmpath0 mpath1 (MPath_to_PPath (mpath0 ++ mpath1)) ltac:(attac))
+      as (ppath0 & ppath1 & ? & ?).
+
+    destruct (MAct_to_PAct a) eqn:?.
+    - exists (p :: ppath0), ppath1...
+    - exists ppath0, ppath1...
   Qed.
+
 
   Lemma path_corr_split_inv : forall mpath0 mpath1 ppath,
-      path_corr (mpath0 ++ mpath1) ppath <->
-        exists ppath0 ppath1,
-          ppath = ppath0 ++ ppath1
-          /\ path_corr mpath0 ppath0
-          /\ path_corr mpath1 ppath1.
-  Proof.
-    split; intros.
-    - apply path_corr_split; eauto.
-    - hsimpl in *. apply path_corr_seq; auto.
-  Qed.
+      (mpath0 ++ mpath1) >:~ ppath <->
+      exists ppath0 ppath1,
+        ppath = ppath0 ++ ppath1
+        /\ mpath0 >:~ ppath0
+        /\ mpath1 >:~ ppath1.
 
+  Proof. attac. Qed.
 
-  (** Correspondence guarantees a split *)
-  Theorem path_corr_split1 : forall ma mpath ppath,
-      path_corr (ma :: mpath) ppath <->
-        exists ppath0 ppath1,
-          ppath = ppath0 ++ ppath1
-          /\ path_corr [ma] ppath0
-          /\ path_corr mpath ppath1.
-
-  Proof.
-    split.
-    - intros * HC.
-      apply path_corr_split.
-      auto.
-    - intros. hsimpl in *.
-      replace (ma::mpath) with ([ma] ++ mpath) by auto.
-      apply path_corr_seq; auto.
-  Qed.
-
-  #[export] Hint Rewrite -> @path_corr_split_inv using assumption : LTS.
-
-
-  (** Correspondence guarantees a split (nil) *)
-  Theorem path_corr_split_nil1 : forall [ma mpath],
-      path_corr (ma :: mpath) [] ->
-      path_corr [ma] [] /\ path_corr mpath [].
-
-  Proof.
-    intros.
-    apply path_corr_split1 in H as (ppath0 & ppath1 & HEq & HC0 & HC1).
-    apply eq_sym in HEq.
-    apply app_eq_nil in HEq as [HEq0 HEq1].
-    subst.
-    split; auto.
-  Qed.
-
-
-  (** Correspondence guarantees a split (nil) *)
-  Theorem path_corr_split_nil : forall [mpath0 mpath1],
-      path_corr (mpath0 ++ mpath1) [] ->
-      path_corr mpath0 [] /\ path_corr mpath1 [].
-
-  Proof.
-    intros.
-    apply path_corr_split in H as (ppath0 & ppath1 & HEq & HC0 & HC1).
-    apply eq_sym in HEq.
-    apply app_eq_nil in HEq as [HEq0 HEq1].
-    subst.
-    split; auto.
-  Qed.
+  #[export] Hint Rewrite -> path_corr_split_inv using assumption : LTS.
 
 
   (** Action is "flushing" when it works strictly towards making the monitor queue smaller. *)
@@ -1589,13 +1479,12 @@ Module Model(MD : MODEL_DATA).
     | MActM Tau        => True (* Monitor may need to tau to reach ready state*)
     | MActT (Recv _ _) => False
     | MActT (Send _ _) => True
-    | MActT Tau        => True
+    | MActT Tau        => False (* Impossible *)
     | MActP (Recv _ _) => True
     | MActP (Send _ _) => False
     | MActP Tau        => False
     end.
 
-  #[export] Hint Unfold Flushing_act : LTS.
   #[export] Hint Transparent Flushing_act : LTS.
 
 
@@ -1614,85 +1503,6 @@ Module Model(MD : MODEL_DATA).
     - exists [TrSend n v]. auto.
     - exists [TrRecv n v]. auto.
   Qed.
-
-  (* (** Flushing action can be reapplied with a bigger monitor queue, and the residue will remain. *) *)
-  (* Lemma Flushing_act_cont : forall [a] [MQ0 M0 S0] [MQ1 M1 S1] MQ', *)
-  (*     (mq MQ0 M0 S0 =(a)=> mq MQ1 M1 S1) -> *)
-  (*     Flushing_act a -> *)
-  (*     (mq (MQ0 ++ MQ') M0 S0 =(a)=> mq (MQ1 ++ MQ') M1 S1). *)
-
-  (* Proof. *)
-  (*   intros. *)
-  (*   destruct S0. *)
-  (*   destruct S1. *)
-  (*   destruct (Flushing_act_split H H0). subst. *)
-  (*   ltac1:(generalize dependent M0). *)
-  (*   ltac1:(generalize dependent M1). *)
-  (*   ltac1:(rename x into MQ0). *)
-
-  (*   induction MQ0; intros; simpl in *. *)
-  (*   simpl in *. inversion H; subst; ltac1:(try contradiction); auto with LTS. *)
-
-
-  (*   induction MQ'. ltac1:(congruence). kill H6. auto. *)
-  (*   exfalso. induction MQ. congruence. kill H6. auto. *)
-  (*   exfalso. induction MQ. congruence. kill H6. auto. *)
-
-  (*   kill H; try contradiction. *)
-  (*   - rewrite app_comm_cons in H6. *)
-  (*     apply app_id in H6. *)
-  (*     congruence. *)
-  (*   - apply app_id in H7. *)
-  (*     subst. *)
-  (*     simpl. *)
-  (*     auto with LTS. *)
-  (*   - rewrite app_comm_cons in H6. *)
-  (*     apply app_id in H6. *)
-  (*     congruence. *)
-  (*   - apply app_id in H7. *)
-  (*     subst. *)
-  (*     simpl. *)
-  (*     auto with LTS. *)
-  (*   - apply app_id in H7. *)
-  (*     subst. *)
-  (*     simpl. *)
-  (*     auto with LTS. *)
-  (*   Qed. *)
-  (* Admitted. *)
-
-
-  (* Ltac induct x := induction x; intros. *)
-
-  (* Ltac show H := cut H; eauto. *)
-
-  (* From Ltac2 Require Import Ltac2. *)
-
-  (* Ltac smart_split := *)
-  (*   match goal with *)
-  (*   | [h : _ =[]=> _ |- _ ]  => apply path_nil in h; inversion_clear h *)
-  (*   | _ => () *)
-  (*   end. *)
-
-
-  (* Ltac2 rec have_impl x := match x with *)
-  (* | a :: rest => *)
-  (*     have_impl rest; assert $a by (ltac1:(smart_split; eauto with LTS)) *)
-  (* | [] => () *)
-  (* end. *)
-  (* Ltac2 Notation "have" x(list1(constr, ",")) := *)
-  (*   have_impl x. *)
-
-
-  (* (** Flushing path can be reapplied with a bigger monitor queue, and the residue will remain. *) *)
-  (* Lemma Flushing_cont : forall [mpath] [MQ0 M0 S0] [MQ1 M1 S1] MQ', *)
-  (*     (mq MQ0 M0 S0 =[mpath]=> mq MQ1 M1 S1) -> *)
-  (*     Forall Flushing_act mpath -> *)
-  (*     (mq (MQ0 ++ MQ') M0 S0 =[mpath]=> mq (MQ1 ++ MQ') M1 S1). *)
-
-  (* Proof. *)
-  (*   induction mpath; intros. *)
-  (*   - have (MQ0 = MQ1), (M0 = M1), (S0 = S1). *)
-  (*     . auto with LTS. *)
 
 
   (** Flushing path can be reapplied with a bigger monitor queue, and the residue will remain. *)
@@ -1721,6 +1531,53 @@ Module Model(MD : MODEL_DATA).
       eapply IHmpath in T1; auto.
       unshelve eapply (path_seq1 _ T1)...
       destruct M3. eattac.
+  Qed.
+
+
+  (** Flushing act can be reapplied with a shorter monitor queue*)
+  Lemma Flushing_retract1 : forall [a] [MQ0 M0 S0] [MQ1 M1 S1] MQ',
+      (mq (MQ0 ++ MQ') M0 S0 =(a)=> mq (MQ1 ++ MQ') M1 S1) ->
+      Flushing_act a ->
+      (mq MQ0 M0 S0 =(a)=> mq MQ1 M1 S1).
+
+  Proof.
+    intros.
+    destruct M1.
+    consider (_ =(_)=> _); eattac 10.
+  Qed.
+
+
+  (** Flushing path can be reapplied with a shorter monitor queue *)
+  Lemma Flushing_retract : forall [mpath] [MQ0 M0 S0] [MQ1 M1 S1] MQ',
+      (mq (MQ0 ++ MQ') M0 S0 =[mpath]=> mq (MQ1 ++ MQ') M1 S1) ->
+      Forall Flushing_act mpath ->
+      (mq MQ0 M0 S0 =[mpath]=> mq MQ1 M1 S1).
+
+  Proof.
+    intros.
+    generalize dependent MQ0 M0 S0 MQ'.
+    induction mpath; attac.
+    - enough (MQ0 = MQ1) by attac.
+      eapply app_inv_l.
+      eauto.
+    - rename MQ1 into MQ2.
+      rename M1 into M2.
+      rename S1 into S2.
+      destruct N1 as [MQ1' M1 S1].
+
+      enough (exists MQ1, MQ1' = MQ1 ++ MQ').
+      {
+        hsimpl in *.
+        enough (mq MQ0 M0 S0 =( a )=> mq MQ1 M1 S1); eauto using Flushing_retract1 with LTS.
+      }
+
+      clear - H1 H2.
+      generalize dependent MQ1' M1 S1.
+      induction mpath; eattac.
+      destruct N1 as [MQ11' M11 S11].
+      assert (exists MQ11, MQ11' = MQ11 ++ MQ'); eattac.
+
+      consider (_ =(a)=> _); eattac.
   Qed.
 
 
@@ -2056,52 +1913,109 @@ Module Model(MD : MODEL_DATA).
 
   Lemma flush_exists1 : forall e MQ0 M0 I0 P O,
       ready M0 ->
-      exists ma M1 I1,
-        (mq (e::MQ0) M0 (pq I0 P O) =(ma)=> mq MQ0 M1 (pq (I0 ++ I1) P O))
+      exists ma M1,
+        (mq (e::MQ0) M0 (pq I0 P O) =(ma)=> mq MQ0 M1 (pq (I0 ++ MQ_r [e]) P O))
         /\ Flushing_act ma.
 
   Proof.
     intros * HR.
     hsimpl in HR.
     destruct e eqn:HEq.
-    - exists (MActT (Send n v)), {|handle:=h; state:=h e s|}, [].
+    - exists (MActT (Send n v)), {|handle:=h; state:=h e s|}.
       eattac.
-    - exists (MActP (Recv n v)), {|handle:=h; state:=h e s|}, [(n, v)].
+    - exists (MActP (Recv n v)), {|handle:=h; state:=h e s|}.
       attac.
-    - exists (MActM Tau), {|handle:=h;state:=h e s|}, [].
+    - exists (MActM Tau), {|handle:=h;state:=h e s|}.
       eattac.
   Qed.
 
 
   (** Any state of a monitored process can be dragged to a "canonical" one, where the monitor is ready
   and has empty queue. **)
+  Theorem flush_exists_until : forall MQ0 MQ1 M0 I0 P O,
+    exists mpath M1,
+      (mq (MQ0 ++ MQ1) M0 (pq I0 P O) =[ mpath ]=> mq MQ1 M1 (pq (I0 ++ MQ_r MQ0) P O))
+      /\ Forall Flushing_act mpath
+      /\ ready M1.
+
+  Proof with ltac2:(eauto with LTS).
+    induction MQ0; intros MQ1 M0 I0 P O0.
+    {
+      (* Empty case trivial. *)
+      destruct (ready_exists MQ1 M0 (pq I0 P O0))
+        as (mpath0 & M0' & TM0 & HF & HR & _)...
+      exists mpath0, M0'.
+      unfold MQ_Clear; rewrite app_nil_r...
+    }
+
+    destruct (ready_exists (a :: MQ0 ++ MQ1) M0 (pq I0 P O0))
+      as (mpath0 & M0' & TM0 & HF & HR & _)...
+
+    specialize (flush_exists1 a (MQ0 ++ MQ1) M0' I0 P O0 HR) as
+      (ma & M1 & TM1 & HF1).
+
+    edestruct (IHMQ0 MQ1 M1 (I0 ++ MQ_r [a]) P O0)
+      as (mpath1 & M2 & TM2 & HFlush & HR2); auto.
+
+    exists (mpath0 ++ ma :: mpath1), M2.
+
+    replace (MQ_r (a :: MQ0)) with (MQ_r [a] ++ MQ_r MQ0) by attac.
+    rewrite app_assoc in *.
+    split; eattac.
+  Qed.
+
+
+  (** Any state of a monitored process can be dragged to a "canonical" one, where the monitor is ready
+  and has empty queue. **)
   Theorem flush_exists : forall MQ0 M0 I0 P O,
-    exists mpath M1 I1,
-      (mq MQ0 M0 (pq I0 P O) =[ mpath ]=> instr (exist _ [] (Forall_nil _)) M1 (pq (I0 ++ I1) P O))
+    exists mpath M1,
+      (mq MQ0 M0 (pq I0 P O) =[ mpath ]=> mq [] M1 (pq (I0 ++ MQ_r MQ0) P O))
+      /\ Forall Flushing_act mpath
+      /\ ready M1.
+
+  Proof.
+    intros.
+    specialize (flush_exists_until MQ0 [] M0 I0 P &O)
+      as (mpath & M1 & T & HF & HR1).
+
+    eexists mpath, M1.
+    eattac.
+  Qed.
+
+
+  (** Any state of a monitored process can be dragged to a "canonical" one, where the monitor is ready
+  and has empty queue. **)
+  Theorem flush_exists' : forall MQ0 h Ms0 I0 P O,
+    exists mpath s1,
+      (mq MQ0 {|handle:=h; state:=Ms0|} (pq I0 P O) =[ mpath ]=> mq [] {|handle:=h; state:=MRecv s1|} (pq (I0 ++ MQ_r MQ0) P O))
+      /\ Forall Flushing_act mpath.
+
+  Proof.
+    intros.
+    specialize (flush_exists_until MQ0 [] {|handle:=h; state:=Ms0|} I0 P &O)
+      as (mpath & M1 & T & HF & HR1).
+
+    hsimpl in *.
+    eexists mpath, s.
+    enough (h0 = h) by eattac.
+    enough (handle {| handle := h; state := Ms0 |} = handle {| handle := h0; state := MRecv s |} ) by attac.
+    eauto using mq_preserve_handle.
+  Qed.
+
+
+  (** Any state of a monitored process can be dragged to a "canonical" one, where the monitor is ready
+  and has empty queue. **)
+  Theorem flush_exists_instr : forall MQ0 M0 I0 P O,
+    exists mpath M1,
+      (mq MQ0 M0 (pq I0 P O) =[ mpath ]=> instr (exist _ [] (Forall_nil _)) M1 (pq (I0 ++ MQ_r MQ0) P O))
       /\ Forall Flushing_act mpath.
 
   Proof with ltac2:(eauto with LTS).
-    induction MQ0; intros M0 I0 P O0.
-    {
-      (* Empty case trivial. *)
-      destruct (ready_exists [] M0 (pq I0 P O0))
-        as (mpath0 & M0' & TM0 & HF & HR & _)...
-      unshelve eexists mpath0, (exist _ M0' HR), [];
-        unfold MQ_Clear; rewrite app_nil_r...
-    }
+    intros.
+    specialize (flush_exists MQ0 M0 I0 P &O)
+      as (mpath & M1 & T & HF & HR1).
 
-    destruct (ready_exists (a :: MQ0) M0 (pq I0 P O0))
-      as (mpath0 & M0' & TM0 & HF & HR & _)...
-
-    specialize (flush_exists1 a MQ0 M0' I0 P O0 HR) as HFl.
-    hsimpl in HFl.
-
-    edestruct (IHMQ0 M1 (I0 ++ I1) P O0)
-      as (mpath1 & M2 & I2 & TM2 & HFlush); auto.
-
-    exists (mpath0 ++ ma :: mpath1), M2, (I1 ++ I2).
-
-    rewrite app_assoc.
+    eexists mpath, (exist _ M1 HR1).
     eattac.
   Qed.
 
@@ -2121,7 +2035,7 @@ Module Model(MD : MODEL_DATA).
     kill H1.
     destruct N1 as [MQ0' M0' S0'].
 
-    apply path_corr_seq_nil_l1...
+    apply path_corr_cons_nil_l...
     - kill T0; kill H0...
       all: bullshit.
     - eapply (IHmpath MQ0' M0' S0'); eauto.
@@ -2178,99 +2092,47 @@ Module Model(MD : MODEL_DATA).
   Qed.
 
 
-  Lemma corr_extraction' : forall
+  Lemma corr_extraction1 : forall
+      [ma]
+      [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1],
+      (mq MQ0 M0 (pq I0 P0 O0) =(ma)=> mq MQ1 M1 (pq I1 P1 O1)) ->
+      (pq (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0) =[MPath_to_PPath [ma]]=> pq (I1 ++ MQ_r MQ1) P1 (MQ_s MQ1 ++ O1)).
+
+  Proof.
+    intros.
+    destruct_ma ma; hsimpl in *; attac.
+    - rewrite <- app_assoc in *; attac.
+    - rewrite <- app_assoc in *; attac.
+    - consider (_ =(_)=> _); attac.
+  Qed.
+
+
+  Lemma corr_extraction : forall
       [mpath]
-      [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1]
-      [MI0 MO0 MI1 MO1],
+      [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1],
       (mq MQ0 M0 (pq I0 P0 O0) =[mpath]=> mq MQ1 M1 (pq I1 P1 O1)) ->
-      MQ_Split MQ0 MI0 MO0 ->
-      MQ_Split MQ1 MI1 MO1 ->
-      exists ppath,
-        (pq (I0 ++ MI0) P0 (MO0 ++ O0) =[ppath]=> pq (I1 ++ MI1) P1 (MO1 ++ O1))
-        /\ path_corr mpath ppath.
+      (pq (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0) =[MPath_to_PPath mpath]=> pq (I1 ++ MQ_r MQ1) P1 (MQ_s MQ1 ++ O1)).
 
   Proof with (eauto with LTS).
-    induction mpath; ltac1:(intros until MO1); intros TM MQS0 MQS1.
+    induction mpath; intros.
+    1: { attac. }
 
-    { (* Base case easy *)
-      kill TM. exists [].
-      apply (MQ_Split_det MQS0) in MQS1; attac...
-    }
+    hsimpl in * |-.
 
-    (* Inductive step --- a::mpath *)
-    kill TM.
     destruct N1 as [MQ0' M0' [I0' P0' O0']].
-    ltac1:(rename T1 into TM).
+    rewrite MPath_to_PPath_cons.
 
-    kill T0.
-    { (* Monitor received mon-msg *)
-      edestruct IHmpath as (ppath & T & H_corr).
-      4: exists ppath. all: eattac.
-    }
-
-    { (* Monitor sent mon-msg *)
-      edestruct IHmpath as (ppath & T & H_corr).
-      4: exists ppath. all: eattac.
-    }
-
-    {  (* Monitor picked mon-msg *)
-      edestruct IHmpath as (ppath & T & H_corr).
-      4: exists ppath. all: eattac.
-    }
-
-    { (* Monitor taued *)
-      edestruct IHmpath as (ppath & T & H_corr).
-      4: exists ppath. all: eattac.
-    }
-
-    { (* Monitor received *)
-      edestruct IHmpath as (ppath & T & H_corr).
-      4: exists (Recv n v :: ppath). all: eattac.
-    }
-
-    { (* Monitor sent*)
-      kill MQS0.
-      edestruct IHmpath as (ppath & T & H_corr).
-      4: exists (Send n v :: ppath). all: eattac.
-    }
-
-    { (* Process received *)
-      kill MQS0.
-      edestruct IHmpath as (ppath & T & H_corr).
-      4: exists ppath. all: eattac.
-
-           hsimpl in *.
-           repeat (rewrite <- app_assoc in * ).
-           simpl in *.
-           auto.
-    }
-
-    { (* Process sent *)
-      edestruct IHmpath as (ppath & T & H_corr).
-      4: exists ppath. all: kill TP; eattac.
-
-           hsimpl in *.
-           repeat (rewrite <- app_assoc in * ).
-           simpl in *.
-           auto.
-    }
-
-    { (* Process did a tau *)
-      edestruct IHmpath as (ppath & T & H_corr).
-      4: exists (Tau :: ppath). all: eauto with LTS.
-           kill TP; eattac 9.
-    }
+    eapply path_seq with (P2:= pq (I0' ++ MQ_r MQ0') P0' (MQ_s MQ0' ++ O0'));
+      eauto using corr_extraction1.
   Qed.
 
 
   (** If a monitored process progresses over a path, then the unmonitored process can follow a
   corresponding path, if the traces in the monitor's queue are converted to unconsumed sends and
   receives of the process. *)
-  Theorem corr_extraction : forall [mpath MS0 MS1],
+  Theorem corr_extraction_instr : forall [mpath MS0 MS1],
       (MS0 =[mpath]=> MS1) ->
-      exists ppath,
-        (deinstr MS0 =[ppath]=> deinstr MS1)
-        /\ path_corr mpath ppath.
+      (deinstr MS0 =[MPath_to_PPath mpath]=> deinstr MS1).
 
   Proof with (attac).
     intros.
@@ -2278,11 +2140,7 @@ Module Model(MD : MODEL_DATA).
     destruct MS0 as [MQ0 M0 [I0 P0 O0]].
     destruct MS1 as [MQ1 M1 [I1 P1 O1]].
 
-    simpl.
-    assert (MQ_Split MQ0 (MQ_r MQ0) (MQ_s MQ0)) as Hsplit0 by attac.
-    assert (MQ_Split MQ1 (MQ_r MQ1) (MQ_s MQ1)) as Hsplit1 by attac.
-
-    eauto using corr_extraction'.
+    eauto using corr_extraction.
   Qed.
 
 
@@ -2293,7 +2151,7 @@ Module Model(MD : MODEL_DATA).
       exists mpath1 M2 ppath S2,
         (MS1 =[ mpath1 ]=> instr (exist _ [] (Forall_nil _)) M2 S2)
         /\ (deinstr MS0 =[ ppath ]=> S2)
-        /\ path_corr (mpath0 ++ mpath1) ppath
+        /\ (mpath0 ++ mpath1) >:~ ppath
         /\ Forall Flushing_act mpath1.
 
   Proof.
@@ -2303,24 +2161,22 @@ Module Model(MD : MODEL_DATA).
     destruct MS1 as [MQ1 M1 [I1 P1 O1]].
 
     (* Find a continuation *)
-    destruct (flush_exists MQ1 M1 I1 P1 O1)
-      as (mpath1 & M2 & I2 & TM1 & Flush).
+    destruct (flush_exists_instr MQ1 M1 I1 P1 O1)
+      as (mpath1 & M2 & TM1 & Flush).
     exists mpath1, M2.
 
     (* Find a process path that corresponds to the combined monitor path *)
     pose (path_seq TM0 TM1) as TM.
-    destruct (corr_extraction TM) as [ppath [T H_corr]].
+    pose (MPath_to_PPath (mpath0 ++ mpath1)) as ppath.
+    eassert (deinstr (mq MQ0 M0 (pq I0 P0 O0)) =[ppath]=> deinstr _)
+      by eauto using corr_extraction_instr.
     simpl in *. repeat (rewrite app_nil_r in * ).
 
     exists ppath.
-    exists ((pq (I1 ++ I2) P1 O1)).
+    exists ((pq (I1 ++ MQ_r MQ1) P1 O1)).
 
     (* We have what we need *)
-    repeat split.
-    - apply TM1.
-    - apply T.
-    - apply H_corr.
-    - apply Flush.
+    attac.
   Qed.
 
 
@@ -2330,7 +2186,7 @@ Module Model(MD : MODEL_DATA).
       exists mpath1 M2 ppath S2,
         (MS1 =[ mpath1 ]=> instr (exist _ [] (Forall_nil _)) M2 S2)
         /\ (S0 =[ ppath ]=> S2)
-        /\ path_corr (mpath0 ++ mpath1) ppath
+        /\ (mpath0 ++ mpath1) >:~ ppath
         /\ Forall Flushing_act mpath1.
 
   Proof with (auto with LTS).
@@ -2356,7 +2212,7 @@ Module Model(MD : MODEL_DATA).
 
   Proof with attac.
     ltac1:(intros until S1). intros TM HMQ HF HC.
-    kill TM; kill HF; kill HC; kill HMQ...
+    destruct_ma ma; hsimpl in *; eattac.
   Qed.
 
 
@@ -2369,15 +2225,14 @@ Module Model(MD : MODEL_DATA).
 
   Proof.
     induction mpath; ltac1:(intros until S1); intros TM HMQ HF HC.
-    { kill TM; kill HF; kill HC; kill HMQ; split; attac. }
+    1: { attac. }
 
-    apply (path_corr_split_nil1) in HC as [HC0 HC1].
-    apply Forall_cons_iff in HF as [HF0 HF1].
-    apply path_split1 in TM as ([MQ0' M0' S0'] & TM0 & TM1).
+    hsimpl in *.
 
-    destruct (flush_corr_nil_proc_stay1 TM0 HMQ HF0 HC0) as [HEq0 HMQ0'].
+    destruct N1 as [MQ0' M0' S0'].
+    consider (S0' = S0 /\ MQ_Clear MQ0') by eauto using flush_corr_nil_proc_stay1 with LTS.
 
-    eapply IHmpath; subst; eauto with LTS.
+    eauto with LTS.
   Qed.
 
 
@@ -2390,37 +2245,158 @@ Module Model(MD : MODEL_DATA).
     intros T. kill T; eattac 10.
   Qed.
 
-  Ltac2 intros_until i :=
-    ltac1:(i |- intros until i) (Ltac1.of_ident i).
 
-  Ltac2 Notation "intros" "until" i(ident) := intros_until i.
+  Lemma Transp_completeness_send_prep : forall [n v] [S0 I1 P1 O1] MQ0 M0,
+      (S0 =( Send n v )=> pq I1 P1 O1) ->
+      exists mpath M1,
+        (mq MQ0 M0 S0 =[MActP (Send n v) :: mpath]=> (mq [TrSend n v] M1 (pq (I1 ++ MQ_r MQ0) P1 O1)))
+        /\ Forall Flushing_act mpath
+        /\ ready M1.
 
-  Lemma Transp_completeness_send : forall [n v] [S0 S1] MQ0 M0,
+  Proof.
+    intros.
+
+    destruct S0 as [I0 P0 O0].
+    hsimpl in *.
+
+    have (mq MQ0 M0 (pq I1 P1 ((n, v) :: O1)) =(MActP (Send n v))=> mq (MQ0 ++ [TrSend n v]) M0 (pq I1 P1 O1)).
+
+    consider (exists mpath M1,
+                 (mq (MQ0 ++ [TrSend n v]) M0 (pq I1 P1 O1) =[ mpath ]=> mq [TrSend n v] M1 (pq (I1 ++ MQ_r MQ0) P1 O1))
+                 /\ Forall Flushing_act mpath
+                 /\ ready M1
+             )
+      by eauto using flush_exists_until.
+
+    exists mpath, {|handle:=h; state:=MRecv s|}.
+    eattac 10.
+  Qed.
+
+
+  Lemma Transp_completeness_send : forall [n v] [S0 I1 P1 O1] MQ0 M0,
+      (S0 =( Send n v )=> pq I1 P1 O1) ->
+      exists mpath s1,
+        (mq MQ0 M0 S0 =[MActP (Send n v) :: mpath ++ [MActT (Send n v)]]=> (mq [] {|handle:=handle M0; state:=handle M0 (TrSend n v) s1|} (pq (I1 ++ MQ_r MQ0) P1 O1)))
+        /\ Forall Flushing_act mpath.
+
+  Proof.
+    intros.
+
+    consider
+      (exists mpath M1,
+          (### mq MQ0 M0 S0 =[MActP (Send n v) :: mpath]=> (mq [TrSend n v] M1 (pq (I1 ++ MQ_r MQ0) P1 O1)))
+          /\ Forall Flushing_act mpath
+          /\ ready M1
+      ) by eauto using Transp_completeness_send_prep.
+
+    assert (handle M0 = handle {| handle := h; state := MRecv s |} ) by re_have eauto using mq_preserve_handle.
+
+    have (mq [TrSend n v] {| handle := h; state := MRecv s |} (pq (I1 ++ MQ_r MQ0) P1 O1)
+               =(MActT (Send n v))=>
+              mq []  {| handle := h; state := h (TrSend n v) s |} (pq (I1 ++ MQ_r MQ0) P1 O1)
+           ).
+
+    exists mpath, s.
+    eattac.
+    rewrite app_comm_cons.
+    re_have eauto with LTS.
+  Qed.
+
+
+  Lemma Flushing_clear1 [a] [MQ0 M0 S0 MS1] :
+    (mq MQ0 M0 S0 =(a)=> MS1) ->
+    MQ_Clear MQ0 ->
+    Flushing_act a ->
+    [a] >:~ [].
+
+  Proof.
+    intros.
+    destruct_ma a; attac.
+  Qed.
+
+
+  Lemma Flushing_clear [mpath] [MQ0 M0 S0 MS1] :
+    (mq MQ0 M0 S0 =[mpath]=> MS1) ->
+    MQ_Clear MQ0 ->
+    Forall Flushing_act mpath ->
+    mpath >:~ [].
+
+  Proof.
+    generalize dependent MQ0 M0 S0.
+    induction mpath; attac.
+    destruct N1.
+
+    assert ([a] >:~ []) by eauto using Flushing_clear1 with LTS.
+    destruct_ma a; eattac 2.
+
+    eapply IHmpath; eattac.
+  Qed.
+
+
+  Lemma Flushing_clear_until [mpath] [MQ0 M0 S0 MQ1 M1 S1] :
+    (mq (MQ0 ++ MQ1) M0 S0 =[mpath]=> mq MQ1 M1 S1) ->
+    MQ_Clear MQ0 ->
+    Forall Flushing_act mpath ->
+    mpath >:~ [].
+
+  Proof.
+    intros.
+    assert (mq MQ0 M0 S0 =[mpath]=> mq [] M1 S1) by eauto using Flushing_retract.
+    eauto using Flushing_clear.
+  Qed.
+
+
+  Lemma Transp_completeness_send_instr : forall [n v] [S0 S1] MQ0 M0,
       (S0 =( Send n v )=> S1) ->
       exists mpath M1,
         (instr MQ0 M0 S0 =[MActP (Send n v) :: mpath ++ [MActT (Send n v)]]=> (mq [] M1 S1))
-        /\ path_corr mpath []
+        /\ mpath >:~ []
         /\ Forall Flushing_act mpath.
 
   Proof with eattac.
-    intros until M0.
-    intros T.
-    kill T.
-
-    destruct (flush_exists_clear MQ0 M0 (pq &I P &O))
-      as (mpath0 & M0' & TM0 & HF0 & HC0).
+    intros.
 
     destruct MQ0 as [MQ0 HMQ0].
     destruct M0 as [M0 HM0].
 
-    unfold instr in *.
-    specialize (instr_with_ready (exist _ [] (Forall_nil _)) M0' (pq &I P &O)) as HR0.
-    destruct M0'; simpl in *; hsimpl in *.
+    destruct S1 as [I1 P1 O1].
 
-    exists mpath0, {|handle:=h0; state := (h0 (TrSend n v) s0)|}.
-    repeat split...
-    eapply path_seq1...
-    apply (Flushing_cont [TrSend n v]) in TM0; simpl in TM0; auto.
+    consider (exists mpath s1,
+                 (### mq MQ0 M0 S0 =[MActP (Send n v) :: mpath ++ [MActT (Send n v)]]=> (mq [] {|handle:=handle M0; state := handle M0 (TrSend n v) s1|} (pq (I1 ++ MQ_r MQ0) P1 O1)))
+                 /\ Forall Flushing_act mpath
+             )
+        by eauto using Transp_completeness_send.
+
+    exists mpath, {|handle:=handle M0; state := handle M0 (TrSend n v) s1|}.
+
+    unfold instr; simpl.
+
+    replace (MQ_r MQ0) with ([] : Que Val) by attac.
+    rewrite app_nil_r in *.
+    repeat split; re_have eauto.
+    re_have hsimpl in *.
+    eauto using Flushing_clear_until.
+  Qed.
+
+
+  Lemma Transp_completeness_recv_prep : forall n v MQ0 M0 I0 P0 O0,
+    exists mpath M1,
+      (mq MQ0 M0 (pq I0 P0 O0) =[MActT (Recv n v) :: mpath]=> mq [TrRecv n v] M1 (pq (I0 ++ MQ_r MQ0) P0 O0))
+      /\ Forall Flushing_act mpath
+      /\ ready M1.
+
+  Proof.
+    intros.
+    have (mq MQ0 M0 (pq I0 P0 O0) =(MActT (Recv n v))=> mq (MQ0 ++ [TrRecv n v]) M0 (pq I0 P0 O0)).
+
+    consider (exists mpath M1,
+                 (mq (MQ0 ++ [TrRecv n v]) M0 (pq I0 P0 O0) =[ mpath ]=> mq [TrRecv n v] M1 (pq (I0 ++ MQ_r MQ0) P0 O0))
+                 /\ Forall Flushing_act mpath
+                 /\ ready M1
+             )
+      by eauto using flush_exists_until.
+
+    eexists mpath, _.
     eattac.
   Qed.
 
@@ -2428,147 +2404,108 @@ Module Model(MD : MODEL_DATA).
   Lemma Transp_completeness_recv : forall [n v] [S0 S1] MQ0 M0,
       MQ_Clear MQ0 ->
       (S0 =( Recv n v )=> S1) ->
-      exists mpath M1,
-        (mq MQ0 M0 S0 =[MActT (Recv n v) :: mpath]=> mq [TrRecv n v] M1 S0)
-        /\ path_corr mpath []
+      exists mpath s1,
+        (mq MQ0 M0 S0 =[MActT (Recv n v) :: mpath]=> mq [] {|handle:=handle M0; state:=handle M0 (TrRecv n v) s1|} S1)
         /\ Forall Flushing_act mpath
-        /\ ready M1.
+        /\ mpath >:~ [].
 
-  Proof with eattac.
-    intros until M0.
-    intros HMQ0 T.
+  Proof.
+    intros.
 
-    unfold instr.
+    destruct S0 as [I0 P0 O0].
+    destruct S1 as [I1 P1 O1].
 
-    destruct (ready_exists MQ0 M0 S0)
-      as (mpath0 & M0' & TM0 & HF0 & HR0' & HC0).
+    consider (exists mpath M1,
+                 (mq MQ0 M0 (pq I0 P0 O0) =[MActT (Recv n v) :: mpath]=> mq [TrRecv n v] M1 (pq (I0 ++ MQ_r MQ0) P0 O0))
+                 /\ Forall Flushing_act mpath
+                 /\ ready M1) by eauto using Transp_completeness_recv_prep.
 
-    destruct (flush_exists_clear (exist _ MQ0 HMQ0) (exist _ M0' HR0') S0)
-      as (mpath1 & M1 & TM1 & HF1 & HC1).
+    assert (mpath >:~ []) by eauto using Flushing_clear_until.
 
-    unfold instr in *.
-    pose (instr_with_ready (exist _ [] (Forall_nil _)) (exist _ M0' HR0') S0) as HR0.
-    kill HR0.
+    assert (handle M = handle {| handle := h; state := MRecv s |} )
+      by eauto using mq_preserve_handle.
 
-    destruct M1 as [M1 HM1].
-    apply (Flushing_cont [TrRecv n v]) in TM1; auto. simpl in TM1.
-    apply (Flushing_cont [TrRecv n v]) in TM0; auto. simpl in TM0.
+    exists (mpath ++ [MActP (Recv n v)]).
+    exists s.
 
-    exists (mpath0 ++ mpath1), M1...
+    rewrite app_comm_cons.
+    eattac 15.
   Qed.
-
-
-  Ltac2 rec reorg_list (t : constr) (tail : constr) :=
-    match! t with
-    | [] => tail
-    | (?p :: []) =>
-        match! tail with
-        | [] => '[$p]
-        | _ => '[$p ++ $tail]
-        end
-    | (?p0 :: ?p1) => let p1 := reorg_list p1 tail in '([$p0] ++ $p1)
-    | (?p0 ++ ?p1) =>
-        match! reorg_list p1 tail with
-        | [] => reorg_list p0 tail
-        | ?p1 => reorg_list p0 p1
-        end
-    | _ => match! tail with
-          | [] => t
-          | _ => '($t ++ $tail)
-          end
-    end.
-
-  Ltac2 rec isolate_last (t : constr) :=
-    match! t with
-    | ?a ++ ?b ++ ?c =>
-        match! isolate_last '($b ++ $c) with
-        | ?b ++ ?c => '(($a ++ $b) ++ $c)
-        | _ => '(($a ++ $b) ++ $c)
-        end
-    | _ => t
-    end.
-
-  Ltac2 reorg_ptrans_t t :=
-    match! t with
-    | (?n0 =(?a)=> ?n1) => '($n0 =[$a]=> $n1)
-    | (?n0 =[?p]=> ?n1) =>
-        let p := reorg_list p '[] in
-        let p := isolate_last p in
-        '($n0 =[$p]=> $n1)
-    end.
-
-
-  (** Turn any ptrans into a form of [(x ++ (y ++ z)) ++ t]. Usually either tip of a sought transition
-is known, thus this form seems to be extremely friendly towards eauto dumbass (as opposed to myself)
-   *)
-  Ltac2 reorg_ptrans_goal () :=
-    match! goal with
-    | [|- ?t] =>
-        let t' := reorg_ptrans_t t in
-        let e := Fresh.in_goal @E in
-        enough ($t') as $e by
-            ( let eh := hyp e in
-              repeat (first
-                        [ rewrite <- app_assoc in *
-                        | rewrite <- app_comm_cons in *
-                        | progress (simpl in * )
-                ]); apply $eh
-            )
-    end.
-
-  (* WARNING: this mofo slow af *)
-  (* Hint Extern 10 (_ =(_)=> _) => ltac2:(reorg_ptrans_goal ()) : LTS. *)
-  (* Hint Extern 10 (_ =[_]=> _) => ltac2:(reorg_ptrans_goal ()) : LTS. *)
 
 
   Theorem Transp_completeness1 : forall [a S0 S1] MQ0 M0,
       (S0 =( a )=> S1) ->
       exists mpath0 ma mpath1 M1,
-        (instr MQ0 M0 S0 =[ mpath0 ++ [ma] ++ mpath1]=> instr (exist _ [] (Forall_nil _)) M1 S1)
-        /\ path_corr mpath0 []
-        /\ path_corr [ma] [a]
-        /\ path_corr mpath1 [].
+        (instr MQ0 M0 S0 =[ mpath0 ++ ma :: mpath1]=> mq [] M1 S1)
+        /\ mpath0 >:~ []
+        /\ ma >:- a
+        /\ mpath1 >:~ [].
 
-  Proof with eattac.
-    intros until M0.
-    intros T.
-
-    unfold instr. simpl.
-
+  Proof.
+    intros.
     destruct a.
-    - destruct (Transp_completeness_send MQ0 M0 T)
-        as (mpath0 & M1 & TM & Corr & HF).
+    - consider
+        (exists mpath M1,
+            (### instr MQ0 M0 S0 =[MActP (Send n v) :: mpath ++ [MActT (Send n v)]]=> (mq [] M1 S1))
+            /\ mpath >:~ [] /\ Forall Flushing_act mpath)
+        by eauto using Transp_completeness_send_instr.
 
-      destruct (ready_exists [] M1 S1)
-        as (mpath1 & M1' & TM' & HF' & HR1 & Corr').
+      exists (MActP (Send n v) :: mpath), (MActT (Send n v)), [].
+      eattac.
+    - destruct MQ0 as [MQ0 ?].
+      destruct M0 as [M0 ?].
+      consider (
+          exists mpath s1,
+            (### mq MQ0 M0 S0 =[ MActT (Recv n v) :: mpath ]=> mq [] {| handle := handle M0; state := handle M0 (TrRecv n v) s1 |} S1) /\
+              Forall Flushing_act mpath /\ mpath >:~ [])
 
-      exists (MActP (Send n v) :: mpath0), (MActT (Send n v)).
-      exists mpath1, (exist _ M1' HR1)...
-      unfold instr in *.
-      hsimpl in *.
-      eauto 14 with LTS.
+        by eauto using Transp_completeness_recv.
 
-    - destruct MQ0 as [MQ0 HMQ0].
-      destruct M0 as [M0 HM0].
+      exists [], (MActT (Recv n v)), mpath.
+      eattac.
 
-      destruct (Transp_completeness_recv MQ0 M0 HMQ0 T)
-        as (mpath0 & M1 & TM & Corr & HF & HM1).
+    - consider (exists mpath M1, (instr MQ0 M0 S1 =[ mpath ]=> instr (exist _ [] _) M1 S1) /\ Forall Flushing_act mpath /\ mpath >:~ [])
+        by eauto using flush_exists_clear.
 
-      apply path_split1 in TM as ([MQ0' M0' S0'] & TM0 & TM1).
+      assert (instr MQ0 M0 S0 =( MActP Tau )=> instr MQ0 M0 S1) by eauto using Transp_completeness_tau.
 
-      assert (exists M1', M1 =(MonRecv (TrRecv n v))=> M1') as TM1' by eauto with LTS.
-      strip_exists @TM1'.
+      exists [], (MActP Tau), mpath.
+      exists (proj1_sig M1).
 
-      destruct (ready_exists [] M1' S1)
-        as (mpath1 & M2 & TM2 & HF2 & HR2 & HC2).
+      eattac.
+  Qed.
 
-      exists [], (MActT (Recv n v)), ( mpath0 ++ MActP (Recv n v) :: mpath1), (exist _ M2 HR2); eattac 14.
-    - pose (Transp_completeness_tau MQ0 M0 T) as TM.
 
-      destruct (flush_exists_clear MQ0 M0 S1)
-        as (mpath0 & M0' & TM0 & HF0 & HC0).
+  Theorem Transp_completeness1_instr : forall [a S0 S1] MQ0 M0,
+      (S0 =( a )=> S1) ->
+      exists mpath0 ma mpath1 M1,
+        (instr MQ0 M0 S0 =[ mpath0 ++ ma :: mpath1]=> instr (exist _ [] (Forall_nil _)) M1 S1)
+        /\ mpath0 >:~ []
+        /\ ma >:- a
+        /\ mpath1 >:~ [].
 
-      exists [], (MActP Tau), mpath0, M0'...
+  Proof.
+    intros.
+
+    consider ( exists mpath0 ma mpath1 M1,
+                 (### instr MQ0 M0 S0 =[ mpath0 ++ ma :: mpath1]=> mq [] M1 S1)
+                 /\ mpath0 >:~ []
+                 /\ ma >:- a
+                 /\ mpath1 >:~ []
+           ) by eauto using Transp_completeness1.
+
+    consider (exists mpath2 M2,
+                 (### mq [] M1 S1 =[ mpath2 ]=> mq [] M2 S1)
+                 /\ Forall Flushing_act mpath2
+                 /\ (### ready M2)
+                 /\ mpath2 >:~ []
+             ) by eauto using ready_exists.
+
+    exists mpath0, ma, (mpath1 ++ mpath2).
+    replace (mpath0 ++ ma :: mpath1 ++ mpath2)
+      with  ((mpath0 ++ ma :: mpath1) ++ mpath2)
+      by attac.
+    unshelve eexists (exist _ M2 _); eattac.
   Qed.
 
 
@@ -2578,91 +2515,42 @@ is known, thus this form seems to be extremely friendly towards eauto dumbass (a
       (S0 =[ path ]=> S1) ->
       exists mpath M1,
         (instr MQ0 M0 S0 =[ mpath ]=> instr (exist _ [] (Forall_nil _)) M1 S1)
-        /\ path_corr mpath path.
+        /\ mpath >:~ path.
 
   Proof with eattac.
-    induction path; intros until M0; intros T.
+    induction path; intros.
+    - consider (exists mpath M1,
+                 (instr MQ0 M0 S0 =[ mpath ]=>
+                    instr (exist (fun MQ : list Event => MQ_Clear MQ) [] (Forall_nil is_EvRecv)) M1 S0) /\
+                   Forall Flushing_act mpath /\ mpath >:~ []
+             ) by eauto using flush_exists_clear.
+      exists mpath, M1.
+      eattac.
 
-    kill T.
-    destruct (flush_exists_clear MQ0 M0 S1)
-      as (mpath & M1 & TM1 & HF1 & HC1).
-    exists mpath, M1...
+    - hsimpl in *.
+      rename S1 into S2.
+      rename N1 into S1.
 
-    kill T.
-    ltac1:(rename N1 into S0').
+      consider (exists mpath0 ma mpath1 M1,
+                 (### instr MQ0 M0 S0 =[ mpath0 ++ ma :: mpath1]=> instr (exist _ [] (Forall_nil _)) M1 S1)
+                 /\ mpath0 >:~ []
+                 /\ ma >:- a
+                 /\ mpath1 >:~ []) by eauto using Transp_completeness1_instr.
 
-    apply (Transp_completeness1 MQ0 M0) in T0 as
-        (mpath00 & ma & mpath01 & M0' & TM0 & H_corr00 & H_corr0a & H_corr01).
+      consider (
+          exists mpath2 M2,
+            (### instr (exist _ [] (Forall_nil is_EvRecv)) M1 S1 =[ mpath2 ]=> instr (exist _ [] (Forall_nil is_EvRecv)) M2 S2)
+            /\ mpath2 >:~ path
+        ).
 
-    specialize (IHpath _ _ (exist _ [] (Forall_nil _)) M0' T1) as (mpath1 & M1 & TM1 & H_corr1).
+      exists ((mpath0 ++ ma :: mpath1) ++ mpath2).
+      exists M2.
+      eattac.
 
-    exists ((mpath00 ++ [ma] ++ mpath01) ++ mpath1), M1...
+      rewrite `(mpath0 >:~ []).
+      rewrite `(mpath1 >:~ []).
+      attac.
   Qed.
 
 End Model.
 
-
-(* STUPID *)
-(* Require Export Setoid. *)
-(* Require Export Relation_Definitions. *)
-
-(* Section Teste. *)
-
-(*   Context `{Label : Set}. *)
-(*   Context `{Node : Set}. *)
-(*   Context `{lts : LTS Label Node}. *)
-
-
-(*   Inductive Reachable : Node -> Node -> Prop := *)
-(*     RTrans l n0 n1 : (n0 =[l]=> n1) -> Reachable n0 n1. *)
-
-
-(*   Lemma RTrans_refl a : Reachable a a. *)
-(*     econstructor. apply PTnil. Qed. *)
-
-(*   Lemma RTrans_trans a b c : Reachable a b -> Reachable b c -> Reachable a c. *)
-(*     intros. *)
-(*     kill H. kill H0. econstructor. apply (path_seq H1 H). Qed. *)
-(* End Teste. *)
-
-(* Add Parametric Relation (Label Node : Set) {lts : LTS Label Node} : Node Reachable *)
-(*     reflexivity proved by RTrans_refl *)
-(*     transitivity proved by RTrans_trans *)
-(*     as rech_rel. *)
-
-(* Declare Module MD : MODEL_DATA. *)
-(* Module M := Model(MD). *)
-(* Import M. *)
-
-(* Goal forall P : Proc, Reachable P P. *)
-(*   intros. *)
-(*   reflexivity. *)
-(* Qed. *)
-
-(* Add Parametric Morphism (MQ : MQ_clear) (M : Mon_ready) : (instr MQ M) *)
-(*     with signature (@Reachable PAct PQued _) ==> (@Reachable MAct MQued _) *)
-(*       as instr_morph. *)
-(* Proof. *)
-(*   intros. *)
-(*   kill H. *)
-(*   econstructor. *)
-(*   specialize (Transp_completeness MQ M H0) as ?. *)
-(*   hsimpl in *. *)
-(* Abort. *)
-
-(* Add Parametric Morphism : deinstr *)
-(*     with signature (@Reachable MAct MQued _) ==> (@Reachable PAct PQued _) *)
-(*       as deinstr_morph. *)
-(* Proof. *)
-(*   intros. *)
-(*   kill H. *)
-(*   specialize (Transp_soundness H0) as ?. *)
-(*   hsimpl in *. *)
-(*   apply (RTrans (ppath0 ++ ppath1)). *)
-
-(*   enough (S2 = deinstr y). *)
-(*   { *)
-(*     subst. *)
-(*     eauto with LTS. *)
-(*   } *)
-(* Abort. *)

@@ -395,7 +395,8 @@ Module Net(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
     Lemma path_of_split : forall [n : Name] [npath0 npath1 path],
         Path_of n (npath0 ++ npath1) path ->
         exists path0 path1,
-          path = path0 ++ path1          /\ Path_of n npath0 path0
+          path = path0 ++ path1
+          /\ Path_of n npath0 path0
           /\ Path_of n npath1 path1.
 
     Proof with (eauto with LTS).
@@ -447,13 +448,18 @@ Module Net(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
         Path_of n (npath0 ++ npath1) (path0 ++ path1).
 
     Proof.
-      induction npath0; intros until path1; intros HPo0 HPo1; simpl in *.
-      apply path_of_nil in HPo0. subst. simpl. apply HPo1.
+      induction npath0; attac.
 
-      apply path_of_split1 in HPo0 as (path00 & path01 & HEq & HPo00 & HPo01); subst.
+      consider
+        (exists path0' path1',
+            path0 = path0' ++ path1'
+            /\ Path_of n [a] path0'
+            /\ Path_of n npath0 path1')
+        by eauto using path_of_split1.
+
       rewrite <- app_assoc.
-      specialize (IHnpath0 _ _ _ HPo01 HPo1).
-      apply path_of_seq1; auto.
+
+      eauto using path_of_seq1.
     Qed.
 
 
