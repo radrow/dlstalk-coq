@@ -83,6 +83,9 @@ Module Channel(MD : MODEL_DATA).
   Qed.
 
 
+  Inductive A := ssend (n : NChan) (v : Val) | rrecv (n : NChan) (v : Val) | ttau.
+  Print A_rect.
+
   Class gen_Act (Act : Set) :=
     {
       Payload : Set;
@@ -92,6 +95,12 @@ Module Channel(MD : MODEL_DATA).
 
       ia_disjoint : forall n v, not (ia (recv n v)) /\ not (ia (send n v));
       send_recv : forall n v, send n v <> recv n v;
+
+      gact_rec : forall [P : Act -> Type] (a : Act),
+                   (forall (nc : NChan) (v : Payload), P (send nc v)) ->
+                   (forall (nc : NChan) (v : Payload), P (recv nc v)) ->
+                   (ia a -> P a) ->
+                   P a
     }.
 
 

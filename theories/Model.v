@@ -54,6 +54,7 @@ Module Model(MD : MODEL_DATA).
 
       ia_disjoint := ltac:(intros; split; discriminate);
       send_recv := ltac:(intros; discriminate);
+      gact_rec := ltac:(destruct a; attac);
     }.
 
   #[export] Hint Unfold gen_Act_PAct : LTS.
@@ -336,7 +337,7 @@ Module Model(MD : MODEL_DATA).
   Ltac2 Notation "destruct_ma" c(constr) := destruct_ma c.
 
 
-  #[export]
+  #[export,refine]
     Instance gen_Act_MAct : gen_Act MAct :=
     {
       Payload := MVal;
@@ -355,13 +356,22 @@ Module Model(MD : MODEL_DATA).
 
       ia a :=
         match a with
-        | MActM Tau | MActP _ => True
+        | MActM Tau | MActT Tau | MActP _ => True
         | _ => False
         end;
 
       send_recv := ltac:(intros; destruct v; auto; discriminate);
       ia_disjoint := ltac:(intros; split; destruct v; auto; discriminate);
+      gact_rec := _;
     }.
+  Proof.
+    intros.
+    destruct_ma a; attac.
+    - specialize (X (n, t) (MValP v)); attac.
+    - specialize (X0 (n, t) (MValP v)); attac.
+    - specialize (X (n, t) (MValM v)); attac.
+    - specialize (X0 (n, t) (MValM v)); attac.
+  Defined.
 
   #[export] Hint Unfold gen_Act_MAct : LTS.
   #[export] Hint Transparent gen_Act_MAct : LTS.
@@ -758,7 +768,6 @@ Module Model(MD : MODEL_DATA).
 
   Definition MQ_Clear := Forall is_EvRecv.
 
-
   Lemma MQ_Clear_Forall MQ : Forall is_EvRecv MQ <-> MQ_Clear MQ.
   Proof. unfold MQ_Clear; split; auto. Qed.
 
@@ -808,6 +817,12 @@ Module Model(MD : MODEL_DATA).
   Qed.
 
   #[export] Hint Resolve MQ_Clear_recv_in_bs : bullshit.
+
+
+  Lemma MQ_Clear_NoSends : forall MQ, MQ_Clear MQ -> NoSends_MQ MQ.
+  Proof. induction MQ; attac. Qed.
+
+  #[export] Hint Resolve MQ_Clear_NoSends : LTS.
 
 
   Definition MQ_clear :=
@@ -1095,7 +1110,7 @@ Module Model(MD : MODEL_DATA).
 
   Proof. eattac. Qed.
 
-  #[export] Hint Rewrite -> MQ_Split_push_mrecvs using auto 4 with datatypes : LTS_R LTS_concl_R.
+  #[export] Hint Rewrite -> MQ_Split_push_mrecvs using solve [auto 4 with datatypes] : LTS_R LTS_concl_R.
 
 
   Fixpoint MQ_r (MQ : list Event) : Que Val :=
@@ -1168,7 +1183,7 @@ Module Model(MD : MODEL_DATA).
   Lemma MQ_s_In_inv MQ n v : List.In (TrSend n v) MQ <-> List.In (n, v) (MQ_s MQ).
   Proof. split; intros; eauto with LTS. Qed.
 
-  #[export] Hint Rewrite <- MQ_r_In_inv MQ_s_In_inv : LTS LTS_concl.
+  #[export] Hint Rewrite <- MQ_r_In_inv MQ_s_In_inv using assumption : LTS LTS_concl.
 
 
   Lemma MQ_r_app MQ0 MQ1 : MQ_r (MQ0 ++ MQ1) = MQ_r MQ0 ++ MQ_r MQ1.
@@ -1331,7 +1346,7 @@ Module Model(MD : MODEL_DATA).
     apply MPath_to_PPath_cons.
   Qed.
 
-  #[export] Hint Rewrite MPath_to_PPath_app : LTS LTS_concl. (* TODO aren't the following invs a bit redundant? *)
+  #[export] Hint Rewrite MPath_to_PPath_app using assumption : LTS LTS_concl. (* TODO aren't the following invs a bit redundant? *)
 
 
   Lemma path_corr_cons : forall ma mpath a ppath,
@@ -1654,7 +1669,7 @@ Module Model(MD : MODEL_DATA).
   Lemma flush_S_Clear MQ S0 : MQ_Clear MQ -> flush_S MQ S0 = S0.
   Proof. destruct S0; attac. Qed.
 
-  #[export] Hint Rewrite -> flush_S_Clear : LTS LTS_concl.
+  #[export] Hint Rewrite -> flush_S_Clear using spank : LTS LTS_concl.
 
 
   Lemma flush_skip_M MQ nc e h s:
@@ -1676,7 +1691,7 @@ Module Model(MD : MODEL_DATA).
     induction MQ1; attac.
   Qed.
 
-  #[export] Hint Rewrite -> flush_skip_M flush_cont_M : LTS LTS_concl.
+  #[export] Hint Rewrite -> flush_skip_M flush_cont_M using assumption : LTS LTS_concl.
 
 
   Lemma mk_flush_cont_path MQ0 MQ1 M :
@@ -2477,6 +2492,18 @@ Module Model(MD : MODEL_DATA).
       attac.
   Qed.
 
+
+  Lemma flushing_nil_MQ : forall MQ M, mk_flush_path MQ M = [] -> MQ = [].
+  Proof. destruct MQ; attac. Qed.
+
+  Lemma flushing_nil_M : forall MQ M, mk_flush_path MQ M = [] -> ready M.
+  Proof. destruct MQ, M, state0; attac. Qed.
+
+  #[export] Hint Rewrite -> flushing_nil_MQ using spank : LTS LTS_concl.
+
+  #[export] Hint Resolve flushing_nil_M : LTS.
+
+
   Fixpoint flushing_M_artifact (self : Name) (M : MCode) (n : Name) : list Event :=
     match M with
     | MRecv _ => []
@@ -2492,7 +2519,7 @@ Module Model(MD : MODEL_DATA).
         let MQ0 := flushing_M_artifact self (state M) n in
         let MQ1 := flushing_artifact self MQ' {|handle:=handle M; state:=handle M e (next_state (state M))|} n in
         MQ0 ++ match e with
-          | TrSend (n', t) v => if NAME.eqb n n' then TrRecv (n', t) v :: MQ1 else MQ1
+          | TrSend (n', t) v => if NAME.eqb n n' then TrRecv (self, t) v :: MQ1 else MQ1
           | _ => MQ1
           end
     end.
@@ -2509,13 +2536,13 @@ Module Model(MD : MODEL_DATA).
     end.
 
 
-  Lemma flushing_M_artifact_NoSend : forall self M n, NoSends_MQ (flushing_M_artifact self M n).
+  Lemma flushing_M_artifact_Clear : forall self M n, MQ_Clear (flushing_M_artifact self M n).
   Proof.
     induction M; attac.
     smash_eq n n0; attac.
   Qed.
 
-  #[export] Hint Resolve flushing_M_artifact_NoSend : LTS.
+  #[export] Hint Resolve flushing_M_artifact_Clear : LTS.
 
   Lemma flushing_artifact_NoSend : forall self MQ M n, NoSends_MQ (flushing_artifact self MQ M n).
   Proof.
@@ -2528,6 +2555,28 @@ Module Model(MD : MODEL_DATA).
   Proof.
     induction mpath; attac.
     destruct_ma a; attac; smash_eq n n0; attac.
+  Qed.
+
+  Lemma flushing_artifact_Clear : forall self MQ M n, NoSends_MQ MQ -> MQ_Clear (flushing_artifact self MQ M n).
+  Proof.
+    induction MQ; attac.
+    destruct a; attac.
+  Qed.
+
+  #[export] Hint Resolve flushing_artifact_NoSend flushing_artifact_Clear path_artifact_NoSend : LTS.
+
+
+  Lemma flushing_artifact_app : forall self MQ0 MQ1 M n,
+      flushing_artifact self (MQ0 ++ MQ1) M n = flushing_artifact self MQ0 M n ++ flushing_artifact self MQ1 (flush_M MQ0 M) n.
+
+  Proof.
+    intros.
+
+    destruct M as [h s].
+    generalize dependent s.
+    induction MQ0; attac.
+    - blast_cases; destruct MQ1; attac.
+    - blast_cases; rewrite IHMQ0; attac.
   Qed.
 
 End Model.

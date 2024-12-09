@@ -9,12 +9,12 @@ From Ltac2 Require Import Printf.
 
 Import Ltac2.Notations.
 
-Require Import LTS.
-Require Import Model.
-Require Import ModelData.
-Require Import Network.
-Require Import LTSTactics.
-Require Import Que.
+Require Import DlStalk.LTS.
+Require Import DlStalk.Model.
+Require Import DlStalk.ModelData.
+Require Import DlStalk.Network.
+Require Import DlStalk.Tactics.
+Require Import DlStalk.Que.
 
 Require Import Lia.
 
@@ -538,8 +538,6 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
 
   Module Import NetMap := FMapList.Make(Name_as_OT).
 
-  Notation "# v" := (NetMap.t v) (at level 20) : type_scope.
-
   Notation Names := (list Name).
 
   Module NetMod := NetModF(MD.NAME).
@@ -549,6 +547,8 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
 
   Notation R := Tag.R.
   Notation Q := Tag.Q.
+
+  Notation PNet := (NetMod.t PQued).
 
   Module Import LockDefs.
 
@@ -1433,7 +1433,8 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
         rewrite app_nil_r.
         rewrite <- HEq0.
         apply eq_sym.
-        eapply act_particip_stay; eauto.
+        eapply (act_particip_stay `(~ List.In n _)).
+        attac.
     Qed.
 
 
@@ -3836,8 +3837,7 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
 
           kill HLc1; rewrite (lock_uniq H H1) in *; auto.
 
-          apply Decidable.not_or in HIn as [_ HIn].
-          apply Net.not_in_app_inv in HIn as [HIn _].
+          hsimpl in *.
           rename l into L1.
           clear HEq0.
           clear H1.
@@ -3855,8 +3855,8 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
               kill H0; rewrite (lock_uniq H H1) in *; attac.
             * kill H2.
               kill H0.
-              eapply IHL1; eauto with datatypes LTS.
-
+              hsimpl in *.
+              eattac.
           + generalize dependent L''.
             generalize dependent n0.
             generalize dependent n1.
@@ -3867,7 +3867,8 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
               kill H2; rewrite (lock_uniq H H0) in *; attac.
             * kill H0.
               kill H2.
-              eapply IHL0; eauto with datatypes LTS.
+              hsimpl in *.
+              bullshit (~ (~ List.In n2 L0 /\ ~ List.In n2 L'')).
       Qed.
 
 
@@ -4614,55 +4615,78 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
     #[export] Hint Resolve pq_client_app_I_l pq_client_app_I_r pq_client_app_O_l pq_client_app_O_r : LTS.
 
 
+    Definition mq_MQ MS := match MS with mq MQ _ _ => MQ end.
+    Definition mq_M MS := match MS with mq _ M _ => M end.
+    Definition mq_S MS := match MS with mq _ _ S' => S' end.
+    Definition pq_I S := match S with pq I' _ _ => I' end.
+    Definition pq_P S := match S with pq _ P _ => P end.
+    Definition pq_O S := match S with pq _ _ O' => O' end.
+    Definition mq_I MS := pq_I (mq_S MS).
+    Definition mq_P MS := pq_P (mq_S MS).
+    Definition mq_O MS := pq_O (mq_S MS).
+    Definition mq_dI MS := pq_I (mq_S MS) ++ MQ_r (mq_MQ MS).
+    Definition mq_dP MS := pq_P (mq_S MS).
+    Definition mq_dO MS := MQ_s (mq_MQ MS) ++ pq_O (mq_S MS).
+
+    #[export] Hint Transparent mq_MQ mq_M mq_S pq_I pq_P pq_O mq_I mq_P mq_O mq_dI mq_dP mq_dO : LTS.
+
+
+    Definition SRPC_sane_Q_in (S : PQued) := forall c v v' I', Deq (c, Q) v (pq_I S) I' -> ~ List.In (c, Q, v') I'.
+    Definition SRPC_sane_R_in (S : PQued) := forall s s' v v' I', Deq (s, R) v (pq_I S) I' -> ~ List.In (s', R, v') I'.
+    Definition SRPC_sane_R_in_lock (S : PQued) := forall s v, List.In (s, R, v) (pq_I S) -> exists c, SRPC_pq (Lock c s) S.
+    Definition SRPC_sane_Q_out_lock (S : PQued) := forall s v, List.In (s, Q, v) (pq_O S) -> exists c, SRPC_pq (Lock c s) S.
+    Definition SRPC_sane_Q_out_last (S : PQued) := forall s v, ~ List.In (s, Q, v) (List.removelast (pq_O S)).
+    Definition SRPC_sane_R_out_uniq (S : PQued) := forall c v v' O', Deq (c, R) v (pq_O S) O' -> ~ List.In (c, R, v') O'.
+    Definition SRPC_sane_R_Q (S : PQued) := forall s v v', List.In (s, R, v) (pq_I S) -> ~ List.In (s, Q, v') (pq_O S).
+    Definition SRPC_sane_Q_R (S : PQued) := forall s v v', List.In (s, Q, v) (pq_O S) -> ~ List.In (s, R, v') (pq_I S).
+    Definition SRPC_sane_lock_Q (S : PQued) := forall c s, SRPC_pq (Lock c s) S -> pq_O S <> [] -> exists v, List.In (s, Q, v) (pq_O S).
+
+    Definition SRPC_sane_in_Q_no_client (S : PQued) := forall c v, List.In (c, Q, v) (pq_I S) -> ~ proc_client c (pq_P S).
+    Definition SRPC_sane_in_Q_no_out_R (S : PQued) := forall c v v', List.In (c, Q, v) (pq_I S) -> ~ List.In (c, R, v') (pq_O S).
+    Definition SRPC_sane_client_no_out_R (S : PQued) := forall c v, proc_client c (pq_P S) -> ~ List.In (c, R, v) (pq_O S).
+
+
+    #[export] Hint Transparent SRPC_sane_Q_in SRPC_sane_R_in SRPC_sane_R_in_lock SRPC_sane_Q_out_lock SRPC_sane_Q_out_last SRPC_sane_R_out_uniq SRPC_sane_R_Q SRPC_sane_Q_R SRPC_sane_lock_Q SRPC_sane_in_Q_no_client SRPC_sane_in_Q_no_out_R SRPC_sane_client_no_out_R : LTS.
+
+    #[export] Hint Unfold SRPC_sane_Q_in SRPC_sane_R_in SRPC_sane_R_in_lock SRPC_sane_Q_out_lock SRPC_sane_Q_out_last SRPC_sane_R_out_uniq SRPC_sane_R_Q SRPC_sane_Q_R SRPC_sane_lock_Q SRPC_sane_in_Q_no_client SRPC_sane_in_Q_no_out_R SRPC_sane_client_no_out_R : SRPC.
+
     (** A much stronger version of SRPC_pq which holds in any network with the same premises *)
-    Inductive SRPC_pq_in_net (srpc : SRPC_State) : PQued -> Prop :=
-      SPRC_pq_net_ [I P O]
-        (* The process code is SRPC *)
-        (Hsrpc : SRPC srpc P)
+    Inductive SRPC_pq_in_net (srpc : SRPC_State) (S : PQued) : Prop :=
+      SPRC_pq_net_
 
-        (* Incoming queries are unique per sender *)
-        (H_Q_in : forall I' c v v', Deq (c, Q) v I I' -> not (List.In (c, Q, v') I'))
+        (Hsrpc : SRPC_pq srpc S)
 
-        (* Incoming reply is unique *)
-        (H_R_in : forall I' s s' v v', Deq (s, R) v I I' -> not (List.In (s', R, v') I'))
+        (H_Q_in : SRPC_sane_Q_in S)
 
-        (* Incoming reply implies a lock  *)
-        (H_R_in_lock : forall s v, List.In (s, R, v) I -> exists c, srpc = Lock c s)
+        (H_R_in : SRPC_sane_R_in S)
 
-        (* Outgoing query implies a lock  *)
-        (H_Q_out_lock : forall s v, List.In (s, Q, v) O -> exists c, srpc = Lock c s)
+        (H_R_in_lock : SRPC_sane_R_in_lock S)
 
-        (* Outgoing query is the last outgoing message *)
-        (H_Q_out_last : forall s v, not (List.In (s, Q, v) (List.removelast O)))
+        (H_Q_out_lock : SRPC_sane_Q_out_lock S)
 
-        (* Outgoing reply is unique per recipient *)
-        (H_R_out_uniq : forall O' c v v', Deq (c, R) v O O' -> not (List.In (c, R, v') O'))
+        (H_Q_out_last : SRPC_sane_Q_out_last S)
 
-        (* If there is an incoming reply, then there is no outgoing query *)
-        (H_R_Q : forall s v v', List.In (s, R, v) I -> not (List.In (s, Q, v') O))
+        (H_R_out_uniq : SRPC_sane_R_out_uniq S)
 
-        (* If there is an outgoing query, then there is no incoming reply *)
-        (H_Q_R : forall s v v', List.In (s, Q, v) O -> not (List.In (s, R, v') I))
+        (H_R_Q : SRPC_sane_R_Q S)
 
-        (* If the process is locked, and output que is not empty, then there is a query in there *)
-        (H_lock_Q : forall c s, srpc = Lock c s -> [] <> O -> exists v, List.In (s, Q, v) O)
+        (H_Q_R : SRPC_sane_Q_R S)
 
-        (* For any client, its query is at one "stage" at a time *)
-        (H_query_uniq : forall c,
-            mut_excl
-              [ exists v, List.In (c, Q, v) I;
-                proc_client c P;
-                exists v, List.In (c, R, v) O
-              ]
-        )
+        (H_lock_Q : SRPC_sane_lock_Q S)
 
-        : SRPC_pq_in_net srpc (pq I P O).
+        (H_in_Q_no_client : SRPC_sane_in_Q_no_client S)
+
+        (H_in_Q_no_out_R : SRPC_sane_in_Q_no_out_R S)
+
+        (H_client_no_out_R : SRPC_sane_client_no_out_R S)
+
+        : SRPC_pq_in_net srpc S.
 
 
     Lemma SRPC_pq_in_net_SRPC [srpc : SRPC_State] [S] :
       SRPC_pq_in_net srpc S -> SRPC_pq srpc S.
 
-    Proof. intros. kill H. attac. Qed.
+    Proof. intros. kill H. Qed.
 
     Lemma SRPC_pq_in_net_Q_in [srpc : SRPC_State] [c v v' I I' P O] :
       SRPC_pq_in_net srpc (pq I P O) ->
@@ -4680,13 +4704,13 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
       SRPC_pq_in_net srpc (pq I P O) ->
       List.In (s, R, v) I ->
       exists c, srpc = Lock c s.
-    Proof. intros. kill H. eapply H_R_in_lock. eattac 1. Qed.
+    Proof. intros. kill H. assert (exists c, SRPC_pq (Lock c s) (pq &I P &O)); eattac 1. Qed.
 
     Lemma SRPC_pq_in_net_Q_out_lock [srpc : SRPC_State] [s v I P O] :
       SRPC_pq_in_net srpc (pq I P O) ->
       List.In (s, Q, v) O ->
       exists c, srpc = Lock c s.
-    Proof. intros. kill H. eapply H_Q_out_lock. eattac 1. Qed.
+    Proof. intros. kill H. assert (exists c, SRPC_pq (Lock c s) (pq &I P &O)); eattac 1. Qed.
 
     Lemma SRPC_pq_in_net_Q_out_last [srpc : SRPC_State] [s v I P O] :
       SRPC_pq_in_net srpc (pq I P O) ->
@@ -4719,37 +4743,37 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
       SRPC_pq_in_net srpc (pq I P O) ->
       List.In (c, Q, v) I ->
       ~ List.In (c, R, v') O.
-    Proof. intros. kill H. specialize (H_query_uniq c). destruct_mut_exclusive @H_query_uniq. eauto. Qed.
+    Proof. intros. kill H. eattac 1. Qed.
 
     Lemma SRPC_pq_in_net_Q_excl_c [srpc : SRPC_State] [c v I P O] :
       SRPC_pq_in_net srpc (pq I P O) ->
       List.In (c, Q, v) I ->
       ~ proc_client c P.
-    Proof. intros. kill H. specialize (H_query_uniq c). destruct_mut_exclusive @H_query_uniq. eauto. Qed.
+    Proof. intros. kill H. eattac 1. Qed.
 
     Lemma SRPC_pq_in_net_R_excl_Q [srpc : SRPC_State] [c v v' I P O] :
       SRPC_pq_in_net srpc (pq I P O) ->
       List.In (c, R, v) O ->
       ~ List.In (c, Q, v') I.
-    Proof. intros. kill H. specialize (H_query_uniq c). destruct_mut_exclusive @H_query_uniq. eauto. Qed.
+    Proof. intros. kill H. eattac 1. Qed.
 
     Lemma SRPC_pq_in_net_R_excl_c [srpc : SRPC_State] [c v I P O] :
       SRPC_pq_in_net srpc (pq I P O) ->
       List.In (c, Q, v) I ->
       ~ proc_client c P.
-    Proof. intros. kill H. specialize (H_query_uniq c). destruct_mut_exclusive @H_query_uniq. eauto. Qed.
+    Proof. intros. kill H. eattac 1. Qed.
 
     Lemma SRPC_pq_in_net_c_excl_Q [srpc : SRPC_State] [c v I P O] :
       SRPC_pq_in_net srpc (pq I P O) ->
       proc_client c P ->
       ~ List.In (c, Q, v) I.
-    Proof. intros. kill H. specialize (H_query_uniq c). destruct_mut_exclusive @H_query_uniq. eauto. Qed.
+    Proof. intros. kill H. eattac 1. Qed.
 
     Lemma SRPC_pq_in_net_c_excl_R [srpc : SRPC_State] [c v I P O] :
       SRPC_pq_in_net srpc (pq I P O) ->
       proc_client c P ->
       ~ List.In (c, R, v) O.
-    Proof. intros. kill H. specialize (H_query_uniq c). destruct_mut_exclusive @H_query_uniq. eauto. Qed.
+    Proof. intros. kill H. eattac 1. Qed.
 
 
     #[export] Hint Resolve
@@ -5062,339 +5086,791 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
       end.
 
 
+    Lemma trans_invariant_SRPC_net_tau__Q_in [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_Q_in (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      destruct S as [I1 P1 O1]; compat_hsimpl in *.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]]; compat_hsimpl in *; simpl in *; doubt.
+      - smash_eq n0 c; attac.
+        consider (exists I1', Deq (c, Q) v I0 I1' /\ Deq (n0, Q) v0 I1' I') by (eauto using Deq_Deq_swap with LTS).
+        bullshit.
+
+      - consider (exists I1', Deq (c, Q) v I0 I1' /\ Deq (n0, R) v0 I1' I') by (eauto using Deq_Deq_swap with LTS).
+        bullshit.
+    Qed.
+
+    Lemma trans_invariant_SRPC_net_tau__R_in [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_R_in (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      destruct S as [I1 P1 O1]; compat_hsimpl in *.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]]; compat_hsimpl in *; simpl in *; doubt.
+      - consider (exists I1', Deq (s, R) v I0 I1' /\ Deq (n0, Q) v0 I1' I') by (eauto using Deq_Deq_swap with LTS).
+        bullshit.
+
+      - consider (exists c, SRPC (Work c) (PTau P1) /\ SRPC (Work c) P1)
+          by (eapply SRPC_tau; eattac; kill Hsrpc0; eattac).
+        assert (List.In (s', R, v') I1) by (eapply Deq_neq_In; eattac).
+        consider (exists c0, srpc0 = Lock c0 s') by eattac.
+        assert (SRPC (Lock c0 s') (PTau P1)) by (kill Hsrpc0; eattac).
+        bullshit (~ Work c = Lock c0 s').
+    Qed.
+
+
+    Lemma SRPC_inv_tau_l [P0 P1] :
+      AnySRPC P0 ->
+      (P0 =(Tau)=> P1) ->
+      exists c, SRPC (Work c) P0.
+    Proof.
+      intros.
+      consider (exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1) by (eapply SRPC_tau; eattac).
+      attac.
+    Qed.
+
+    Lemma SRPC_inv_tau_r [P0 P1] :
+      AnySRPC P0 ->
+      (P0 =(Tau)=> P1) ->
+      exists c, SRPC (Work c) P1.
+    Proof.
+      intros.
+      consider (exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1) by (eapply SRPC_tau; eattac).
+      attac.
+    Qed.
+
+    Lemma SRPC_inv_send_R_l [P0 c v P1] :
+      AnySRPC P0 ->
+      (P0 =(Send (c, R) v)=> P1) ->
+      SRPC (Work c) P0.
+    Proof. intros. assert (SRPC (Work c) P0 /\ SRPC Free P1) by eauto using SRPC_send_R. attac. Qed.
+
+    Lemma SRPC_inv_send_R_r [P0 c v P1] :
+      AnySRPC P0 ->
+      (P0 =(Send (c, R) v)=> P1) ->
+      SRPC Free P1.
+    Proof. intros. assert (SRPC (Work c) P0 /\ SRPC Free P1) by eauto using SRPC_send_R. attac. Qed.
+
+    Lemma SRPC_inv_send_Q_l [P0 s v P1] :
+      AnySRPC P0 ->
+      (P0 =(Send (s, Q) v)=> P1) ->
+      exists c, SRPC (Work c) P0.
+    Proof. intros. consider (exists c, SRPC (Work c) P0 /\ SRPC (Lock c s) P1) by eauto using SRPC_send_Q. attac. Qed.
+
+    Lemma SRPC_inv_send_Q_r [P0 s v P1] :
+      AnySRPC P0 ->
+      (P0 =(Send (s, Q) v)=> P1) ->
+      exists c, SRPC (Lock c s) P1.
+    Proof. intros. consider (exists c, SRPC (Work c) P0 /\ SRPC (Lock c s) P1) by eauto using SRPC_send_Q. attac. Qed.
+
+    Lemma SRPC_inv_recv_Q_l [P0 P1] [c v] :
+      (P0 =(Recv (c, Q) v)=> P1) ->
+      AnySRPC P0 ->
+      SRPC Free P0.
+    Proof. intros. assert (SRPC Free P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_Q. attac. Qed.
+
+    Lemma SRPC_inv_recv_Q_r [P0 P1] [c v] :
+      (P0 =(Recv (c, Q) v)=> P1) ->
+      AnySRPC P0 ->
+      SRPC (Work c) P1.
+    Proof. intros. assert (SRPC Free P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_Q. attac. Qed.
+
+    Lemma SRPC_inv_recv_R_l [P0 P1] [s v] :
+      (P0 =(Recv (s, R) v)=> P1) ->
+      AnySRPC P0 ->
+      exists c, SRPC (Lock c s) P0.
+    Proof. intros. consider (exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_R. attac. Qed.
+
+    Lemma SRPC_inv_recv_R_r [P0 P1] [s v] :
+      (P0 =(Recv (s, R) v)=> P1) ->
+      AnySRPC P0 ->
+      exists c, SRPC (Work c) P1.
+    Proof. intros. consider (exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_R. attac. Qed.
+
+    #[export] Hint Resolve
+      SRPC_inv_tau_l
+      SRPC_inv_tau_r
+      SRPC_inv_send_R_l
+      SRPC_inv_send_R_r
+      SRPC_inv_send_Q_l
+      SRPC_inv_send_Q_r
+      SRPC_inv_recv_Q_l
+      SRPC_inv_recv_Q_r
+      SRPC_inv_recv_R_l
+      SRPC_inv_recv_R_r
+      : LTS.
+
+    Lemma SRPC_Free_recv_t_inv [P0 P1] [c t v] :
+      (P0 =(Recv (c, t) v)=> P1) ->
+      SRPC Free P0 ->
+      t = Q.
+    Proof. intros. consider (SRPC _ _). specialize (HQueryOnly (Recv (c, &t) v) P1) as [? ?]; eattac. Qed.
+    Lemma SRPC_Lock_recv_t_inv [P0 P1] [c s s' t v] :
+      (P0 =(Recv (s, t) v)=> P1) ->
+      SRPC (Lock c s') P0 ->
+      t = R.
+    Proof. intros. consider (SRPC _ _). kill HBusy. attac. specialize (HReplyOnly (Recv (s, &t) v) P1) as [? ?]; eattac. Qed.
+
+    #[export] Hint Rewrite -> SRPC_Free_recv_t_inv SRPC_Lock_recv_t_inv using spank : LTS.
+
+
+    Lemma SRPC_recv_Q_c_inv [P0 P1] [c c' t v] :
+      (P0 =(Recv (c, t) v)=> P1) ->
+      SRPC Free P0 ->
+      SRPC (Work c') P1 ->
+      c' = c.
+    Proof. intros. assert (AnySRPC P0) by eauto with LTS.
+           hsimpl in *; assert (SRPC (Work c) (cont v)); eattac.
+    Qed.
+    Lemma SRPC_recv_R_s_inv [P0 P1] [c s' s t' v] :
+      (P0 =(Recv (s', t') v)=> P1) ->
+      SRPC (Lock c s) P0 ->
+      s' = s.
+    Proof. intros. hsimpl in *.
+           enough (exists v', Recv (s', R) v = Recv (s, R) v') by eattac.
+           kill H0. kill HBusy. eattac. hsimpl in H2. eapply HReplyOnly. eattac.
+    Qed.
+    Lemma SRPC_recv_R_c_inv [P0 P1] [c c' s' s t v] :
+      (P0 =(Recv (s', t) v)=> P1) ->
+      SRPC (Lock c s) P0 ->
+      SRPC (Work c') P1 ->
+      c' = c.
+    Proof.
+      intros. enough (SRPC (Work c) P1) by eattac.
+      hsimpl in *. consider (SRPC _ (PRecv _)); eattac.
+    Qed.
+
+    #[export] Hint Rewrite -> SRPC_recv_Q_c_inv SRPC_recv_R_s_inv SRPC_recv_R_c_inv using spank : LTS.
+
+
+    Lemma SRPC_Work_PRecv_bs [h c] :
+      SRPC (Work c) (PRecv h) -> False.
+    Proof. intros. consider (SRPC _ _). consider (SRPC_Handling _ _). bullshit. Qed.
+
+    Lemma SRPC_Free_PSend_bs [n v P1] :
+      SRPC Free (PSend n v P1) -> False.
+    Proof. intros. consider (SRPC _ _). destruct n. specialize (HQueryAll n v). eattac. Qed.
+
+    Lemma SRPC_Free_PTau_bs [P1] :
+      SRPC Free (PTau P1) -> False.
+    Proof. intros. consider (SRPC _ _). specialize (HQueryAll some_name some_val). eattac. Qed.
+
+    Lemma SRPC_Lock_PSend_bs [n v P1 c s] :
+      SRPC (Lock c s) (PSend n v P1) -> False.
+    Proof. intros. consider (SRPC _ _). destruct n.  consider (SRPC_Handling _ _); doubt. specialize (HReplyAll v); attac. Qed.
+
+    Lemma SRPC_Lock_PTau_bs [P1 c s] :
+      SRPC (Lock c s) (PTau P1) -> False.
+    Proof. intros. consider (SRPC _ _). consider (SRPC_Handling _ _); doubt. specialize (HReplyAll some_val); attac. Qed.
+
+    #[export] Hint Resolve
+      SRPC_Work_PRecv_bs
+      SRPC_Free_PSend_bs
+      SRPC_Free_PTau_bs
+      SRPC_Lock_PSend_bs
+      SRPC_Lock_PTau_bs
+      : bullshit.
+
+    Lemma SRPC_Work_recv_bs [P0 P1 n v c] :
+      (P0 =(Recv n v)=> P1) ->
+      SRPC (Work c) P0 ->
+      False.
+    Proof. attac. Qed.
+
+    Lemma SRPC_Free_send_bs [n v P1] :
+      SRPC Free (PSend n v P1) -> False.
+    Proof. intros. consider (SRPC _ _). destruct n. specialize (HQueryAll n v). eattac. Qed.
+    Lemma SRPC_Free_tau_bs [P1] :
+      SRPC Free (PTau P1) -> False.
+    Proof. intros. consider (SRPC _ _). specialize (HQueryAll some_name some_val). eattac. Qed.
+    Lemma SRPC_Free_recv_R_bs [h n] :
+      SRPC Free (PRecv h) -> h (n, R) <> None -> False.
+    Proof. intros. consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; doubt; specialize (HQueryOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. Qed.
+
+    Lemma SRPC_Lock_send_bs [n v c s P1] :
+      SRPC (Lock c s) (PSend n v P1) -> False.
+    Proof. intros. consider (SRPC _ _). destruct n. kill HBusy. specialize (HReply0 n v). eattac. destruct (HReplyAll v). attac. Qed.
+    Lemma SRPC_Lock_tau_bs [c s P1] :
+      SRPC (Lock c s) (PTau P1) -> False.
+    Proof. intros. consider (SRPC _ _). kill HBusy. specialize (HReply0 some_name some_val). eattac. destruct (HReplyAll some_val). attac. Qed.
+    Lemma SRPC_Lock_recv_Q_bs [h n c s] :
+      SRPC (Lock c s) (PRecv h) -> h (n, Q) <> None -> False.
+    Proof. intros. consider (SRPC _ _). destruct (h (n, Q)) eqn:P1v; doubt; kill HBusy; doubt; specialize (HReplyOnly (Recv (n, Q) some_val) (p some_val)) as [? ?]; eattac. Qed.
+    Lemma SRPC_Lock_recv_other_bs [h n c s t] :
+      SRPC (Lock c s) (PRecv h) ->  h (n, t) <> None -> n <> s -> False.
+    Proof. intros. destruct t. eapply SRPC_Lock_recv_Q_bs; eauto. apply H.
+           consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; doubt.
+           kill HBusy; doubt. specialize (HReplyOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac.
+    Qed.
+
+    #[export] Hint Resolve SRPC_Work_recv_bs SRPC_Free_send_bs SRPC_Free_tau_bs SRPC_Free_recv_R_bs SRPC_Lock_send_bs SRPC_Lock_tau_bs SRPC_Lock_recv_Q_bs SRPC_Lock_recv_other_bs : bullshit.
+
+
+    (* TODO why... *)
+    Lemma eq_some_neq_none [T] : forall (x : T) a, a = Some x -> a <> None. Proof. eattac. Qed.
+    Hint Resolve eq_some_neq_none : LTS.
+
+
+    Lemma SRPC_pq_in_net__Q_in_inv_l [srpc] [S] [I0 I1 c v v'] :
+      SRPC_pq_in_net srpc S ->
+      pq_I S = I0 ++ I1 ->
+      List.In (c, Q, v) I0 ->
+      ~ List.In (c, Q, v') I1.
+    Proof. intros; destruct S as [I P O].
+           consider (exists v'' I', Deq (c, Q) v'' (I0 ++ I1) I')
+             by (enough (List.In (c, Q, v) (I0 ++ I1)); eattac).
+           consider (exists v''' I0', Deq (c, Q) v''' I0 I0') by eattac.
+           assert (~ List.In (c, Q, v') I') by eattac.
+           consider (I' = I0' ++ I1 /\ v'' = v''') by eauto using Deq_app_and_l.
+           attac.
+    Qed.
+
+    Lemma SRPC_pq_in_net__Q_in_inv_r [srpc] [S] [I0 I1 c v v'] :
+      SRPC_pq_in_net srpc S ->
+      pq_I S = I0 ++ I1 ->
+      List.In (c, Q, v) I1 ->
+      ~ List.In (c, Q, v') I0.
+    Proof. intros; destruct S as [I P O].
+           consider (exists v'' I', Deq (c, Q) v'' (I0 ++ I1) I')
+             by (enough (List.In (c, Q, v) (I0 ++ I1)); eattac).
+           intros ?.
+           consider (exists v''' I0', Deq (c, Q) v''' I0 I0') by eattac.
+           assert (~ List.In (c, Q, v) I') by eattac.
+           consider (I' = I0' ++ I1 /\ v'' = v''') by eauto using Deq_app_and_l.
+           attac.
+    Qed.
+
+    Lemma SRPC_pq_in_net__Q_in_inv_eq [srpc] [S] [I0 c v v'] :
+      SRPC_pq_in_net srpc S ->
+      pq_I S = I0 ->
+      List.In (c, Q, v) I0 ->
+      List.In (c, Q, v') I0 ->
+      v' = v.
+    Proof.
+      intros; destruct S as [I P O].
+      consider (exists v'' I1, Deq (c, Q) v'' I0 I1) by eattac.
+      consider (exists I00 I01, I0 = I00 ++ (c, Q, v'') :: I01
+                                /\ I1 = I00 ++ I01
+                                /\ forall v''', ~ List.In (c, Q, v''') I00) by eauto using Deq_split.
+      hsimpl in *.
+      repeat (destruct `(_ \/ _); doubt); eattac.
+      - bullshit (List.In (c, Q, v) (I00 ++ I01)) by eattac.
+      - bullshit (List.In (c, Q, v') (I00 ++ I01)) by eattac.
+      - bullshit (List.In (c, Q, v') (I00 ++ I01)) by eattac.
+    Qed.
+
+    Lemma SRPC_pq_in_net__R_in_inv_l [srpc] [S] [I0 I1 s s' v v'] :
+      SRPC_pq_in_net srpc S ->
+      pq_I S = I0 ++ I1 ->
+      List.In (s, R, v) I0 ->
+      ~ List.In (s', R, v') I1.
+    Proof. intros; destruct S as [I P O].
+           consider (exists v'' I', Deq (s, R) v'' (I0 ++ I1) I')
+             by (enough (List.In (s, R, v) (I0 ++ I1)); eattac).
+           consider (exists v''' I0', Deq (s, R) v''' I0 I0') by eattac.
+           assert (~ List.In (s', R, v') I') by eattac.
+           consider (I' = I0' ++ I1 /\ v'' = v''') by eauto using Deq_app_and_l.
+           attac.
+    Qed.
+
+    Lemma SRPC_pq_in_net__R_in_inv_r [srpc] [S] [I0 I1 s s' v v'] :
+      SRPC_pq_in_net srpc S ->
+      pq_I S = I0 ++ I1 ->
+      List.In (s, R, v) I1 ->
+      ~ List.In (s', R, v') I0.
+    Proof. intros; destruct S as [I P O].
+           consider (exists v'' I', Deq (s, R) v'' (I0 ++ I1) I')
+             by (enough (List.In (s, R, v) (I0 ++ I1)); eattac).
+           intros ?.
+           consider (exists v''' I0', Deq (s', R) v''' I0 I0') by eattac.
+           assert (~ List.In (s', R, v') I') by eattac.
+           assert (~ List.In (s, R, v) I') by eattac.
+           smash_eq s s'.
+           - consider (I' = I0' ++ I1 /\ v'' = v''') by eauto using Deq_app_and_l; attac.
+           - assert ((s, R) <> (s', R)) by eattac.
+             absurd (List.In (s', R, v') I'); auto.
+             assert (List.In (s', R, v') (I0 ++ I1)) by eattac.
+             ltac1:(apply ->Deq_neq_In).
+             apply H8.
+             consider (exists v'''' I0'', Deq (s, R) v'''' (I0 ++ I1) I0'') by eattac.
+             2: attac.
+             eauto.
+    Qed.
+
+    Lemma SRPC_pq_in_net__R_in_inv_eq_v [srpc] [S] [I0 s s' v v'] :
+      SRPC_pq_in_net srpc S ->
+      pq_I S = I0 ->
+      List.In (s, R, v) I0 ->
+      List.In (s', R, v') I0 ->
+      v' = v.
+    Proof.
+      intros; destruct S as [I P O].
+      consider (exists v'' I1, Deq (s, R) v'' I0 I1) by eattac.
+      consider (exists I00 I01, I0 = I00 ++ (s, R, v'') :: I01
+                                /\ I1 = I00 ++ I01
+                                /\ forall v''', ~ List.In (s, R, v''') I00) by eauto using Deq_split.
+      hsimpl in *.
+      repeat (destruct `(_ \/ _); doubt); eattac.
+      - bullshit (List.In (s', R, v') (I00 ++ I01)) by eattac.
+      - smash_eq s s'; attac.
+        bullshit (List.In (s, R, v) (I00 ++ I01)) by eattac.
+      - bullshit (List.In (s', R, v) (I00 ++ I01)) by eattac.
+      - bullshit (List.In (s', R, v') (I00 ++ I01)) by eattac.
+      - bullshit (List.In (s', R, v') (I00 ++ I01)) by eattac.
+    Qed.
+
+    Lemma SRPC_pq_in_net__R_in_inv_eq_s [srpc] [S] [I0 s s' v v'] :
+      SRPC_pq_in_net srpc S ->
+      pq_I S = I0 ->
+      List.In (s, R, v) I0 ->
+      List.In (s', R, v') I0 ->
+      s' = s.
+    Proof.
+      intros; destruct S as [I P O].
+      smash_eq s' s.
+      consider (exists v'' I1, Deq (s, R) v'' I0 I1) by eattac.
+      consider (exists I00 I01, I0 = I00 ++ (s, R, v'') :: I01
+                                /\ I1 = I00 ++ I01
+                                /\ forall v''', ~ List.In (s, R, v''') I00) by eauto using Deq_split.
+      hsimpl in *.
+      repeat (destruct `(_ \/ _); doubt); eattac.
+      - bullshit (List.In (s', R, v') (I00 ++ I01)) by eattac.
+      - bullshit (List.In (s, R, v) (I00 ++ I01)) by eattac.
+      - bullshit (List.In (s', R, v') (I00 ++ I01)) by eattac.
+      - bullshit (List.In (s', R, v') (I00 ++ I01)) by eattac.
+    Qed.
+
+    Lemma SRPC_pq_in_net__R_in_lock_inv [c s s'] [S] [I0] [v] :
+      SRPC_pq_in_net (Lock c s) S ->
+      pq_I S = I0 ->
+      List.In (s', R, v) I0 ->
+      s' = s.
+    Proof.
+      intros.
+      destruct S.
+      consider (exists c', (Lock c s) = (Lock c' s')) by eattac.
+    Qed.
+
+    Lemma SRPC_pq_in_net__Q_out_lock_inv [c s s'] [S] [O0] [v] :
+      SRPC_pq_in_net (Lock c s) S ->
+      pq_O S = O0 ->
+      List.In (s', Q, v) O0 ->
+      s' = s.
+    Proof.
+      intros.
+      destruct S.
+      consider (exists c', (Lock c s) = (Lock c' s')) by eattac.
+    Qed.
+
+    Lemma SRPC_sane_Q_out_last_inv [srpc] [S] [O0 O1 s v] :
+      SRPC_pq_in_net srpc S ->
+      O1 <> [] ->
+      pq_O S = O0 ++ O1 ->
+      List.In (s, Q, v) (O0 ++ O1) ->
+      List.In (s, Q, v) O1.
+    Proof.
+      intros.
+      destruct S as [I0 P0 O'].
+      assert (~ List.In (s, Q, v) (List.removelast O')) by eattac.
+      hsimpl in *.
+      assert (List.In (s, Q, v) O0 \/ List.In (s, Q, v) O1) as [|] by eattac; attac.
+      enough (~ List.In (s, Q, v) (O0 ++ List.removelast O1)) by eattac.
+      rewrite removelast_app in *; attac.
+    Qed.
+
+
+    Lemma SRPC_pq_in_net__R_out_inv_l [srpc] [S] [O0 O1 c v v'] :
+      SRPC_pq_in_net srpc S ->
+      pq_O S = O0 ++ O1 ->
+      List.In (c, R, v) O0 ->
+      ~ List.In (c, R, v') O1.
+    Proof. intros; destruct S as [I P O].
+           consider (exists v'' O', Deq (c, R) v'' (O0 ++ O1) O')
+             by (enough (List.In (c, R, v) (O0 ++ O1)); eattac).
+           consider (exists v''' O0', Deq (c, R) v''' O0 O0') by eattac.
+           assert (~ List.In (c, R, v') O') by eattac.
+           consider (O' = O0' ++ O1 /\ v'' = v''') by eauto using Deq_app_and_l.
+           attac.
+    Qed.
+
+    Lemma SRPC_pq_in_net__R_out_inv_r [srpc] [S] [O0 O1 c v v'] :
+      SRPC_pq_in_net srpc S ->
+      pq_O S = O0 ++ O1 ->
+      List.In (c, R, v) O1 ->
+      ~ List.In (c, R, v') O0.
+    Proof. intros; destruct S as [I P O].
+           consider (exists v'' O', Deq (c, R) v'' (O0 ++ O1) O')
+             by (enough (List.In (c, R, v) (O0 ++ O1)); eattac).
+           intros ?.
+           consider (exists v''' O0', Deq (c, R) v''' O0 O0') by eattac.
+           assert (~ List.In (c, R, v') O') by eattac.
+           assert (~ List.In (c, R, v) O') by eattac.
+           consider (O' = O0' ++ O1 /\ v'' = v''') by eauto using Deq_app_and_l; attac.
+    Qed.
+
+    Lemma SRPC_pq_in_net__R_out_inv_eq_v [srpc] [S] [O0 c v v'] :
+      SRPC_pq_in_net srpc S ->
+      pq_O S = O0 ->
+      List.In (c, R, v) O0 ->
+      List.In (c, R, v') O0 ->
+      v' = v.
+    Proof.
+      intros; destruct S as [I P O].
+      consider (exists v'' O1, Deq (c, R) v'' O0 O1) by eattac.
+      consider (exists O00 O01, O0 = O00 ++ (c, R, v'') :: O01
+                                /\ O1 = O00 ++ O01
+                                /\ forall v''', ~ List.In (c, R, v''') O00) by eauto using Deq_split.
+      hsimpl in *.
+      repeat (destruct `(_ \/ _); doubt); eattac.
+      - bullshit (List.In (c, R, v) (O00 ++ O01)) by eattac.
+      - bullshit (List.In (c, R, v') (O00 ++ O01)) by eattac.
+      - bullshit (List.In (c, R, v') (O00 ++ O01)) by eattac.
+    Qed.
+
+    #[export] Hint Resolve SRPC_pq_in_net__Q_in_inv_l SRPC_pq_in_net__Q_in_inv_r SRPC_pq_in_net__R_in_inv_l SRPC_pq_in_net__R_in_inv_r SRPC_pq_in_net__R_out_inv_l SRPC_pq_in_net__R_out_inv_r : LTS.
+
+    #[export] Hint Rewrite -> SRPC_pq_in_net__Q_in_inv_eq SRPC_pq_in_net__R_in_inv_eq_v SRPC_pq_in_net__R_in_inv_eq_s SRPC_pq_in_net__R_in_lock_inv SRPC_pq_in_net__Q_out_lock_inv SRPC_sane_Q_out_last_inv SRPC_pq_in_net__R_out_inv_eq_v using spank : LTS LTS_concl.
+
+
+    Lemma trans_invariant_SRPC_net_tau__R_in_lock [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_R_in_lock (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
+      assert (List.In (s, R, v) I0) by (consider (_ =(Tau)=> _); eapply Deq_neq_In; eattac).
+      consider (exists c, srpc0 = Lock c s) by eauto using SRPC_pq_in_net_R_in_lock.
+      assert (SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]]; compat_hsimpl in *; simpl in *; eattac.
+    Qed.
+
+    Lemma trans_invariant_SRPC_net_tau__Q_out_lock [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_Q_out_lock (NetMod.get n N1).
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
+      - consider (exists c, srpc0 = Lock c s) by eattac.
+        exists c; kill Hsrpc0; attac.
+      - assert (exists c, srpc0 = Lock c s) by eattac.
+        assert (exists c', srpc0 = Lock c' n1) by eattac.
+        hsimpl in *.
+        bullshit.
+      - enough (n1 = s) by eattac.
+        assert (List.In (s, Q, v) O0 \/ List.In (s, Q, v) [(n1, Q, v0)]) as [|] by (hsimpl in * |-; eattac).
+        2: { eattac. }
+
+        assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c, SRPC (Work c) P0) by eattac.
+        attac.
+
+      - assert (exists c, SRPC (Lock c s) P0).
+        {
+          assert (List.In (s, Q, v) O0 \/ List.In (s, Q, v) [(n1, R, v0)]) as [|] by (hsimpl in * |-; eattac).
+          2: { eattac. }
+          consider (exists c, srpc0 = Lock c s) by eattac.
+          kill Hsrpc0; eattac.
+        }
+        consider (exists c, SRPC (Work c) P0) by attac.
+
+        hsimpl in *.
+        bullshit.
+
+      - assert (exists c, SRPC (Lock c n0) P0).
+        {
+          consider (exists c, srpc0 = Lock c n0) by eattac.
+          kill Hsrpc0; eattac.
+        }
+        consider (exists c, SRPC (Work c) P0) by attac.
+        hsimpl in *; bullshit.
+    Qed.
+
+    Lemma trans_invariant_SRPC_net_tau__Q_out_last [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_Q_out_last (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
+      - assert (List.In (s, Q, v) O0)
+          by (hsimpl in *; rewrite removelast_app in * by attac; simpl in *; rewrite app_nil_r in *; attac).  (* TODO WTF *)
+        assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c, SRPC (Work c) P0) by (eattac).
+        hsimpl in *; bullshit.
+        
+      - assert (List.In (s, Q, v) O0)
+          by (hsimpl in *; rewrite removelast_app in * by attac; simpl in *; rewrite app_nil_r in *; attac).  (* TODO WTF *)
+        assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c, SRPC (Work c) P0) by (eattac).
+        hsimpl in *; bullshit.
+    Qed.
+
+    Lemma trans_invariant_SRPC_net_tau__R_out_uniq [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_R_out_uniq (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
+      - consider (exists O0', Deq (c, R) v O0 O0' /\ O' = O0' ++ [(n1, Q, v0)]) by (eapply Deq_app_or_l; eattac).
+        enough (List.In (c, R, v') O0') by eattac.
+        assert (List.In (c, R, v') O0' \/ List.In (c, R, v') [(n1, Q, v0)]) as [|] by eattac; attac.
+      - smash_eq c n1.
+        + assert (proc_client c P0) by eattac.
+          enough (List.In (c, R, v') O0) by eattac.
+          hsimpl in *.
+          assert (forall a b : (NChan * Val), {a = b} + {a <> b}) by (ltac1:(decide equality); eauto using NChan_eq_dec, Val_eq_dec).
+          destruct (in_dec H3 (c, R, v') O0); auto.
+          consider (exists O0', Deq (c, R) v [(c, R, v0)] O0' /\ O' = O0 ++ O0') by (eapply Deq_app_or_r; eattac).
+          consider (Deq _ _ [_] _).
+          rewrite app_nil_r in *. (* TODO WTF *)
+          attac.
+
+        + consider (exists O0', Deq (c, R) v O0 O0' /\ O' = O0' ++ [(n1, R, v0)]) by (eapply Deq_app_or_l; eattac).
+          enough (List.In (c, R, v') O0') by eattac.
+          assert (List.In (c, R, v') O0' \/ List.In (c, R, v') [(n1, R, v0)]) as [|] by eattac; attac.
+    Qed.
+
+    Lemma trans_invariant_SRPC_net_tau__R_Q [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_R_Q (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
+      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c', SRPC (Work c') P0) by eattac.
+        hsimpl in *; bullshit.
+      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c', SRPC (Work c') P0) by eattac.
+        hsimpl in *; bullshit.
+      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c', SRPC (Work c') P0) by eattac.
+        hsimpl in *; bullshit.
+    Qed.
+
+    Lemma trans_invariant_SRPC_net_tau__Q_R [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_Q_R (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
+      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c', SRPC (Work c') P0) by eattac.
+        hsimpl in *; bullshit.
+      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c', SRPC (Work c') P0) by eattac.
+        hsimpl in *; bullshit.
+      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c', SRPC (Work c') P0) by eattac.
+        hsimpl in *; bullshit.
+    Qed.
+
+    Lemma trans_invariant_SRPC_net_tau__lock_Q [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_lock_Q (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
+      destruct O1' as [|[[? ?] ?] O1]; doubt.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
+      - consider (exists c', SRPC (Work c') P1) by eattac.
+        bullshit (Lock c s = Work c').
+      - consider (exists c', SRPC (Work c') P1) by eattac.
+        bullshit (Lock c s = Work c').
+      - consider (exists c', SRPC (Lock c' n2) P1) by eattac.
+        consider (Lock c s = Lock c' n2) by eattac.
+        hsimpl in *.
+        destruct O0; doubt; hsimpl in *; eattac.
+      - assert (SRPC Free P1) by eattac.
+        bullshit (Lock c s = Free) by eattac.
+      - consider (exists c', SRPC (Work c') P1) by eattac.
+        bullshit (Lock c s = Work c').
+      - consider (exists c', SRPC (Work c') P1) by eattac.
+        bullshit (Lock c s = Work c').
+    Qed.
+
+    Lemma trans_invariant_SRPC_net_tau__in_Q_no_client [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_in_Q_no_client (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; consider (proc_client _ _); doubt.
+      - assert (SRPC (Work n1) P1) by eattac.
+        destruct `(SRPC_Handle_State _).
+        + assert (SRPC (Work n1) P1) by eattac.
+          consider (Work n1 = Work c) by attac.
+          bullshit.
+        + bullshit (Work n1 = Lock c s) by attac.
+      - consider (exists c', SRPC (Lock c' n1) P0 /\ SRPC (Work c') P1) by eauto using SRPC_recv_R.
+        destruct `(SRPC_Handle_State _).
+        + assert (SRPC (Work c) P1) by eattac.
+          consider (Work c' = Work c) by attac.
+          enough (proc_client c P0); eattac.
+        + bullshit (Work c' = Lock c s) by attac.
+      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q.
+        destruct `(SRPC_Handle_State _).
+        + bullshit (Work c = Lock c' n1) by attac.
+        + consider (Lock c' n1 = Lock c s) by attac.
+          enough (proc_client c P0); eattac.
+      - consider (SRPC (Work n1) P0 /\ SRPC Free P1) by eattac.
+        destruct `(SRPC_Handle_State _).
+        + bullshit (Work c = Free) by attac.
+        + bullshit (Lock c s = Free) by attac.
+      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Work c') P1) by eauto using SRPC_tau.
+        destruct `(SRPC_Handle_State _). 
+        + consider (Work c' = Work c) by attac.
+          attac.
+        + bullshit (Work c' = Lock c s) by attac.
+    Qed.
+
+    Lemma trans_invariant_SRPC_net_tau__in_Q_no_out_R [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_in_Q_no_out_R (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
+      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q.
+        assert (List.In (c, R, v') O0 \/ List.In (c, R, v') [(n1, Q, v0)]) as [|]; (hsimpl in *|-; eattac).
+      - consider (SRPC (Work n1) P0 /\ SRPC Free P1) by eauto using SRPC_send_R.
+        assert (List.In (c, R, v') O0 \/ List.In (c, R, v') [(n1, R, v0)]) as [|]; (hsimpl in *|-; eattac).
+      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Work c') P1) by eauto using SRPC_tau.
+        eattac.
+    Qed.
+
+    Lemma trans_invariant_SRPC_net_tau__client_no_out_R [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      SRPC_net N0 ->
+      SRPC_sane_client_no_out_R (NetMod.get n N1).
+
+    Proof.
+      attac.
+      specialize (`(SRPC_net _) n) as [srpc0 Hsrpc0].
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
+      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
+      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; consider (proc_client _ _); doubt.
+        - assert (SRPC (Work n1) P1) by eattac.
+        destruct `(SRPC_Handle_State _).
+        + assert (SRPC (Work n1) P1) by eattac.
+          consider (Work n1 = Work c) by attac.
+          bullshit.
+        + bullshit (Work n1 = Lock c s) by attac.
+      - consider (exists c', SRPC (Lock c' n1) P0 /\ SRPC (Work c') P1) by eauto using SRPC_recv_R.
+        destruct `(SRPC_Handle_State _).
+        + assert (SRPC (Work c) P1) by eattac.
+          consider (Work c' = Work c) by attac.
+          enough (proc_client c P0); eattac.
+        + bullshit (Work c' = Lock c s) by attac.
+      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q.
+        destruct `(SRPC_Handle_State _).
+        + bullshit (Work c = Lock c' n1) by attac.
+        + consider (Lock c' n1 = Lock c s) by attac.
+          assert (List.In (c, R, v) O0 \/ List.In (c, R, v) [(s, Q, v0)]) as [|]; (hsimpl in *|-; eattac).
+      - consider (SRPC (Work n1) P0 /\ SRPC Free P1) by eattac.
+        destruct `(SRPC_Handle_State _).
+        + bullshit (Work c = Free) by attac.
+        + bullshit (Lock c s = Free) by attac.
+      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Work c') P1) by eauto using SRPC_tau.
+        destruct `(SRPC_Handle_State _).
+        + consider (Work c' = Work c) by attac.
+          attac.
+        + bullshit (Work c' = Lock c s) by attac.
+    Qed.
+
+
     Lemma trans_invariant_SRPC_net_tau [n N0 N1] :
       NVTrans n Tau N0 N1 ->
       SRPC_net N0 ->
       SRPC_net N1.
 
-    Proof with (eattac).
+    Proof.
       unfold SRPC_net.
-      intros T Hsrpc0 n'.
+      intros.
 
-      smash_eq n n'.
-      2: specialize (Hsrpc0 n'); rewrite (NV_stay T) in Hsrpc0; auto.
+      smash_eq n n0.
+      2: {
+        replace (NetMod.get n0 N1) with (NetMod.get n0 N0) by eauto using NV_stay with LTS.
+        eattac.
+      }
 
-      kill T.
-      ltac1:(simpl_net).
-      specialize (Hsrpc0 n) as [srpc0 Hsrpc0].
-      destruct (NetMod.get n N0) as [I0 P0 O0].
-      destruct S as [I1 P1 O1].
+      consider (exists srpc0 : SRPC_State, SRPC_pq_in_net srpc0 (NetMod.get n N0)).
+      consider (exists srpc1, SRPC_pq srpc1 (NetMod.get n N1))
+        by (hsimpl in *; assert (AnySRPC_pq (NetMod.get n N0)) by eattac; enough (AnySRPC_pq &S); eattac).
 
-      assert (AnySRPC P0) as Hsrpc_any by (kill Hsrpc0; eattac).
+      exists srpc1.
+      constructor;
 
-      have (pq I0 P0 O0 =( Tau )=> pq I1 P1 O1).
+      eauto using
+        trans_invariant_SRPC_net_tau__Q_in,
+        trans_invariant_SRPC_net_tau__R_in,
+        trans_invariant_SRPC_net_tau__R_in_lock,
+        trans_invariant_SRPC_net_tau__Q_out_lock,
+        trans_invariant_SRPC_net_tau__Q_out_last,
+        trans_invariant_SRPC_net_tau__R_out_uniq,
+        trans_invariant_SRPC_net_tau__R_Q,
+        trans_invariant_SRPC_net_tau__Q_R,
+        trans_invariant_SRPC_net_tau__lock_Q,
+        trans_invariant_SRPC_net_tau__in_Q_no_client,
+        trans_invariant_SRPC_net_tau__in_Q_no_out_R,
+        trans_invariant_SRPC_net_tau__client_no_out_R.
 
-      kill H > [destruct n0 as [n' [|]] | destruct n0 as [n' [|]] | ]; hsimpl in *.
-      - (* Recv Q *)
-        kill Hsrpc0.
-        unshelve eapply SRPC_recv_Q in Hsrpc_any as [Hsrpc0 Hsrpc1]. 2: attac.
-        apply (SRPC_inv Hsrpc0) in Hsrpc; subst.
-
-        rename n' into c.
-        exists (Work c).
-
-        constructor; eauto with LTS; intros.
-        + destruct (Name.eq_dec c0 c); subst; attac.
-          eapply (Deq_Deq_swap _ HDeq) in H as [I'' [HDeq0' HDeq1']].
-          attac.
-        + eapply (Deq_Deq_swap _ HDeq) in H as [I'' [HDeq0' HDeq1']].
-          attac.
-        + apply In_Deq in H.
-          hsimpl in H.
-          eapply (Deq_Deq_swap _ HDeq) in H.
-          hsimpl in H.
-          apply Deq_In in H.
-          eapply H_R_in_lock in H.
-          attac.
-        + apply H_Q_out_lock in H as [c' H].
-          bullshit.
-        + eapply (Deq_incl HDeq) in H.
-          bullshit.
-        + bullshit.
-        + kill H.
-        + consider (exists v, List.In (c, Q, v) I0) by eattac.
-          assert (proc_client c (cont v)) by eattac.
-          assert (forall c', proc_client c' (cont v) -> c = c').
-          {
-            intros * PC.
-            destruct PC as [srpcb Hsrpc'].
-            apply (SRPC_inv Hsrpc1) in Hsrpc'.
-            kill Hsrpc1.
-          }
-
-          specialize (H_query_uniq c0).
-          destruct_mut_exclusive @H_query_uniq.
-
-          solve_mut_exclusive true;
-            try (ltac1:(replace c0 with c in * by auto));
-            repeat (match! goal with
-                    | [h : exists _, _ |- _] => strip_exists h; ()
-                    | [h : List.In _ I1 |- _] =>
-                        apply (Deq_incl HDeq) in $h; bullshit
-                    end); bullshit.
-
-      - (* Recv R *)
-        kill Hsrpc0.
-        unshelve eapply SRPC_recv_R in Hsrpc_any as [c [Hsrpc0 Hsrpc1]]. 2: attac.
-        apply (SRPC_inv Hsrpc0) in Hsrpc; subst.
-
-        rename n' into s.
-        exists (Work c).
-
-        constructor; eauto with LTS; intros.
-        + eapply (Deq_Deq_swap _ HDeq) in H.
-          attac.
-        + eapply (Deq_Deq_swap _ HDeq) in H.
-          attac.
-        + destruct (Name.eq_dec s0 s); subst.
-          1: bullshit.
-          apply (Deq_incl HDeq) in H.
-          eapply H_R_in_lock in H as [? ?].
-          kill H.
-        + assert (s0 = s) by (eapply H_Q_out_lock in H as [? ?]; kill H). subst.
-          apply Deq_In in HDeq.
-          bullshit.
-        + bullshit.
-        + kill H.
-        + specialize (H_query_uniq c0).
-
-          assert (forall c' v, List.In (c', Q, v) I1 -> List.In (c', Q, v) I0)
-            by (intros; eapply Deq_incl; eauto).
-          assert (proc_client c (cont v)) by eattac.
-          assert (proc_client c (PRecv h)) by eattac.
-          assert (forall c', proc_client c' (cont v) -> c = c').
-          {
-            intros * PC.
-            destruct PC as [srpcb Hsrpc'].
-            apply (SRPC_inv Hsrpc1) in Hsrpc'.
-            kill Hsrpc1.
-          }
-          destruct_mut_exclusive @H_query_uniq.
-
-          solve_mut_exclusive true;
-            try (ltac1:(replace c0 with c in * by auto));
-            repeat (match! goal with
-                    | [h : exists _, _ |- _] => strip_exists h; ()
-                    | [h : List.In _ I1 |- _] => apply H in $h
-                    end); bullshit.
-      - (* Send Q *)
-        kill Hsrpc0.
-        eapply SRPC_send_Q in Hsrpc_any as [c [Hsrpc0 Hsrpc1]]. 2: attac.
-        apply (SRPC_inv Hsrpc0) in Hsrpc; subst.
-
-        rename n' into s.
-        exists (Lock c s).
-
-        constructor; eauto with LTS; intros.
-        + eapply H_R_in_lock in H as [? ?].
-          kill H.
-        + apply in_app_or in H as [H|H].
-          * apply H_Q_out_lock in H as [? ?].
-            kill H.
-          * kill H.
-            kill H0.
-            eattac.
-        + intros HIn.
-          rewrite removelast_last in HIn.
-          apply H_Q_out_lock in HIn as [? ?].
-          kill H.
-        + assert (forall v0, ~ List.In (c0, R, v0) [(s, Q, v)]) by (intros v0' Hx; kill Hx).
-          specialize (Deq_app_or_l H (H1 v0)) as [O'' [HDeq' HEq']].
-          subst.
-          intros HIn.
-          apply in_app_or in HIn as [HIn|HIn]; bullshit.
-        + apply H_R_in_lock in H as [? ?].
-          kill H.
-        + intros Hx.
-          apply H_R_in_lock in Hx as [? ?].
-          kill H1.
-        + kill H.
-          eattac.
-        + specialize (H_query_uniq c0).
-          remember (O0 ++ [(s, Q, v)]) as O1.
-          assert (forall c' v', List.In (c', R, v') O0 -> List.In (c', R, v') O1) by attac.
-          assert (forall c' v', List.In (c', R, v') O1 -> List.In (c', R, v') O0)
-            by (intros; subst; apply in_app_or in H1; kill H1; eauto; kill H2).
-          assert (proc_client c P1) by eattac.
-          assert (proc_client c (PSend (s, Q) v P1)) by eattac.
-          assert (forall c', proc_client c' P1 -> c = c').
-          {
-            intros * PC.
-            destruct PC as [srpcb Hsrpc'].
-            apply (SRPC_inv Hsrpc1) in Hsrpc'.
-            kill Hsrpc1.
-          }
-          destruct_mut_exclusive @H_query_uniq.
-
-          solve_mut_exclusive true;
-            try (ltac1:(replace c0 with c in * by auto));
-            repeat (match! goal with
-                    | [h : exists _, _ |- _] => strip_exists h; ()
-                    | [h : List.In _ I1 |- _] => apply H in $h
-                    end); doubt.
-
-      - (* Send R *)
-        kill Hsrpc0.
-        unshelve eapply SRPC_send_R in Hsrpc_any as [Hsrpc0 Hsrpc1]. 2: attac.
-        apply (SRPC_inv Hsrpc0) in Hsrpc; subst.
-
-        rename n' into c.
-        exists Free.
-
-        constructor; eauto with LTS; intros.
-        + eapply H_R_in_lock in H as [? ?].
-          kill H.
-        + apply in_app_or in H as [H|H].
-          * apply H_Q_out_lock in H as [? ?].
-            kill H.
-          * kill H.
-        + intros HIn.
-          rewrite removelast_last in HIn.
-          apply H_Q_out_lock in HIn as [? ?].
-          kill H.
-        + destruct (Name.eq_dec c0 c); subst.
-          * assert (forall v, ~ List.In (c, R, v) O0).
-            {
-              intros.
-              specialize (H_query_uniq c).
-              destruct_mut_exclusive @H_query_uniq.
-              intros Hx.
-              eattac.
-            }
-            specialize (Deq_app_or_r H (H1 _)) as [O'' [HDeq' HEq]].
-            subst.
-            kill HDeq'.
-            hsimpl in *.
-            eattac.
-          * assert (forall v0, ~ List.In (c0, R, v0) [(c, R, v)]) by (intros v'' HIn'; kill HIn').
-            specialize (Deq_app_or_l H (H1 _)) as [O'' [HDeq' HEq]].
-            subst.
-            eapply (H_R_out_uniq) in HDeq'.
-            specialize (H1 v').
-            intros Hx.
-            apply in_app_or in Hx as [?|?]; attac.
-        + apply H_R_in_lock in H as [? ?].
-          kill H.
-        + intros Hx.
-          apply H_R_in_lock in Hx as [? ?].
-          kill H1.
-        + kill H.
-        + remember (O0 ++ [(c, R, v)]) as O1.
-          assert (forall c' v', List.In (c', R, v') O0 -> List.In (c', R, v') O1) by (intros; subst; eattac).
-          assert (proc_client c (PSend (c, R) v P1)) by eattac.
-          assert (forall c', ~ proc_client c' P1)
-            by (intros c' Hc; kill Hc; apply (SRPC_inv Hsrpc1) in H2; bullshit).
-          specialize (H_query_uniq c0) as HM.
-          destruct_mut_exclusive @HM.
-
-          solve_mut_exclusive true;
-            try (ltac1:(replace c0 with c in * by auto));
-            repeat (match! goal with
-                    | [h : exists _, _ |- _] => strip_exists h; ()
-                    | [h : List.In _ I1 |- _] => apply H in $h
-                    end); doubt.
-
-          * assert (forall v, ~ List.In (c0, R, v) O0) by attac 1.
-            apply in_app_or in H10 as [?|?]; attac.
-          * specialize (H_query_uniq c).
-            destruct_mut_exclusive @H_query_uniq.
-            apply in_app_or in H8 as [?|?]; attac.
-      - (* Tau *)
-        kill Hsrpc0.
-        unshelve eapply SRPC_tau in Hsrpc_any as [c [Hsrpc0 Hsrpc1]]. 2: attac.
-        apply (SRPC_inv Hsrpc0) in Hsrpc; subst.
-
-        exists (Work c).
-        constructor; eattac.
-
-        specialize (H_query_uniq c0).
-        destruct_mut_exclusive @H_query_uniq.
-
-        assert (forall c', proc_client c' P1 -> c = c').
-        {
-          intros * PC.
-          destruct PC as [srpcb Hsrpc'].
-          apply (SRPC_inv Hsrpc1) in Hsrpc'.
-          kill Hsrpc1.
-        }
-
-        solve_mut_exclusive true;
-          try (ltac1:(replace c0 with c in * by auto));
-          Control.enter (
-              fun () => match! goal with
-                    | [h : exists _, _ |- _] => strip_exists h; bullshit
-                    end
-            ).
-
-        Unshelve. bullshit. bullshit. bullshit. bullshit. bullshit.
-    Qed.
-
-
-    Lemma out_flush_proc [N0 N1 path] n :
-      Forall (fun a => match a with NComm n' _ _ _ => True | _ => False end) path ->
-      (N0 =[path]=> N1) ->
-      match NetMod.get n N0, NetMod.get n N1 with pq _ P0 _, pq _ P1 _ => P0 = P1 end.
-
-    Proof.
-      generalize dependent N0.
-      induction path; intros.
-      - kill H0.
-        destruct (NetMod.get n N1).
-        auto.
-      - hsimpl in *.
-        destruct a; kill H.
-
-        ehave (_ =[path]=> N1).
-        specialize (IHpath N2 ltac2:(attac) ltac2:(attac)).
-
-        enough (match NetMod.get n N0 with
-                | pq _ P0 _ => match NetMod.get n N2 with
-                              | pq _ P1 _ => P0 = P1
-                              end
-                end
-               ).
-        {
-          destruct (NetMod.get n N0).
-          destruct (NetMod.get n N2).
-          attac.
-        }
-
-        clear IHpath.
-
-
-        kill H0. hsimpl in *.
-        destruct (NetMod.get n N0) eqn:?, (NetMod.get n N1) eqn:?.
-        destruct (NetMod.get n0 N0) eqn:?, (NetMod.get n0 N1) eqn:?.
-        destruct (NetMod.get n1 N0) eqn:?, (NetMod.get n1 N1) eqn:?.
-
-
-        smash_eq n0 n1 n; hsimpl in *.
-        all: ltac1:(autorewrite with LTS in * ); attac.
-    Qed.
-
-
-    Lemma out_flush_len [N0 N1 n path L] :
-      Forall (fun a => match a with NComm n' _ _ _ => n = n' | _ => False end) path ->
-      (N0 =[path]=> N1) ->
-      net_lock N1 L n ->
-      length path = match NetMod.get n N0 with pq _ _ O0 => length O0 end.
-
-    Proof.
-      generalize dependent N0.
-      induction path; intros.
-      - kill H0.
-        kill H1.
-        auto.
-      - hsimpl in *.
-        destruct a; kill H.
-        specialize (IHpath _ H3 H2 H1).
-        rewrite IHpath.
-        kill H0.
-
-        hsimpl in *.
-        smash_eq n0 n1; hsimpl in *; attac.
-        + consider (NetMod.get n0 N0 =(_)=> _); attac.
-        + consider (NetMod.get n0 N0 =(_)=> _); attac.
     Qed.
 
 
@@ -5405,24 +5881,8 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
       n1' = n1.
 
     Proof.
-      intros HNs Hc1 Hc1'.
-      kill HNs.
-
-      assert (forall n, AnySRPC_pq (NetMod.get n N)) as Hsrpc_N by eattac.
-
-      eapply H_lock_complete in Hc1 as HL.
-      eapply H_lock_complete in Hc1' as HL'.
-
-      apply lock_singleton in HL; eauto.
-      eapply lock_SRPC_Lock_pq in HL as [c Hsrpc]; eauto.
-
-      apply lock_singleton in HL'; eauto.
-      eapply lock_SRPC_Lock_pq in HL' as [c' Hsrpc']; eauto.
-
-      destruct (NetMod.get n0 N) as [I0 P0 O0] eqn:HEq0.
-
-      apply (SRPC_inv Hsrpc) in Hsrpc'.
-      kill Hsrpc'.
+      intros.
+      consider (net_lock_on N n0 n1 /\ net_lock_on N n0 n1'); attac.
     Qed.
 
 
@@ -5437,58 +5897,66 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
       split.
       1: eauto with LTS.
 
-      kill T; kill Hc.
-      - destruct n.
-        destruct t0.
-        + specialize (SRPC_recv_Q H ltac:(attac)) as [Hsrpc0 Hsrpc1].
-          smash_eq c n; eauto with LTS.
+      consider (pq_client c N0); consider (_ =(Tau)=> _);
+        try (solve [eattac]);
+        try (destruct `(NChan) as [n [|]]); doubt.
 
-          enough (exists v', List.In (c, Q, v') I1) by eattac.
-          exists v0.
-          unshelve (eapply (Deq_neq_In _ HDeq)); eattac.
-        + enough (exists v', List.In (c, Q, v') I1) by eattac.
-          exists v0.
-          unshelve (eapply (Deq_neq_In _ HDeq)); eattac.
-      - destruct n.
-        destruct t0.
-        + specialize (SRPC_recv_Q H ltac:(attac)) as [Hsrpc0 Hsrpc1].
-          smash_eq c n; eauto with LTS.
-          hsimpl in *.
-          consider (proc_client c (PRecv h)).
-          absurd (Free = Busy _); attac.
+      - consider (SRPC Free P /\ SRPC (Work n) P1) by eauto using SRPC_recv_Q.
+        smash_eq c n; eauto with LTS.
+        enough (exists v', List.In (c, Q, v') I1) by eattac.
+        exists v.
+        unshelve eapply (Deq_neq_In _ `(Deq _ _ &I I1)); eattac.
 
-        + have (P0 =( Recv (n, R) v )=> P1).
-          hsimpl in *.
-          consider (proc_client _ _).
-          enough (proc_client c (cont v)) by attac.
-          econstructor.
-          enough (SRPC (Work c) (cont v)) by attac.
-          consider (SRPC _ (PRecv _)) by attac.
-          eapply HRecv; eattac.
-      - attac.
-      - attac.
-      - destruct n.
-        destruct t0.
-        + specialize (SRPC_send_Q H ltac:(attac)) as [c' [Hsrpc0 Hsrpc1]].
-          assert (proc_client c' P0) by attac.
-          consider (c' = c); attac.
-        + assert (proc_client n P0).
-          {
-            specialize (SRPC_send_R H ltac:(attac)) as [Hsrpc0 Hsrpc1].
-            attac.
-          }
-          assert (n = c) by eattac.
-          subst.
-          eattac.
-      - eattac.
-      - eattac.
-      - specialize (SRPC_tau H ltac:(attac)) as [c' [Hsrpc0 Hsrpc1]].
-        have (proc_client c' P0).
-        have (proc_client c P0).
-        consider (c' = c) by eattac.
+      - enough (exists v', List.In (c, Q, v') I1) by eattac.
+        exists v.
+        unshelve eapply (Deq_neq_In _ `(Deq _ _ &I I1)); eattac.
+
+      - consider (SRPC Free P /\ SRPC (Work n) P1) by eauto using SRPC_recv_Q.
+        smash_eq c n; attac.
+
+        consider (proc_client c (PRecv h)).
+        bullshit (Free = Busy `(_)).
+
+      - consider (exists c', SRPC (Lock c' n) P /\ SRPC (Work c') P1) by eauto using SRPC_recv_R.
+        smash_eq c c'; attac.
+
+        consider (proc_client c (PRecv h)).
+        bullshit.
+
+      - consider (exists c', SRPC (Work c') P /\ SRPC (Lock c' n) P1) by eauto using SRPC_send_Q.
+        consider (proc_client c P) by attac.
+        consider (Work c' = Busy `(_)) by attac.
         attac.
-      - eattac.
+
+      - consider (SRPC (Work n) P /\ SRPC Free P1) by eauto using SRPC_send_R.
+        enough (c = n) by attac.
+        enough (proc_client n P) by attac.
+        attac.
+
+      - consider (exists c', SRPC (Work c') P /\ SRPC (Work c') P1) by eauto using SRPC_tau.
+        enough (c = c') by attac.
+        enough (proc_client c' P) by attac.
+        attac.
     Qed.
+
+
+    Theorem net_sane_lock_no_send [N0 N1 : PNet] [n0 n1 m0 m1 t v] :
+      net_sane N0 ->
+      net_lock_on N0 n0 n1 ->
+      (N0 =(NComm m0 m1 t v)=> N1) ->
+      n0 <> m0.
+
+    Proof.
+      intros.
+      intros ?; subst.
+      consider (exists L, pq_lock L (NetMod.get m0 N0)) by (unfold net_lock_on, net_lock in *; attac).
+      consider (exists S, NetMod.get m0 N0 =(send (m1, &t) v)=> S) by (consider (_ =(_)=> _); eattac).
+      destruct (NetMod.get m0 N0) as [I0 P0 O0] eqn:?.
+      consider (pq_lock _ _).
+      bullshit.
+    Qed.
+
+    #[export] Hint Resolve net_sane_lock_no_send : LTS.
 
 
     Theorem SRPC_net_no_self_reply [N0 N1 : PNet] [n0 n1 v] :
@@ -5497,59 +5965,103 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
       n0 <> n1.
 
     Proof.
-      intros Hs0 T.
+      intros.
+      intros ?; subst.
+      rename n1 into n.
 
-      kill T.
-      rename H into T_s.
-      rename H0 into T_r.
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?.
 
-      kill T_s; rename H into T_s.
-      kill T_r; rename H into T_r.
+      assert (pq_client n (NetMod.get n N0)) by (consider (_ =(NComm n n R v)=> _); compat_hsimpl in *; attac).
 
-      destruct (NetMod.get n0 N0) as [Is0 Ps0 Os0] eqn:HEqNs0.
-      destruct S as [Is1 Ps1 Os1] eqn:HEqNs1.
-      destruct S0 as [Ir1 Pr1 Or1] eqn:HEqNr1.
-
-      intros HEq.
-      subst.
-
-      assert (exists N1 a, (N0 =(a)=> N1) /\ NetMod.get n1 N1 = pq Ir1 Pr1 Or1) as (N1 & a & TN & HEqN1).
-      {
-        exists (NetMod.put n1 (pq Ir1 Pr1 Or1) (NetMod.put n1 (pq Is1 Ps1 Os1) N0)).
-        exists (NComm n1 n1 R v).
-        split.
-        - ltac1:(simpl_net).
-          econstructor; constructor; eauto.
-          rewrite HEqNs0.
-          eauto.
-          ltac1:(simpl_net).
-          auto.
-        - ltac1:(simpl_net).
-          auto.
-          ltac1:(simpl_net).
-          auto.
-      }
-
-      assert (net_lock_on N0 n1 n1) as HL.
-      {
-        kill T_s.
-        kill T_r.
-        enough (pq_client n1 (NetMod.get n1 N0)) as Hc by (kill Hs0; auto).
-        ltac1:(simpl_net).
-        rewrite HEqNs0.
-        econstructor 3.
-        attac.
-      }
-      ltac1:(simpl_net).
-      kill Hs0.
-      specialize (@dep_self_deadset N0 ltac:(attac) n1 ltac:(attac)) as [DS [HInDS HDS]].
-
-      specialize (deadset_stay1 HDS HInDS TN HEqNs0) as HEq.
-      hsimpl in HEq.
-      compat_hsimpl in *.
-
-      clear - T_s0. induction O1; bullshit. (* TODO .... *)
+      assert (net_lock_on N0 n n) by attac.
+      bullshit (n <> n).
     Qed.
+
+
+    Lemma trans_invariant_net_sane_tau__locks_sound [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      net_sane N0 ->
+      locks_sound N1.
+
+    Proof.
+      repeat (intros ?).
+
+      enough (net_lock_on N0 n0 n1).
+      {
+        assert (pq_client n0 (NetMod.get n1 N0)) by attac.
+        smash_eq n n1.
+        + eapply pq_client_invariant_tau; eattac.
+        + now replace (NetMod.get n1 N1) with (NetMod.get n1 N0) by (eauto using NV_stay with LTS).
+      }
+
+      (* Tau preseve lock *)
+    Admitted.
+
+
+    Lemma trans_invariant_net_sane_tau__locks_complete [n N0 N1] :
+      NVTrans n Tau N0 N1 ->
+      net_sane N0 ->
+      locks_complete N1.
+
+    Proof.
+      repeat (intros ?).
+
+      enough (net_lock_on N0 n0 n1) by admit. (* Tau preserve lock *)
+
+      enough (pq_client n0 (NetMod.get n1 N0)) by attac.
+
+      smash_eq n n1.
+      2: { now replace (NetMod.get n1 N1) with (NetMod.get n1 N0) by (eauto using NV_stay with LTS). }
+
+      assert (AnySRPC_pq (NetMod.get n N0)) by eattac.
+      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?.
+      destruct (NetMod.get n N1) as [I1 P1 O1] eqn:?.
+      
+      hsimpl in *. hsimpl in *.
+      rewrite `(NetMod.get n N0 = _) in *.
+
+      consider (_ =(Tau)=> _);
+        try (destruct `(NChan) as [n1 [|]]).
+
+      - consider (SRPC Free P0 /\ SRPC (Work n1) P1) by eauto using SRPC_recv_Q.
+        smash_eq n0 n1; eauto with LTS.
+        consider (pq_client n0 _).
+        + enough (List.In (n0, Q, v0) I0) by eattac.
+          unshelve eapply (Deq_neq_In _ `(Deq _ _ I0 I1)); eattac.
+        + consider (proc_client n0 P1); eattac.
+        + attac.
+
+      - consider (exists c', SRPC (Lock c' n1) P0 /\ SRPC (Work c') P1) by eauto using SRPC_recv_R.
+        smash_eq n0 c'; eauto with LTS.
+        consider (pq_client n0 _).
+        + enough (List.In (n0, Q, v0) I0) by eattac.
+          unshelve eapply (Deq_neq_In _ `(Deq _ _ I0 I1)); eattac.
+        + consider (proc_client n0 P1); eattac.
+        + attac.
+
+      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q.
+        smash_eq n0 c'; eauto with LTS.
+        consider (pq_client n0 _).
+        + attac.
+        + consider (proc_client n0 P1); eattac.
+        + assert (List.In (n0, R, v0) O0 \/ List.In (n0, R, v0) [(n1, Q, v)]) as [|] by (hsimpl in * |-; eattac); eattac.
+
+      - consider (SRPC (Work n1) P0 /\ SRPC Free P1) by eauto using SRPC_send_R.
+        smash_eq n0 n1; eauto with LTS.
+        consider (pq_client n0 _).
+        + attac.
+        + consider (proc_client n0 P1); eattac.
+          bullshit (Free = Busy `(_)) by eattac.
+        + assert (List.In (n0, R, v0) O0 \/ List.In (n0, R, v0) [(n1, R, v)]) as [|] by (hsimpl in * |-; eattac); eattac.
+
+      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Work c') P1) by eauto using SRPC_tau.
+        smash_eq n0 c'; eauto with LTS.
+        consider (pq_client n0 _).
+        + attac.
+        + consider (proc_client n0 P1); eattac.
+        + attac.
+
+    Admitted.
 
 
     Lemma trans_invariant_net_sane_tau [n N0 N1] :
@@ -5558,161 +6070,58 @@ Module Locks(Name : UsualDecidableSet)(NetModF : NET).
       net_sane N1.
 
     Proof.
-      intros T HNs0.
-      kill HNs0.
+      intros.
+      
       constructor.
-      - apply trans_invariant_SRPC_net_tau in T; eauto.
-      - intros n0 n1 HL.
-        (* n0 is locked on n1 after someone's Tau. Whoever that was, the lock must not be new *)
-
-        assert (net_lock_on N0 n0 n1) as HL0.
-        {
-          smash_eq n0 n.
-          - kill T.
-            unfold net_lock_on in *.
-            unfold net_lock in *.
-          (* hsimpl in HL. TODO FIXME NOT WORKING  *)
-            ltac1:(simpl_net).
-            hsimpl in HL.
-            assert (AnySRPC_pq &S) as Hsrpc_S by eauto with LTS.
-            edestruct (SRPC_pq_get_lock Hsrpc_S HL0); eauto with LTS.
-            assert (x = n1).
-            {
-              specialize (pq_lock_incl HL0 H0) as Hincl.
-              apply Hincl in HL.
-              kill HL.
-            }
-            subst.
-
-            hsimpl in HL0.
-            have (AnySRPC_pq (NetMod.get n0 N0)).
-            exists [n1].
-            split; eattac.
-            destruct (NetMod.get n0 N0) as [I P O].
-            kill HL0.
-            assert (Decisive P0) by attac.
-            kill H; try (destruct n); try (destruct t0).
-            + edestruct (SRPC_recv_Q) as [Hsrpc0 Hsrpc1]; re_have (eauto with LTS).
-              hsimpl in *.
-              consider (exists c, SRPC (Lock c n1) (cont v)) by (apply lock_SRPC_Lock; attac).
-              absurd (Lock c n1 = Work n).
-              intros Hx; kill Hx.
-              eapply SRPC_inv; eattac.
-            + edestruct (SRPC_recv_R) as [s [Hsrpc0 Hsrpc1]]; re_have (eauto with LTS).
-              hsimpl in *.
-              consider (exists c, SRPC (Lock c n1) (cont v)) by (apply lock_SRPC_Lock; attac).
-              absurd (Lock c n1 = Work s).
-              intros Hx; kill Hx.
-              eapply SRPC_inv; eattac.
-            + bullshit.
-            + bullshit.
-            + edestruct (SRPC_tau) as [s [Hsrpc0 Hsrpc1]]; attac.
-              hsimpl in *.
-              consider (exists c, SRPC (Lock c n1) P0) by (apply lock_SRPC_Lock; attac).
-              absurd (Lock c n1 = Work s).
-              intros Hx; kill Hx.
-              eapply SRPC_inv; eattac.
-          - unfold net_lock_on in *.
-            unfold net_lock in *.
-            rewrite (NV_stay T); auto.
-        }
-
-        apply H_lock_sound in HL0.
-
-        smash_eq n n1.
-        + kill T.
-          ltac1:(simpl_net).
-          destruct (NetMod.get n N0) eqn:HE.
-          eapply pq_client_invariant_tau; eattac.
-        + replace (NetMod.get n1 N1) with (NetMod.get n1 N0) by (rewrite (NV_stay T) in *; eauto).
-          auto.
-
-      - intros n0 n1 HL1.
-
-        enough (pq_client n0 (NetMod.get n1 N0)) as HL0.
-        {
-          apply H_lock_complete in HL0.
-          unfold net_lock_on in *.
-
-          assert (n <> n0) as HNEq.
-          {
-            intros HEq; subst.
-            hsimpl in HL0.
-            unfold net_lock in HL2.
-            kill T.
-            specialize (pq_lock_recv HL2 H) as bs.
-            bullshit.
-          }
-
-          assert (NetMod.get n0 N1 = NetMod.get n0 N0) by (rewrite (NV_stay T) in *; eauto).
-          unfold net_lock in *.
-          rewrite H in *.
-          auto.
-        }
-
-        smash_eq n1 n.
-        + kill T.
-          ltac1:(simpl_net).
-          assert (AnySRPC_pq (NetMod.get n1 N0)) as Hsrpc_0 by attac.
-          assert (AnySRPC_pq &S) as Hsrpc_1 by attac.
-          kill HL1; kill H; eattac; try (destruct n); try (destruct t0).
-          * apply Deq_split in HDeq.
-            hsimpl in HDeq.
-            econstructor 1 with (v:=v).
-            apply in_app_or in H0 as [?|?]; eattac.
-          * apply Deq_split in HDeq.
-            hsimpl in HDeq.
-            econstructor 1 with (v:=v).
-            apply in_app_or in H0 as [?|?]; eattac.
-          * smash_eq n0 n.
-            1: eattac.
-            econstructor 1 with (v:=v).
-            assert ((n, Q) <> (n0, Q)) as HNEq by bullshit.
-            edestruct (SRPC_recv_Q) as [Hsrpc0 Hsrpc1]; eattac.
-            kill H0.
-            apply (SRPC_inv Hsrpc1) in H.
-            kill H.
-          * edestruct (SRPC_recv_R) as [c [Hsrpc0 Hsrpc1]]; eattac.
-            kill H0.
-            apply (SRPC_inv Hsrpc1) in H.
-            kill H.
-            ltac1:(dependent destruction H3).
-            constructor. econstructor. attac.
-          * edestruct (SRPC_send_Q) as [c [Hsrpc0 Hsrpc1]]; eattac.
-            kill H0.
-            apply (SRPC_inv Hsrpc1) in H.
-            kill H.
-            eattac.
-          * edestruct (SRPC_send_R) as [Hsrpc0 Hsrpc1]; eattac.
-            kill H0.
-            apply (SRPC_inv Hsrpc1) in H.
-            kill H.
-          * edestruct (SRPC_tau) as [c [Hsrpc0 Hsrpc1]]; eattac.
-            kill H0.
-            apply (SRPC_inv Hsrpc1) in H.
-            kill H.
-            eattac.
-          * hsimpl in *.
-            econstructor 3.
-            apply in_app_or in H0 as [?|?]; eattac.
-          * edestruct (SRPC_send_R) as [Hsrpc0 Hsrpc1]; eattac.
-            hsimpl in *.
-            apply in_app_or in H0 as [?|?]; eattac.
-        + assert (NetMod.get n1 N1 = NetMod.get n1 N0) by (rewrite (NV_stay T) in *; eauto).
-          unfold net_lock_on in *.
-          unfold net_lock in *.
-          rewrite H in *.
-          auto.
+      - eauto using trans_invariant_SRPC_net_tau with LTS.
+      - eauto using trans_invariant_net_sane_tau__locks_sound with LTS.
+      - eauto using trans_invariant_net_sane_tau__locks_complete with LTS.
     Qed.
 
-    Lemma trans_invariant_SRPC_net_comm [n0 n1 t v] [N0 N1 : PNet] :
+
+
+    Lemma trans_invariant_net_sane__SRPC_net_comm__sender [n0 n1 t v] [N0 N1 : PNet] :
+      (N0 =(NComm n0 n1 t v)=> N1) ->
+      net_sane N0 ->
+      exists srpc, SRPC_pq_in_net srpc (NetMod.get n0 N1).
+
+    Admitted.
+
+
+    Lemma trans_invariant_net_sane__SRPC_net_comm__receiver [n0 n1 t v] [N0 N1 : PNet] :
+      (N0 =(NComm n0 n1 t v)=> N1) ->
+      net_sane N0 ->
+      exists srpc, SRPC_pq_in_net srpc (NetMod.get n1 N1).
+
+    Admitted.
+
+
+    Lemma trans_invariant_net_sane__SRPC_net_comm__self [n t v] [N0 N1 : PNet] :
+      (N0 =(NComm n n t v)=> N1) ->
+      net_sane N0 ->
+      exists srpc, SRPC_pq_in_net srpc (NetMod.get n N1).
+
+    Admitted.
+
+
+    Hint Resolve trans_pqued | 0 : typeclass_instances.
+    Lemma trans_invariant_SRPC_net_comm [n0 n1 t] [v] [N0 N1 : PNet] :
       (N0 =(NComm n0 n1 t v)=> N1) ->
       net_sane N0 ->
       SRPC_net N1.
 
     Proof using Type.
-      unfold SRPC_net.
-      intros T Hs0 n'.
+      repeat (intros ?).
+
+      smash_eq_on n n0 n1; subst.
+      - eauto using trans_invariant_net_sane__SRPC_net_comm__self.
+      - eauto using trans_invariant_net_sane__SRPC_net_comm__sender.
+      - eauto using trans_invariant_net_sane__SRPC_net_comm__receiver.
+      - replace (NetMod.get n N1) with (NetMod.get n N0)
+          by (eapply (@act_particip_stay PQued PAct); attac). (* TODO This typeclass sucks *)
+
+        consider (net_sane N0); auto.
+    Qed.
 
       have (N0 =(NComm n0 n1 &t v)=> N1) as T'.
 

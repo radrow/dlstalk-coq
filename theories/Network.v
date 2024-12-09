@@ -220,6 +220,31 @@ Module Net(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
     #[export] Hint Transparent trans_net : LTS.
 
 
+    Lemma NComm_eq [n t v N0] [S S'] :
+      (NetMod.get n N0 =(send (n, t) v)=> S) ->
+      (S =(recv (n, t) v)=> S') ->
+      N0 =(NComm n n t v)=> (NetMod.put n S' N0).
+
+    Proof.
+      intros.
+      econstructor; eattac.
+      replace (NetMod.put n S' N0) with (NetMod.put n S' (NetMod.put n &S N0)) by attac.
+      attac.
+    Qed.
+
+
+    Lemma NComm_neq [n n' t v N0] [S S'] :
+      n <> n' ->
+      (NetMod.get n N0 =(send (n', t) v)=> S) ->
+      (NetMod.get n' N0 =(recv (n, t) v)=> S') ->
+      N0 =(NComm n n' t v)=> (NetMod.put n' S' (NetMod.put n S N0)).
+
+    Proof.
+      intros.
+      constructor 2 with (N0' := NetMod.put n &S N0); attac.
+    Qed.
+
+
     Lemma NTrans_Comm_neq_inv n n' t v N0 N1 :
       n <> n' ->
       (N0 =(NComm n n' t v)=> N1) <->
@@ -673,9 +698,53 @@ Module Net(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
       rewrite NetMod.get_map.
       smash_eq n0 n; attac.
     Qed.
+
+
+    Definition lift_act (n : Name) (a : Act) : option NAct :=
+      gact_rec a
+        (fun nc v => let (n', t) := nc in Some (NComm n n' t v))
+        (fun nc v => None)
+        (fun _ => Some (NTau n a)).
+
+
+    Fixpoint lift_path (n : Name) (path : list Act) : list NAct :=
+      match path with
+      | [] => []
+      | a :: path =>
+          match lift_act n a with
+          | Some na => na :: lift_path n path
+          | None => lift_path n path
+          end
+      end.
+
+
+    Definition act_cont (self : Name) (a : Act) : option (Name * Act) :=
+      gact_rec a
+        (fun nc v => let (n, t) := nc in Some (n, recv (self, t) v))
+        (fun nc v => None)
+        (fun _ => None).
+
+    Definition act_artifact (self : Name) (a : Act) (n : Name) : option Act :=
+      gact_rec a
+        (fun nc v => let (n', t) := nc in if NAME.eqb n n' then Some (recv (self, t) v) else None)
+        (fun nc v => let (n', t) := nc in if NAME.eqb n n' then Some (send (self, t) v) else None)
+        (fun _ => None).
+
+    Fixpoint path_artifact (self : Name) (path : list Act) (n : Name) : list Act :=
+      match path with
+      | [] => []
+      | a :: path =>
+          match act_artifact self a n with
+          | Some na => na :: path_artifact self path n
+          | None => path_artifact self path n
+          end
+      end.
+
   End General.
 
+
   #[export] Hint Constructors NAct NVTrans NTrans Path_of : LTS.
+  #[export] Hint Resolve NComm_eq NComm_neq : LTS.
   #[export] Hint Resolve path_of_exists : LTS.
   #[export] Hint Immediate act_particip_stay path_particip_stay : LTS.
   #[export] Hint Unfold trans_net : LTS.
