@@ -7,3 +7,5 @@ theories/ModelData.v
 theories/Que.v
 theories/Model.v
 theories/Network.v
+theories/Lemmas.v
+theories/Locks.v
