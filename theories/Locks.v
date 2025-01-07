@@ -299,7 +299,7 @@ Module Type LOCKS(Name : UsualDecidableSet)(NetModF : NET).
       consider (PRecv _ =(a)=> _).
       destruct n as [n t].
       consider ((In n L <-> handle0 (n, R) <> None) /\ handle0 (n, Q) = None).
-      destruct `(Tag). 
+      destruct `(Tag).
       - cbv in *; bullshit.
       - enough (handle0 (n, R) <> None) by eattac.
         cbv in *; bullshit.
@@ -1522,7 +1522,7 @@ Module Type LOCKS(Name : UsualDecidableSet)(NetModF : NET).
         kill H1.
         eapply Hind; eauto with LTS.
     Qed.
-    
+
 
     (* Reverse inversion of [dep_on] *)
     Theorem dep_on_inv_r [N n0 n1] :
@@ -2205,7 +2205,7 @@ Module Type LOCKS_UNIQ(Name : UsualDecidableSet)(NetModF : NET).
 
     Hint Resolve net_get_lock : LTS.
 
-    
+
     (** In an SRPC network, any member of a lock set is the lock set *)
     Lemma net_get_lock_In [L n0 n1] :
       List.In n1 L ->
@@ -2517,7 +2517,7 @@ Module Type LOCKS_UNIQ(Name : UsualDecidableSet)(NetModF : NET).
 
         consider (lock_chain _ _ L1 n1); attac 2.
         consider (n4 = n0) by attac.
-        
+
         rename l into L1.
         clear HEq0.
         clear H1.
@@ -2659,7 +2659,7 @@ Module Type LOCKS_UNIQ(Name : UsualDecidableSet)(NetModF : NET).
           {
             consider (dep_on _ n0 _).
             - bullshit (a = m) by attac.
-            - bullshit (a = n2) by attac. 
+            - bullshit (a = n2) by attac.
           }
 
           smash_eq a n1.
@@ -3779,7 +3779,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
   Import Model.
   Import Que.
 
-    
+
   (** SRPC process handling a request from the client [c] *)
     Inductive SRPC_Handle_State (c : Name) :=
     | HWork : SRPC_Handle_State c
@@ -4581,7 +4581,16 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
            kill HBusy; doubt. specialize (HReplyOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac.
     Qed.
 
-    #[export] Hint Resolve SRPC_Work_recv_bs SRPC_Free_send_bs SRPC_Free_tau_bs SRPC_Free_recv_R_bs SRPC_Lock_send_bs SRPC_Lock_tau_bs SRPC_Lock_recv_Q_bs SRPC_Lock_recv_other_bs : bullshit.
+    #[export] Hint Resolve
+      SRPC_Work_recv_bs
+      SRPC_Free_send_bs
+      SRPC_Free_tau_bs
+      SRPC_Free_recv_R_bs
+      SRPC_Lock_send_bs
+      SRPC_Lock_tau_bs
+      SRPC_Lock_recv_Q_bs
+      SRPC_Lock_recv_other_bs
+      : bullshit.
 
 
     Import LockDefs.
@@ -4794,6 +4803,47 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
 
+    (** You need at least a tau to change the lock *)
+    Lemma SRPC_no_relock [P0 P1 a n0 n1] :
+      AnySRPC P0 ->
+      proc_lock [n0] P0 ->
+      proc_lock [n1] P1 ->
+      (P0 =(a)=> P1) ->
+      n0 = n1.
+
+    Proof.
+      intros.
+      destruct SRPC H H2.
+      - absurd (exists c', SRPC (Lock c' n1) P1).
+        + intros Hx; hsimpl in Hx.
+          bullshit (Lock c' n1 = Work c) by attac.
+        + eapply lock_SRPC_Lock; eattac.
+      - absurd (exists c', SRPC (Lock c' n1) P1).
+        + intros Hx; hsimpl in Hx.
+          bullshit (Lock c' n1 = Work c) by attac.
+        + eapply lock_SRPC_Lock; eattac.
+    Qed.
+
+
+    (** You need at least a tau to change the lock *)
+    Lemma SRPC_pq_no_relock [S0 S1 a n0 n1] :
+      AnySRPC_pq S0 ->
+      pq_lock [n0] S0 ->
+      pq_lock [n1] S1 ->
+      (S0 =(a)=> S1) ->
+      n0 = n1.
+
+    Proof.
+      intros.
+      consider (exists c0, SRPC_pq (Lock c0 n0) S0) by eauto using lock_SRPC_Lock_pq with LTS.
+      consider (exists c1, SRPC_pq (Lock c1 n1) S1) by eauto using lock_SRPC_Lock_pq with LTS.
+      destruct S0, S1; simpl in *.
+      consider (_ =(a)=> _);
+        try (consider (Lock c0 n0 = Lock c1 n1) by eattac).
+      eauto using SRPC_no_relock with LTS.
+    Qed.
+
+
     (** The last thing an SRPC process does before locking is to send a query  *)
     Lemma SRPC_send_lock [L a P0 P1] :
       AnySRPC P0 ->
@@ -4969,7 +5019,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     Proof.
       unfold trans_invariant, SRPC_net.
       intros.
-      
+
       consider (exists path, Path_of n [a] path) by eauto using path_of_exists.
       enough (NetMod.get n N0 =[path]=> NetMod.get n N1) by attac.
       eauto using path_of_ptrans with LTS.
@@ -5006,7 +5056,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
       consider (exists s, pq_lock [s] (NetMod.get n N)) by eauto using SRPC_pq_get_lock.
       destruct L; doubt.
-      
+
       assert (incl [s] []) by eauto using pq_lock_incl.
       bullshit (In s []).
     Qed.
@@ -5572,49 +5622,6 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
 
-    (* TODO MOVE UP *)
-    (** You need at least a tau to change the lock *)
-    Lemma SRPC_no_relock [P0 P1 a n0 n1] :
-      AnySRPC P0 ->
-      proc_lock [n0] P0 ->
-      proc_lock [n1] P1 ->
-      (P0 =(a)=> P1) ->
-      n0 = n1.
-
-    Proof.
-      intros.
-      destruct SRPC H H2.
-      - absurd (exists c', SRPC (Lock c' n1) P1).
-        + intros Hx; hsimpl in Hx.
-          bullshit (Lock c' n1 = Work c) by attac.
-        + eapply lock_SRPC_Lock; eattac.
-      - absurd (exists c', SRPC (Lock c' n1) P1).
-        + intros Hx; hsimpl in Hx.
-          bullshit (Lock c' n1 = Work c) by attac.
-        + eapply lock_SRPC_Lock; eattac.
-    Qed.
-
-
-    (* TODO MOVE UP *)
-    (** You need at least a tau to change the lock *)
-    Lemma SRPC_pq_no_relock [S0 S1 a n0 n1] :
-      AnySRPC_pq S0 ->
-      pq_lock [n0] S0 ->
-      pq_lock [n1] S1 ->
-      (S0 =(a)=> S1) ->
-      n0 = n1.
-
-    Proof.
-      intros.
-      consider (exists c0, SRPC_pq (Lock c0 n0) S0) by eauto using lock_SRPC_Lock_pq with LTS.
-      consider (exists c1, SRPC_pq (Lock c1 n1) S1) by eauto using lock_SRPC_Lock_pq with LTS.
-      destruct S0, S1; simpl in *.
-      consider (_ =(a)=> _);
-        try (consider (Lock c0 n0 = Lock c1 n1) by eattac).
-      eauto using SRPC_no_relock with LTS.
-    Qed.
-
-
     Lemma SRPC_net_get_lock [N n0 n1] :
       SRPC_net N ->
       net_lock_on N n0 n1 ->
@@ -5893,7 +5900,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
       consider (pq_lock _ _).
       assert (SRPC_pq srpc (pq I0 P0 [(n, R, v)])) by eattac; simpl in *.
       consider (srpc = Lock c s) by eauto using SRPC_inv.
-      consider (exists v', In (s, Q, v') [(n, R, v)]) by eattac. 
+      consider (exists v', In (s, Q, v') [(n, R, v)]) by eattac.
     Qed.
 
     Lemma SRPC_sane_send_Q_lock [srpc S0 S1 n v] :
@@ -6027,7 +6034,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     (*     (forall (N0 N1 : NetMod.t Node) t v m0 m1, m0 <> n -> m1 <> n -> (NetMod.get n N0 = NetMod.get n N1) -> P (NComm m0 m1 t v) N0 N1 n) -> *)
     (*     (forall (a : NAct(Act:=Act)) (N0 N1 : NetMod.t Node), NTrans a N0 N1 -> P a N0 N1 n). *)
     (* Admitted. *)
-   
+
 
     Lemma SRPC_net_tau_no_lock [N0 N1 n0 n1 a] :
       SRPC_net N0 ->
@@ -6051,11 +6058,11 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
       ~ net_lock_on N1 n0 n1.
 
     Proof.
-      intros. 
+      intros.
 
       remember (NTau n a) as na.
       induction H1 using (net_ind_of n0); hsimpl in *; doubt.
-      - enough (forall L, ~ pq_lock L (NetMod.get n N1)) by (unfold net_lock_on, net_lock in *; eattac); intros.        
+      - enough (forall L, ~ pq_lock L (NetMod.get n N1)) by (unfold net_lock_on, net_lock in *; eattac); intros.
         eauto using SRPC_tau_no_lock_r with LTS.
       - unfold net_lock_on, net_lock in *.
         now rewrite `(NetMod.get n0 N0 = _) in *.
@@ -6103,7 +6110,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
       - simpl in *.
         consider ( ~ ((c, &t, v) = (c0, R, v0) \/ In (c0, R, v0) O1)).
     Qed.
-        
+
 
     Lemma SRPC_sane_net_send_R_sender_no_lock [N0 N1 n0 n1 n v] :
       SRPC_sane_net N0 ->
@@ -6179,6 +6186,23 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
 
+    Theorem net_sane_no_self_reply [N0 N1 : PNet] [n0 n1 v] :
+      net_sane N0 ->
+      (N0 =(NComm n0 n1 R v)=> N1) ->
+      n0 <> n1.
+
+    Proof.
+      intros.
+      intros ?; subst.
+      rename n1 into n.
+
+      enough (net_lock_on N0 n n) by bullshit (n <> n) by eauto using net_lock_on_no_send.
+
+      enough (pq_client n (NetMod.get n N0)) by attac.
+
+      consider (_ =(NComm n n R v)=> _); compat_hsimpl in *; attac.
+    Qed.
+
 
     (* This is to allow the condition from LocksStatic be used in Immediate hints. *)
     Lemma net_sane_AnySRPC' (N : PNet) : net_sane N -> forall n, AnySRPC_pq (NetMod.get n N).
@@ -6186,25 +6210,25 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     #[export] Hint Extern 0 (forall n, AnySRPC_pq (NetMod.get n _)) => simple apply net_sane_AnySRPC'; eassumption : LTS.
 
 
-    Ltac2 rec solve_mut_exclusive (full : bool) :=
-      lazy_match! goal with
-      | [|- mut_exclusive _ []] => constructor
-      | [|- mut_exclusive _ (_::_)] =>
-          constructor >
-            [ let h := Fresh.in_goal @H in
-              intros $h;
-              simpl app;
-              if full then solve_mut_exclusive full else ()
-            | solve_mut_exclusive full
-            ]
-      | [|- Forall _ []] => constructor
-      | [|- Forall not (_::_)] =>
-          constructor >
-            [ let h := Fresh.in_goal @H in
-              intros $h
-            | solve_mut_exclusive full
-            ]
-      end.
+    (* Ltac2 rec solve_mut_exclusive (full : bool) := *)
+    (*   lazy_match! goal with *)
+    (*   | [|- mut_exclusive _ []] => constructor *)
+    (*   | [|- mut_exclusive _ (_::_)] => *)
+    (*       constructor > *)
+    (*         [ let h := Fresh.in_goal @H in *)
+    (*           intros $h; *)
+    (*           simpl app; *)
+    (*           if full then solve_mut_exclusive full else () *)
+    (*         | solve_mut_exclusive full *)
+    (*         ] *)
+    (*   | [|- Forall _ []] => constructor *)
+    (*   | [|- Forall not (_::_)] => *)
+    (*       constructor > *)
+    (*         [ let h := Fresh.in_goal @H in *)
+    (*           intros $h *)
+    (*         | solve_mut_exclusive full *)
+    (*         ] *)
+    (*   end. *)
 
 
     Lemma proc_client_inv [P c0 c1] :
@@ -6223,23 +6247,23 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     #[export] Hint Immediate proc_client_inv : LTS.
 
 
-    Ltac2 rec strip_exists h :=
-      lazy_match! (Constr.type (hyp h)) with
-      | ex ?body =>
-          match (Constr.Unsafe.kind body) with
-          | Constr.Unsafe.Lambda arg val =>
-              let hh := hyp h in
-              let arg_n := match Constr.Binder.name arg with
-                           | None => Fresh.in_goal @x
-                           | Some n => Fresh.in_goal n
-                           end in
-              destruct $hh as [$arg_n $h];
-              strip_exists h
-          | _ => Control.throw Init.Assertion_failure
-          end
-      | ?t =>
-          t
-      end.
+    (* Ltac2 rec strip_exists h := *)
+    (*   lazy_match! (Constr.type (hyp h)) with *)
+    (*   | ex ?body => *)
+    (*       match (Constr.Unsafe.kind body) with *)
+    (*       | Constr.Unsafe.Lambda arg val => *)
+    (*           let hh := hyp h in *)
+    (*           let arg_n := match Constr.Binder.name arg with *)
+    (*                        | None => Fresh.in_goal @x *)
+    (*                        | Some n => Fresh.in_goal n *)
+    (*                        end in *)
+    (*           destruct $hh as [$arg_n $h]; *)
+    (*           strip_exists h *)
+    (*       | _ => Control.throw Init.Assertion_failure *)
+    (*       end *)
+    (*   | ?t => *)
+    (*       t *)
+    (*   end. *)
 
 
     Lemma trans_invariant_net_sane_tau__Q_in [n N0 N1] :
@@ -6249,7 +6273,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
       destruct S as [I1 P1 O1]; compat_hsimpl in *.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]]; compat_hsimpl in *; simpl in *; doubt.
@@ -6268,7 +6292,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
       destruct S as [I1 P1 O1]; compat_hsimpl in *.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]]; compat_hsimpl in *; simpl in *; doubt.
@@ -6276,14 +6300,12 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
         bullshit.
 
       - consider (exists c, SRPC (Work c) (PTau P1) /\ SRPC (Work c) P1)
-          by (eapply SRPC_tau; eattac; kill Hsrpc0; eattac).
+          by (eapply SRPC_tau; eattac; consider (SRPC_sane _ _); eattac).
         assert (List.In (s', R, v') I1) by (eapply Deq_neq_In; eattac).
         consider (exists c0, srpc0 = Lock c0 s') by eattac.
-        assert (SRPC (Lock c0 s') (PTau P1)) by (kill Hsrpc0; eattac).
+        assert (SRPC (Lock c0 s') (PTau P1)) by (consider (SRPC_sane _ _); eattac).
         bullshit (~ Work c = Lock c0 s').
     Qed.
-
-
 
 
     Theorem net_sane_reply_lock [N0 N1 : PNet] [n0 n1 v] :
@@ -6306,57 +6328,36 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
 
-    Theorem net_sane_query_new_lock [N0 N1 : PNet] [n0 n1 v] :
+    Theorem net_sane_send_Q_new_lock [N0 N1 : PNet] [n0 n1 v] :
       net_sane N0 ->
       (N0 =(NComm n0 n1 Q v)=> N1) ->
       net_lock_on N1 n0 n1.
 
     Proof.
       intros Hs0 T.
+      consider (_ =(_)=> _).
 
-      kill Hs0.
-      kill T.
-      compat_hsimpl in *.
+      consider (NetMod.get n0 N0 =(send (n1, Q) v)=> NetMod.get n0 N0') by eattac.
+      consider (exists srpc, SRPC_sane srpc (NetMod.get n0 N0)) by eattac.
 
-      specialize (H_Sane_SRPC n0) as [srpc Hsrpc].
-      kill Hsrpc.
-      hsimpl in *.
-      edestruct H_Q_out_lock as [c HEq].
-      1: left; eauto.
-      subst.
-      exists [n1].
-      split.
-      1: attac.
+      enough (pq_lock [n1] (NetMod.get n0 N1)) by eattac.
+      enough (pq_lock [n1] (NetMod.get n0 N0')).
+      - smash_eq n0 n1.
+        consider (N0' ~(n0 @ _)~> _).
+        2: { replace (NetMod.get n0 N0') with (NetMod.get n0 N1); attac. }
 
-      unfold net_lock in *.
+        compat_hsimpl in *.
+        hsimpl in *.
 
-      assert (O1 = []).
-      {
-        destruct O1; auto.
-        simpl in H_Q_out_last.
-        exfalso.
-        eapply H_Q_out_last.
-        eauto.
-      }
-      subst.
+        consider (pq_lock _ _).
+        attac.
+        assert (In (n, R, v) &I \/ In (n, R, v) [(n, Q, v0)]) as [|] by eattac.
+        all: bullshit.
 
-      smash_eq n0 n1; hsimpl in *; hsimpl in |- *.
-      - constructor; attac.
-        + apply SRPC_Decisive. eattac.
-        + apply in_app_or in H0 as [?|?].
-          2: kill H.
-          eapply H_Q_R; eattac.
-      - constructor.
-        + eapply SRPC_Decisive. eattac.
-        + eapply SRPC_Lock_lock; eattac.
-        + intros.
-          kill H.
-          eapply H_Q_R.
-          eattac.
+      - assert (NetMod.get n0 N0 =(send (n1, Q) v)=> NetMod.get n0 N0')
+          by eattac.
+        eauto using SRPC_sane_send_Q_lock.
     Qed.
-
-
-
 
 
     Lemma trans_invariant_net_sane_tau__R_in_lock [n N0 N1] :
@@ -6366,14 +6367,18 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
-      destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
       assert (List.In (s, R, v) I0) by (consider (_ =(Tau)=> _); eapply Deq_neq_In; eattac).
-      consider (exists c, srpc0 = Lock c s) by eauto using SRPC_sane_R_in_lock.
-      assert (SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
-      consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]]; compat_hsimpl in *; simpl in *; eattac.
+      consider (exists c, srpc0 = Lock c s) by eauto using SRPC_sane_R_in_lock_inv.
+      exists c.
+      assert (SRPC (Lock c s) P0) by (consider (SRPC_sane _ _); eattac).
+      destruct S as [I1 P1 O1].
+      enough (SRPC (Lock c s) P1) by attac.
+      consider (_ =(Tau)=> _); hsimpl in *; doubt.
+      destruct n0 as [? [|]]; doubt.
     Qed.
+
 
     Lemma trans_invariant_net_sane_tau__Q_out_lock [n N0 N1] :
       NVTrans n Tau N0 N1 ->
@@ -6381,13 +6386,13 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
       SRPC_sane_Q_out_lock (NetMod.get n N1).
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
-      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      assert (AnySRPC P0) by (consider (SRPC_sane _ _); eattac).
       destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
       - consider (exists c, srpc0 = Lock c s) by eattac.
-        exists c; kill Hsrpc0; attac.
+        exists c; consider (SRPC_sane _ _); attac.
       - assert (exists c, srpc0 = Lock c s) by eattac.
         assert (exists c', srpc0 = Lock c' n1) by eattac.
         hsimpl in *.
@@ -6396,7 +6401,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
         assert (List.In (s, Q, v) O0 \/ List.In (s, Q, v) [(n1, Q, v0)]) as [|] by (hsimpl in * |-; eattac).
         2: { eattac. }
 
-        assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c, SRPC (Lock c s) P0) by (consider (SRPC_sane _ _); eattac).
         assert (exists c, SRPC (Work c) P0) by eattac.
         attac.
 
@@ -6405,7 +6410,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
           assert (List.In (s, Q, v) O0 \/ List.In (s, Q, v) [(n1, R, v0)]) as [|] by (hsimpl in * |-; eattac).
           2: { eattac. }
           consider (exists c, srpc0 = Lock c s) by eattac.
-          kill Hsrpc0; eattac.
+          consider (SRPC_sane _ _); eattac.
         }
         consider (exists c, SRPC (Work c) P0) by attac.
 
@@ -6415,11 +6420,12 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
       - assert (exists c, SRPC (Lock c n0) P0).
         {
           consider (exists c, srpc0 = Lock c n0) by eattac.
-          kill Hsrpc0; eattac.
+          consider (SRPC_sane _ _); eattac.
         }
         consider (exists c, SRPC (Work c) P0) by attac.
         hsimpl in *; bullshit.
     Qed.
+
 
     Lemma trans_invariant_net_sane_tau__Q_out_last [n N0 N1] :
       NVTrans n Tau N0 N1 ->
@@ -6428,20 +6434,20 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
-      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      assert (AnySRPC P0) by (consider (SRPC_sane _ _); eattac).
       destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
       - assert (List.In (s, Q, v) O0)
           by (hsimpl in *; rewrite removelast_app in * by attac; simpl in *; rewrite app_nil_r in *; attac).  (* TODO WTF *)
-        assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c, SRPC (Lock c s) P0) by (consider (SRPC_sane _ _); eattac).
         assert (exists c, SRPC (Work c) P0) by (eattac).
         hsimpl in *; bullshit.
 
       - assert (List.In (s, Q, v) O0)
           by (hsimpl in *; rewrite removelast_app in * by attac; simpl in *; rewrite app_nil_r in *; attac).  (* TODO WTF *)
-        assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+        assert (exists c, SRPC (Lock c s) P0) by (consider (SRPC_sane _ _); eattac).
         assert (exists c, SRPC (Work c) P0) by (eattac).
         hsimpl in *; bullshit.
     Qed.
@@ -6453,9 +6459,9 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
-      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      assert (AnySRPC P0) by (consider (SRPC_sane _ _); eattac).
       destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
       - consider (exists O0', Deq (c, R) v O0 O0' /\ O' = O0' ++ [(n1, Q, v0)]) by (eapply Deq_app_or_l; eattac).
@@ -6465,8 +6471,8 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
         + assert (proc_client c P0) by eattac.
           enough (List.In (c, R, v') O0) by eattac.
           hsimpl in *.
-          assert (forall a b : (NChan * Val), {a = b} + {a <> b}) by (ltac1:(decide equality); eauto using NChan_eq_dec, Val_eq_dec).
-          destruct (in_dec H3 (c, R, v') O0); auto.
+          assert (forall a b : (NChan * Val), {a = b} + {a <> b}) as Hmeh by (ltac1:(decide equality); eauto using NChan_eq_dec, Val_eq_dec).
+          destruct (in_dec Hmeh (c, R, v') O0); auto.
           consider (exists O0', Deq (c, R) v [(c, R, v0)] O0' /\ O' = O0 ++ O0') by (eapply Deq_app_or_r; eattac).
           consider (Deq _ _ [_] _).
           rewrite app_nil_r in *. (* TODO WTF *)
@@ -6484,18 +6490,18 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
-      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      assert (AnySRPC P0) by (consider (SRPC_sane _ _); eattac).
       destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
-      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+      - assert (exists c, SRPC (Lock c s) P0) by (consider (SRPC_sane _ _); eattac).
         assert (exists c', SRPC (Work c') P0) by eattac.
         hsimpl in *; bullshit.
-      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+      - assert (exists c, SRPC (Lock c s) P0) by (consider (SRPC_sane _ _); eattac).
         assert (exists c', SRPC (Work c') P0) by eattac.
         hsimpl in *; bullshit.
-      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+      - assert (exists c, SRPC (Lock c s) P0) by (consider (SRPC_sane _ _); eattac).
         assert (exists c', SRPC (Work c') P0) by eattac.
         hsimpl in *; bullshit.
     Qed.
@@ -6507,18 +6513,18 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
-      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      assert (AnySRPC P0) by (consider (SRPC_sane _ _); eattac).
       destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
-      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+      - assert (exists c, SRPC (Lock c s) P0) by (consider (SRPC_sane _ _); eattac).
         assert (exists c', SRPC (Work c') P0) by eattac.
         hsimpl in *; bullshit.
-      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+      - assert (exists c, SRPC (Lock c s) P0) by (consider (SRPC_sane _ _); eattac).
         assert (exists c', SRPC (Work c') P0) by eattac.
         hsimpl in *; bullshit.
-      - assert (exists c, SRPC (Lock c s) P0) by (kill Hsrpc0; eattac).
+      - assert (exists c, SRPC (Lock c s) P0) by (consider (SRPC_sane _ _); eattac).
         assert (exists c', SRPC (Work c') P0) by eattac.
         hsimpl in *; bullshit.
     Qed.
@@ -6530,9 +6536,9 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
-      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      assert (AnySRPC P0) by (consider (SRPC_sane _ _); eattac).
       destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
       destruct O1' as [|[[? ?] ?] O1]; doubt.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
@@ -6559,9 +6565,9 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
-      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      assert (AnySRPC P0) by (consider (SRPC_sane _ _); eattac).
       destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; consider (proc_client _ _); doubt.
       - assert (SRPC (Work n1) P1) by eattac.
@@ -6599,9 +6605,9 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
-      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      assert (AnySRPC P0) by (consider (SRPC_sane _ _); eattac).
       destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; doubt.
       - consider (exists c', SRPC (Work c') P0 /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q.
@@ -6619,9 +6625,9 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       attac.
-      specialize (`(net_sane _) n) as [srpc0 Hsrpc0].
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n N0)) by eattac.
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?; hsimpl in *.
-      assert (AnySRPC P0) by (kill Hsrpc0; eattac).
+      assert (AnySRPC P0) by (consider (SRPC_sane _ _); eattac).
       destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); destruct `(NChan) as [? [|]] eqn:?; subst; consider (proc_client _ _); doubt.
         - assert (SRPC (Work n1) P1) by eattac.
@@ -6653,22 +6659,22 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
 
-    Lemma trans_invariant_net_sane_tau [n N0 N1] :
-      NVTrans n Tau N0 N1 ->
+    Lemma trans_invariant_net_sane_tau__SRPC_sane [n N0 N1] :
+      N0 ~(n @ Tau)~> N1 ->
       net_sane N0 ->
-      net_sane N1.
+      SRPC_sane_net N1.
 
     Proof.
-      unfold net_sane.
       intros.
+      intros n'.
 
-      smash_eq n n0.
+      smash_eq n n'.
       2: {
-        replace (NetMod.get n0 N1) with (NetMod.get n0 N0) by eauto using NV_stay with LTS.
+        replace (NetMod.get n' N1) with (NetMod.get n' N0) by eauto using NV_stay with LTS.
         eattac.
       }
 
-      consider (exists srpc0 : SRPC_State, SRPC_sane srpc0 (NetMod.get n N0)).
+      consider (exists srpc0 : SRPC_State, SRPC_sane srpc0 (NetMod.get n N0)) by attac.
       consider (exists srpc1, SRPC_pq srpc1 (NetMod.get n N1))
         by (hsimpl in *; assert (AnySRPC_pq (NetMod.get n N0)) by eattac; enough (AnySRPC_pq &S); eattac).
 
@@ -6688,7 +6694,6 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
         trans_invariant_net_sane_tau__in_Q_no_client,
         trans_invariant_net_sane_tau__in_Q_no_out_R,
         trans_invariant_net_sane_tau__client_no_out_R.
-
     Qed.
 
 
@@ -6700,7 +6705,9 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       intros.
-      consider (net_lock_on N n0 n1 /\ net_lock_on N n0 n1'); attac.
+      consider (net_lock_on N n0 n1 /\ net_lock_on N n0 n1') by attac.
+      enough (lock_uniq_type N) by attac.
+      eauto using SRPC_net_lock_uniq with LTS.
     Qed.
 
 
@@ -6738,7 +6745,7 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
       - consider (exists c', SRPC (Lock c' n) P /\ SRPC (Work c') P1) by eauto using SRPC_recv_R.
         smash_eq c c'; attac.
 
-        consider (proc_client c (PRecv h)).
+        consider (proc_client c (PRecv &handle)).
         bullshit.
 
       - consider (exists c', SRPC (Work c') P /\ SRPC (Lock c' n) P1) by eauto using SRPC_send_Q.
@@ -6758,22 +6765,18 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
 
-    Theorem net_sane_no_self_reply [N0 N1 : PNet] [n0 n1 v] :
-      net_sane N0 ->
-      (N0 =(NComm n0 n1 R v)=> N1) ->
-      n0 <> n1.
+    Lemma SRPC_net_lock_on_tau_derive [N0 N1 n0 n1 n a] :
+      SRPC_net N0 ->
+      net_lock_on N1 n0 n1 ->
+      (N0 =(NTau n a)=> N1) ->
+      net_lock_on N0 n0 n1.
 
     Proof.
       intros.
-      intros ?; subst.
-      rename n1 into n.
-
-      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?.
-
-      assert (pq_client n (NetMod.get n N0)) by (consider (_ =(NComm n n R v)=> _); compat_hsimpl in *; attac).
-
-      assert (net_lock_on N0 n n) by attac.
-      bullshit (n <> n).
+      smash_eq n0 n.
+      - bullshit (~ net_lock_on N1 n0 n1) by eauto using SRPC_net_tau_no_lock with LTS.
+      - unfold net_lock_on, net_lock in *.
+        replace (NetMod.get n0 N0) with (NetMod.get n0 N1); eattac.
     Qed.
 
 
@@ -6793,8 +6796,9 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
         + now replace (NetMod.get n1 N1) with (NetMod.get n1 N0) by (eauto using NV_stay with LTS).
       }
 
-      (* Tau preseve lock *)
-    Admitted.
+      enough (N0 =(NTau n Tau)=> N1) by eauto using SRPC_net_lock_on_tau_derive with LTS.
+      eattac.
+    Qed.
 
 
     Lemma trans_invariant_net_sane_tau__locks_complete [n N0 N1] :
@@ -6805,8 +6809,8 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
     Proof.
       repeat (intros ?).
 
-      enough (net_lock_on N0 n0 n1) by admit. (* Tau preserve lock *)
-
+      assert (N0 =(NTau n Tau)=> N1) by attac.
+      enough (net_lock_on N0 n0 n1) by eauto using net_lock_on_tau_preserve.
       enough (pq_client n0 (NetMod.get n1 N0)) by attac.
 
       smash_eq n n1.
@@ -6860,46 +6864,509 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
         + consider (proc_client n0 P1); eattac.
         + attac.
 
-    Admitted.
+    Qed.
 
 
-    Lemma trans_invariant_net_sane_tau [n N0 N1] :
-      NVTrans n Tau N0 N1 ->
+    Lemma trans_invariant_net_sane_tau [n a N0 N1] :
+      (N0 =(NTau n a)=> N1) ->
       net_sane N0 ->
       net_sane N1.
 
     Proof.
       intros.
+      consider (_ =(_)=> _).
 
       constructor.
-      - eauto using trans_invariant_net_sane_tau with LTS.
+      - eauto using trans_invariant_net_sane_tau__SRPC_sane with LTS.
       - eauto using trans_invariant_net_sane_tau__locks_sound with LTS.
       - eauto using trans_invariant_net_sane_tau__locks_complete with LTS.
     Qed.
 
 
+    (* TODO MOVE UP *)
+    Lemma SRPC_sane_R_in_out_nil [srpc : SRPC_State] [s v S] :
+      SRPC_sane srpc S ->
+      In (s, R, v) (pq_I S) ->
+      pq_O S = [].
+    Proof.
+      intros.
+      destruct S as [I0 P0 O0].
+      simpl in *.
+      consider (exists c, srpc = Lock c s) by attac.
+      destruct O0; auto.
+      assert (p::O0 <> []) by attac.
+      remember (p::O0) as O1; clear HeqO1.
+      consider (exists v', In (s, Q, v') (pq_O (pq I0 P0 O1))) by attac.
+      bullshit (In (s, R, v) (pq_I (pq I0 P0 (O1)))) by eattac.
+    Qed.
+
+
+    Lemma trans_invariant_net_sane__net_sane_comm__sender_Q [n0 n1 v] [N0 N1 : PNet] :
+      (N0 =(NComm n0 n1 Q v)=> N1) ->
+      net_sane N0 ->
+      exists srpc, SRPC_sane srpc (NetMod.get n0 N1).
+
+    Proof.
+      intros.
+      assert (net_lock_on N1 n0 n1) by eauto using net_sane_send_Q_new_lock.
+      consider (exists n', SRPC_pq (Lock n' n1) (NetMod.get n0 N1)).
+      {
+        assert (pq_lock [n1] (NetMod.get n0 N1)) by attac.
+        eauto using lock_SRPC_Lock_pq with LTS.
+      }
+
+      exists (Lock n' n1).
+
+      destruct (NetMod.get n0 N0) as [I0 P0 O0] eqn:?.
+      consider (exists srpc0, SRPC_sane srpc0 (NetMod.get n0 N0)) by attac.
+
+      consider (N0 =(_)=> _); compat_hsimpl in *; doubt; rewrite `(NetMod.get n0 _ = _) in *.
+      constructor; ltac1:(autounfold with SRPC); intros; simpl in *.
+      - auto.
+      - hsimpl_net.
+        2: { attac. }
+
+        smash_eq n0 c.
+        + enough (forall v, ~ In (n0, Q, v) I1).
+          {
+            consider (exists I1', Deq (n0, Q) v0 [(n0, Q, v)] I1' /\ I' = I1 ++ I1')
+              by eauto using Deq_app_or_r with LTS.
+            consider (Deq (n0, Q) v0 [(n0, Q, v)] I1'); doubt.
+            compat_hsimpl in *; auto.
+          }
+
+        consider (O1 = []) by (eapply SRPC_sane__Q_out_last_nil_inv with (O0:=[]); eauto; simpl; eauto).
+
+          intros ? ?.
+
+          assert (net_lock_on N0 n0 n0) by attac.
+          unfold net_lock_on, net_lock in *; hsimpl in *.
+          rewrite `(NetMod.get n0 N0 = _) in *.
+          bullshit.
+        + assert (~ In (c, Q, v0) [(n0, Q, v)]) by bullshit.
+          consider (exists I1', Deq (c, Q) v0 I1 I1' /\ I' = I1' ++ [(n0, Q, v)])
+            by eauto using Deq_app_or_l with LTS.
+          assert (~ In (c, Q, v') I1') by eauto with LTS.
+
+          intros ?; assert (In (c, Q, v') I1' \/ In (c, Q, v') [(n0, Q, v)]) as [|] by attac; bullshit.
+
+      - hsimpl_net.
+        2: { attac. }
+
+        assert (~ In (s, R, v0) [(n0, Q, v)]) by bullshit.
+        consider (exists I1', Deq (s, R) v0 I1 I1' /\ I' = I1' ++ [(n0, Q, v)])
+          by eauto using Deq_app_or_l with LTS.
+        assert (~ In (s, R, v') I1') by eauto with LTS.
+
+        intros ?; assert (In (s', R, v') I1' \/ In (s', R, v') [(n0, Q, v)]) as [|] by attac; bullshit.
+
+      - hsimpl_net.
+        + assert (In (s, R, v0) I1 \/ In (s, R, v0) [(n0, Q, v)]) as [|] by attac; doubt.
+          bullshit (pq_O (pq I1 P1 ((n0, Q, v) :: O1)) = []) by eauto using SRPC_sane_R_in_out_nil.
+        + bullshit (pq_O (pq I0 P0 ((n1, Q, v) :: O2)) = []) by eauto using SRPC_sane_R_in_out_nil.
+
+      - enough (s = n1) by eattac.
+        smash_eq n0 n1; compat_hsimpl in * |-.
+        + consider (exists c, srpc0 = Lock c s) by attac.
+          assert (SRPC_pq (Lock c s) (pq I1 P1 ((n0, Q, v)::O1))) by attac.
+          consider (Lock n' n0 = Lock c s) by attac.
+        + consider (exists c, srpc0 = Lock c s) by attac.
+          assert (SRPC_pq (Lock c s) (pq I0 P0 ((n1, Q, v)::O2))) by attac.
+          consider (Lock n' n1 = Lock c s) by attac.
+
+      - hsimpl_net; compat_hsimpl in *.
+        + assert (~ In (s, Q, v0) (removelast (pq_O (pq I1 P1 ((n1, Q, v) :: O1))))) by eauto using SRPC_sane_Q_out_last_inv.
+          destruct O1; attac.
+        + assert (~ In (s, Q, v0) (removelast (pq_O (pq I0 P0 ((n1, Q, v) :: O2))))) by eauto using SRPC_sane_Q_out_last_inv.
+          destruct O2; attac.
+      - hsimpl_net; attac.
+      - hsimpl_net; compat_hsimpl in *; attac.
+      - smash_eq n0 n1; compat_hsimpl in *. (* TODO hsimpl_net hangs *)
+        2: { attac. }
+        assert (~ In (s, R, v') I1) by attac.
+        intros ?.
+        apply `(~ In _ _).
+        assert (In (s, R, v') I1 \/ In (s, R, v') [(n0, Q, v)]) as [|]; attac.
+      - smash_eq n0 n1; compat_hsimpl in *.
+        + bullshit (O1 = []) by (eapply SRPC_sane__Q_out_last_nil_inv with (O0:=[]); eauto; simpl in *; eauto).
+        + bullshit (O2 = []) by (eapply SRPC_sane__Q_out_last_nil_inv with (O0:=[]); eauto; simpl in *; eauto).
+
+      - smash_eq n0 n1; compat_hsimpl in *.
+        2: { attac. }
+        destruct `(_ \/ _); attac.
+        assert (net_lock_on N0 c c) by attac.
+        unfold net_lock_on, net_lock in *; hsimpl in *.
+        bullshit.
+      - smash_eq n0 n1; compat_hsimpl in *.
+        2: { attac. }
+        destruct `(_ \/ _); attac.
+        assert (net_lock_on N0 c c) by attac.
+        unfold net_lock_on, net_lock in *; hsimpl in *.
+        bullshit.
+      - smash_eq n0 n1; compat_hsimpl in *.
+        2: { attac. }
+        assert (net_lock_on N0 c n0) by attac.
+        unfold net_lock_on, net_lock in *; hsimpl in *.
+        bullshit.
+    Qed.
+
+    (* TODO MOVE UP *)
+    Lemma SRPC_sane_net_sane : forall N0, SRPC_sane_net N0 -> SRPC_net N0.
+    Proof. repeat (intros ?). specialize (`(SRPC_sane_net _) n). attac. Qed.
+
+    #[export] Hint Resolve SRPC_sane_net_sane : LTS.
+
+
+    Lemma net_sane_recv_R_SRPC [n0 n1 v] [N0 N1 : PNet] :
+      net_sane N0 ->
+      (N0 =(NComm n0 n1 R v)=> N1) ->
+      exists n', SRPC_sane (Lock n' n0) (NetMod.get n1 N0).
+
+    Proof.
+      intros.
+      consider (exists srpc, SRPC_sane srpc (NetMod.get n1 N0)) by attac.
+      assert (SRPC_pq srpc (NetMod.get n1 N0)) by attac.
+
+      enough (exists n', srpc = Lock n' n0) by attac.
+      enough (exists n', SRPC_pq (Lock n' n0) (NetMod.get n1 N0)) by attac.
+      enough (pq_lock [n0] (NetMod.get n1 N0)) by eauto using lock_SRPC_Lock_pq with LTS.
+      enough (net_lock N0 [n0] n1) by attac.
+      enough (net_lock_on N0 n1 n0) by eauto using lock_singleton with LTS.
+      eauto using net_sane_reply_lock.
+    Qed.
+
+
+    Lemma trans_invariant_net_sane__net_sane_comm__sender_R [n0 n1 v] [N0 N1 : PNet] :
+      (N0 =(NComm n0 n1 R v)=> N1) ->
+      net_sane N0 ->
+      exists srpc, SRPC_sane srpc (NetMod.get n0 N1).
+
+    Proof.
+      intros.
+
+      consider (exists srpc, SRPC_sane srpc (NetMod.get n0 N0)) by attac.
+      exists srpc. (* The process did not change! *)
+
+      assert (n0 <> n1) by eauto using net_sane_no_self_reply.
+      assert (net_lock_on N0 n1 n0) by eauto using net_sane_send_R_lock_l.
+
+      consider (exists n', SRPC_sane (Lock n' n0) (NetMod.get n1 N0))
+        by eauto using net_sane_recv_R_SRPC.
+
+      destruct (NetMod.get n0 N0) as [I00 P00 O00] eqn:?.
+      destruct (NetMod.get n0 N1) as [I01 P01 O01] eqn:?.
+      destruct (NetMod.get n1 N0) as [I10 P10 O10] eqn:?.
+      destruct (NetMod.get n1 N1) as [I11 P11 O11] eqn:?.
+
+      consider (_ =(_)=> _); compat_hsimpl in *.
+      constructor; ltac1:(autounfold with SRPC); intros;
+        repeat (rewrite `(NetMod.get _ _ = _) in * ); hsimpl in *.
+      - consider (SRPC_sane srpc (pq _ P00 _)).
+      - attac.
+      - attac.
+      - assert (In (s, R, v0) (pq_I (pq I00 P00 ((n1, R, v)::O01)))) by attac.
+        consider (exists c', srpc = Lock c' s) by eauto using SRPC_sane_R_in_lock_inv.
+        assert (SRPC_pq (Lock c' s) (pq I00 P00 ((n1, R, v) :: O01))) by eauto using SRPC_sane_SRPC_inv with LTS.
+        attac.
+      - consider (exists c', srpc = Lock c' s) by eauto using SRPC_sane_Q_out_lock_inv with datatypes LTS.
+        assert (SRPC_pq (Lock c' s) (pq I00 P00 ((n1, R, v) :: O01))) by eauto using SRPC_sane_SRPC_inv with LTS.
+        attac.
+      - enough (~ In (s, Q, v0) (removelast ((n1, R, v)::O01))) by (destruct O01; eattac).
+        eauto using SRPC_sane_Q_out_last_inv.
+      - smash_eq n1 c.
+        1: { bullshit (In (n1, R, v0) O01) by attac. }
+        enough (~ In (c, R, v') ((n1, R, v)::O')) by eattac.
+        enough (Deq (c, R) v0 (pq_O (pq I00 P00 ((n1, R, v)::O01))) ((n1, R, v)::O')) by attac.
+        now enough (Deq (c, R) v0 (pq_O (pq I00 P00 O01)) O') by attac.
+      - attac.
+      - attac.
+      - enough (exists v0, In (s, Q, v0) ((n1, R, v)::O01)) by (hsimpl in *; destruct `(_ \/ _); attac).
+        assert (pq_O (pq I00 P00 ((n1, R, v)::O01)) <> []) by attac.
+        enough (srpc = Lock c s) by (subst; eauto using SRPC_sane_lock_Q_inv).
+        enough (SRPC_pq srpc (pq I00 P00 ((n1, R, v)::O01))) by attac.
+        eauto using SRPC_sane_SRPC_inv with LTS.
+      - attac.
+      - attac.
+      - attac.
+    Qed.
 
     Lemma trans_invariant_net_sane__net_sane_comm__sender [n0 n1 t v] [N0 N1 : PNet] :
       (N0 =(NComm n0 n1 t v)=> N1) ->
       net_sane N0 ->
       exists srpc, SRPC_sane srpc (NetMod.get n0 N1).
 
-    Admitted.
+    Proof.
+      intros.
+      destruct t;
+        eauto using
+          trans_invariant_net_sane__net_sane_comm__sender_Q
+        , trans_invariant_net_sane__net_sane_comm__sender_R.
+
+    Qed.
 
 
-    Lemma trans_invariant_net_sane__net_sane_comm__receiver [n0 n1 t v] [N0 N1 : PNet] :
-      (N0 =(NComm n0 n1 t v)=> N1) ->
+    Lemma trans_invariant_net_sane__net_sane_comm__receiver_Q [n0 n1 v] [N0 N1 : PNet] :
+      (N0 =(NComm n0 n1 Q v)=> N1) ->
       net_sane N0 ->
       exists srpc, SRPC_sane srpc (NetMod.get n1 N1).
 
+    Proof.
+      intros.
+
+      consider (exists srpc, SRPC_sane srpc (NetMod.get n1 N0)) by attac.
+      exists srpc. (* The process did not change! *)
+
+      assert (net_lock_on N1 n0 n1) by eauto using net_sane_send_Q_new_lock.
+      assert (~ pq_client n0 (NetMod.get n1 N0)).
+      {
+        intros ?.
+        absurd (net_lock_on N0 n0 n1).
+        2: { attac. }
+        bullshit (n0 <> n0) by eauto using net_lock_on_no_send.
+      }
+
+      destruct (NetMod.get n0 N0) as [I00 P00 O00] eqn:?.
+      destruct (NetMod.get n0 N1) as [I01 P01 O01] eqn:?.
+      destruct (NetMod.get n1 N0) as [I10 P10 O10] eqn:?.
+      destruct (NetMod.get n1 N1) as [I11 P11 O11] eqn:?.
+
+      consider (_ =(_)=> _); hsimpl in * |-.
+      constructor; ltac1:(autounfold with SRPC); intros;
+        repeat (rewrite `(NetMod.get _ _ = _) in * ).
+      - hsimpl_net; compat_hsimpl in *;
+          consider (SRPC_sane srpc _); attac.
+      - assert (forall v, ~ In (n0, Q, v) I10) by attac.
+        hsimpl_net; compat_hsimpl in *.
+        + smash_eq n1 c.
+          * simpl in *.
+            consider (exists I'', Deq (n1, Q) v0 [(n1, Q, v)] I'' /\ I' = I00 ++ I'') by eauto using Deq_app_or_r.
+            consider (Deq _ _ [_] I''); compat_hsimpl in *.
+            attac.
+          * simpl in *.
+            assert (~ In (c, Q, v0) [(n1, Q, v)]) by attac.
+            consider (exists I'', Deq (c, Q) v0 I00 I'' /\ I' = I'' ++ [(n1, Q, v)]) by eauto using Deq_app_or_l.
+            assert (~ In (c, Q, v') I'') by attac.
+            intros ?.
+            assert (In (c, Q, v') I'' \/ In (c, Q, v') [(n1, Q, v)]) as [|] by attac; bullshit.
+        + smash_eq n0 c.
+          * simpl in *.
+            consider (exists I'', Deq (n0, Q) v0 [(n0, Q, v)] I'' /\ I' = I10 ++ I'') by eauto using Deq_app_or_r.
+            consider (Deq _ _ [_] I''); compat_hsimpl in *.
+            attac.
+          * simpl in *.
+            assert (~ In (c, Q, v0) [(n0, Q, v)]) by attac.
+            consider (exists I'', Deq (c, Q) v0 I10 I'' /\ I' = I'' ++ [(n0, Q, v)]) by eauto using Deq_app_or_l.
+            assert (~ In (c, Q, v') I'') by attac.
+            intros ?.
+            assert (In (c, Q, v') I'' \/ In (c, Q, v') [(n0, Q, v)]) as [|] by attac; bullshit.
+      - hsimpl_net; compat_hsimpl in *.
+        + assert (~ In (s, R, v0) [(n1, Q, v)]) by attac.
+          consider (exists I'', Deq (s, R) v0 I00 I'' /\ I' = I'' ++ [(n1, Q, v)]) by eauto using Deq_app_or_l.
+          assert (~ In (s, R, v') I'') by attac.
+          intros ?.
+          assert (In (s', R, v') I'' \/ In (s', R, v') [(n1, Q, v)]) as [|] by attac; bullshit.
+        + assert (~ In (s, R, v0) [(n0, Q, v)]) by attac.
+          consider (exists I'', Deq (s, R) v0 I10 I'' /\ I' = I'' ++ [(n0, Q, v)]) by eauto using Deq_app_or_l.
+          assert (~ In (s, R, v') I'') by attac.
+          intros ?.
+          assert (In (s', R, v') I'' \/ In (s', R, v') [(n0, Q, v)]) as [|] by attac; bullshit.
+      - hsimpl_net; compat_hsimpl in *.
+        + enough (exists c, SRPC_pq (Lock c s) (pq I00 P00 ((n1, Q, v)::O01))) by attac.
+          enough (exists c, srpc = Lock c s) by (hsimpl in * |-; eauto using SRPC_sane_SRPC_inv with LTS).
+          enough (In (s, R, v0) (pq_I (pq I00 P00 ((n1, Q, v)::O01)))) by eauto using SRPC_sane_R_in_lock_inv.
+          simpl in *.
+          assert (In (s, R, v0) I00 \/ In (s, R, v0) [(n1, Q, v)]) as [|]; attac.
+        + enough (exists c, SRPC_pq (Lock c s) (pq I10 P10 O10)) by attac.
+          enough (exists c, srpc = Lock c s) by (hsimpl in * |-; eauto using SRPC_sane_SRPC_inv with LTS).
+            enough (In (s, R, v0) (pq_I (pq I10 P10 O10))) by eauto using SRPC_sane_R_in_lock_inv.
+            simpl in *.
+            assert (In (s, R, v0) I10 \/ In (s, R, v0) [(n0, Q, v)]) as [|]; attac.
+      - hsimpl_net; compat_hsimpl in *.
+        + enough (exists c, SRPC_pq (Lock c s) (pq I00 P00 ((n1, Q, v)::O01))) by attac.
+          enough (exists c, srpc = Lock c s) by (hsimpl in * |-; eauto using SRPC_sane_SRPC_inv with LTS).
+          enough (In (s, Q, v0) (pq_O (pq I00 P00 ((n1, Q, v)::O01)))) by eauto using SRPC_sane_Q_out_lock_inv.
+          attac.
+        + enough (exists c, SRPC_pq (Lock c s) (pq I10 P10 O10)) by attac.
+          enough (exists c, srpc = Lock c s) by (hsimpl in * |-; eauto using SRPC_sane_SRPC_inv with LTS).
+          enough (In (s, Q, v0) (pq_O (pq I10 P10 O10))) by eauto using SRPC_sane_Q_out_lock_inv.
+          attac.
+
+      - hsimpl_net; compat_hsimpl in *.
+        + enough (~ In (s, Q, v0) (removelast ((n1, Q, v) :: O01))) by (destruct O01; attac).
+          eauto with LTS.
+        + enough (~ In (s, Q, v0) (removelast ((n1, Q, v) :: O01))) by (destruct O01; attac).
+          eauto with LTS.
+
+      - hsimpl_net; compat_hsimpl in *.
+        2: { attac. }
+        simpl in *.
+        enough (Deq (c, R) v0 ((n1, Q, v)::O01) ((n1, Q, v)::O')) by attac.
+        attac.
+
+      - hsimpl_net; compat_hsimpl in *.
+        + enough (In (s, R, v0) (pq_I (pq I00 P00 ((n1, Q, v)::O01)))) by attac.
+          enough (In (s, R, v0) (pq_I (pq I00 P00 O01))) by attac.
+          enough (In (s, R, v0) I00) by attac.
+          assert (In (s, R, v0) I00 \/ In (s, R, v0) [(n1, Q, v)]) as [|]; attac.
+        + enough (In (s, R, v0) (pq_I (pq I10 P10 O10))) by attac.
+          enough (In (s, R, v0) I10) by attac.
+          assert (In (s, R, v0) I10 \/ In (s, R, v0) [(n0, Q, v)]) as [|]; attac.
+
+      - hsimpl_net; compat_hsimpl in * |-.
+        2: { compat_hsimpl; attac. }
+        intros ?.
+        assert (In (s, R, v') I00 \/ In (s, R, v') [(n1, Q, v)]); attac.
+
+      - hsimpl_net; compat_hsimpl in *.
+        1: { unfold net_lock_on, net_lock in *; attac. }
+        assert (pq_O (pq I10 P10 O10) <> []) by attac.
+        enough (srpc = Lock c s) by attac.
+        assert (SRPC_pq srpc (pq I10 P10 O10)) by eauto using SRPC_sane_SRPC_inv.
+        attac.
+
+      - hsimpl_net; compat_hsimpl in *.
+        + smash_eq n1 c.
+          1: { attac. }
+          assert (In (c, Q, v0) I00 \/ In (c, Q, v0) [(n1, Q, v)]) as [|]; attac.
+        + smash_eq n0 c.
+          1: { attac. }
+          assert (In (c, Q, v0) I10 \/ In (c, Q, v0) [(n0, Q, v)]) as [|]; attac.
+
+      - hsimpl_net; compat_hsimpl in *.
+        + smash_eq n1 c.
+          1: { attac. }
+          assert (In (c, Q, v0) I00 \/ In (c, Q, v0) [(n1, Q, v)]) as [|]; attac.
+        + smash_eq n0 c.
+          1: { attac. }
+          assert (In (c, Q, v0) I10 \/ In (c, Q, v0) [(n0, Q, v)]) as [|]; attac.
+
+      - hsimpl_net; compat_hsimpl in *.
+        + smash_eq n1 c; attac.
+        + smash_eq n0 c; attac.
+    Qed.
+
+
+    Lemma trans_invariant_net_sane__net_sane_comm__receiver_R [n0 n1 v] [N0 N1 : PNet] :
+      (N0 =(NComm n0 n1 R v)=> N1) ->
+      net_sane N0 ->
+      exists srpc, SRPC_sane srpc (NetMod.get n1 N1).
+
+    Proof.
+      intros.
+      consider (exists srpc, SRPC_sane srpc (NetMod.get n1 N0)) by attac.
+      exists srpc. (* The process did not change! *)
+
+      assert (n0 <> n1) by eauto using net_sane_no_self_reply.
+
+      assert (net_lock_on N0 n1 n0) by eauto using net_sane_reply_lock.
+      consider (exists n', SRPC_sane (Lock n' n0) (NetMod.get n1 N0))
+        by eauto using net_sane_recv_R_SRPC.
+
+      destruct (NetMod.get n0 N0) as [I00 P00 O00] eqn:?.
+      destruct (NetMod.get n0 N1) as [I01 P01 O01] eqn:?.
+      destruct (NetMod.get n1 N0) as [I10 P10 O10] eqn:?.
+      destruct (NetMod.get n1 N1) as [I11 P11 O11] eqn:?.
+
+      consider (O10 = []) by attac.
+      assert (forall s v, ~ In (s, R, v) I10).
+      { (* TODO extract *)
+        intros.
+        unfold net_lock_on, net_lock in *.
+        consider (pq_lock [n0] (pq I10 P10 [])) by attac 2.
+        intros.
+        smash_eq s n0.
+        - rewrite `(NetMod.get n1 N0 = _) in *. attac.
+        - intros ?.
+          consider (exists c, Lock n' n0 = Lock c s) by attac.
+      }
+
+      consider (_ =(_)=> _); compat_hsimpl in *.
+      constructor; ltac1:(autounfold with SRPC); intros;
+        repeat (rewrite `(NetMod.get _ _ = _) in * ); hsimpl in *.
+      - consider (SRPC_sane srpc (pq _ P10 _)).
+      - assert (~ In (c, Q, v0) [(n0, R, v)]) by attac.
+        consider (exists I'', Deq (c, Q) v0 I10 I'' /\ I' = I'' ++ [(n0, R, v)]) by eauto using Deq_app_or_l.
+        intros ?.
+        assert (In (c, Q, v') I'' \/ In (c, Q, v') [(n0, R, v)]) as [|]; attac.
+      - consider (exists I'', Deq (s, R) v0 [(n0, R, v)] I'' /\ I' = I10 ++ I'') by eauto using Deq_app_or_r.
+        consider (Deq (s, R) v0 [_] I''); doubt.
+        now compat_hsimpl in *.
+
+      - assert (In (s, R, v0) I10 \/ In (s, R, v0) [(n0, R, v)]) as [|]; attac.
+        enough (exists c, SRPC_pq (Lock c s) (pq I10 P10 [])) by attac.
+        eauto using SRPC_sane_SRPC_inv.
+      - attac.
+      - attac.
+      - attac.
+      - attac.
+      - attac.
+      - attac.
+      - assert (In (c, Q, v0) I10 \/ In (c, Q, v0) [(n0, R, v)]) as [|]; attac.
+      - assert (In (c, Q, v0) I10 \/ In (c, Q, v0) [(n0, R, v)]) as [|]; attac.
+      - attac.
+    Qed.
+
+    Lemma trans_invariant_net_sane__net_sane_comm__receiver [n0 n1 t v] [N0 N1 : PNet] :
+        (N0 =(NComm n0 n1 t v)=> N1) ->
+        net_sane N0 ->
+        exists srpc, SRPC_sane srpc (NetMod.get n1 N1).
+
+    Proof.
+      intros.
+      destruct t;
+        eauto using
+          trans_invariant_net_sane__net_sane_comm__receiver_Q
+        , trans_invariant_net_sane__net_sane_comm__receiver_R.
+    Qed.
+
+
+    (* Lemma trans_invariant_net_sane__net_sane_comm__self [n t v] [N0 N1 : PNet] : *)
+    (*   (N0 =(NComm n n t v)=> N1) -> *)
+    (*   net_sane N0 -> *)
+    (*   exists srpc, SRPC_sane srpc (NetMod.get n N1). *)
+
+    (* Proof. *)
+    (*   intros. *)
+    (*   destruct t. *)
+    (*   2: { bullshit (n <> n) by eauto using net_sane_no_self_reply. } *)
+
+    (*     eauto using *)
+    (*       trans_invariant_net_sane__net_sane_comm__self_Q *)
+    (*     , trans_invariant_net_sane__net_sane_comm__self_R. *)
+    (* Admitted. *)
+
+
+    Lemma trans_invariant_net_sane_comm__SRPC_sane [n0 n1 t v] [N0 N1 : PNet] :
+      (N0 =(NComm n0 n1 t v)=> N1) ->
+      net_sane N0 ->
+      SRPC_sane_net N1.
+
+    Proof.
+      repeat (intros ?).
+      smash_eq_on n n0 n1; subst.
+      (* - eauto using trans_invariant_net_sane__net_sane_comm__self. *)
+      - eauto using trans_invariant_net_sane__net_sane_comm__sender.
+      - eauto using trans_invariant_net_sane__net_sane_comm__receiver.
+      - replace (NetMod.get n N1) with (NetMod.get n N0); attac.
+        eapply (@act_particip_stay PQued PAct); attac.
+    Qed.
+
+
+    Lemma trans_invariant_net_sane_comm__locks_sound [n0 n1 t v] [N0 N1 : PNet] :
+      (N0 =(NComm n0 n1 t v)=> N1) ->
+      net_sane N0 ->
+      locks_sound N1.
+
+    Proof.
     Admitted.
 
 
-    Lemma trans_invariant_net_sane__net_sane_comm__self [n t v] [N0 N1 : PNet] :
-      (N0 =(NComm n n t v)=> N1) ->
+    Lemma trans_invariant_net_sane_comm__locks_complete [n0 n1 t v] [N0 N1 : PNet] :
+      (N0 =(NComm n0 n1 t v)=> N1) ->
       net_sane N0 ->
-      exists srpc, SRPC_sane srpc (NetMod.get n N1).
+      locks_complete N1.
 
+    Proof.
     Admitted.
 
 
@@ -6909,17 +7376,70 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
       net_sane N0 ->
       net_sane N1.
 
+    Proof.
+      intros.
+
+      constructor.
+      - eauto using trans_invariant_net_sane_comm__SRPC_sane with LTS.
+      - eauto using trans_invariant_net_sane_comm__locks_sound with LTS.
+      - eauto using trans_invariant_net_sane_comm__locks_complete with LTS.
+    Qed.
+
+
+    Theorem trans_invariant_net_sane [a] [N0 N1 : PNet] :
+      (N0 =(a)=> N1) ->
+      net_sane N0 ->
+      net_sane N1.
+
+    Proof.
+      intros.
+      destruct a.
+      - eauto using trans_invariant_net_sane_tau.
+      - eauto using trans_invariant_net_sane_comm.
+    Qed.
+
+
     Proof using Type.
       repeat (intros ?).
 
-      smash_eq_on n n0 n1; subst.
-      - eauto using trans_invariant_net_sane__net_sane_comm__self.
-      - eauto using trans_invariant_net_sane__net_sane_comm__sender.
-      - eauto using trans_invariant_net_sane__net_sane_comm__receiver.
+      constructor; intros m0; try (intros m1); intros.
+      all: Control.enter (fun () => smash_eq_on m0 n0 n1); subst.
+      all: eauto using trans_invariant_net_sane__net_sane_comm__self,
+        trans_invariant_net_sane__net_sane_comm__sender,
+        trans_invariant_net_sane__net_sane_comm__receiver.
+      all: try (unfold net_lock_on, net_lock in *; exists [m1]; split > [attac|]).
+      - admit.
+      - replace (NetMod.get m1 N1) with (NetMod.get m1 N0); attac.
+        eapply (@act_particip_stay PQued PAct); attac. ; consider (net_sane N0); attac)
+
+      all: try (Control.enter (fun _ => replace (NetMod.get m0 N1) with (NetMod.get m0 N0)
+                       by (eapply (@act_particip_stay PQued PAct); attac); consider (net_sane N0); attac)).
+      . (* TODO automate *)
+      -
+
+      constructor; intros n; intros.
+      - Control.enter (fun () => smash_eq_on n n0 n1); subst.
+      eauto using trans_invariant_net_sane__net_sane_comm__self,
+        trans_invariant_net_sane__net_sane_comm__sender,
+        trans_invariant_net_sane__net_sane_comm__receiver.
+
+      replace (NetMod.get n N1) with (NetMod.get n N0); attac.
+               compat_hsimpl in *. eapply (@act_particip_stay PQued PAct). attac.
+
+
+      Control.enter (fun () => smash_eq_on n n0 n1); subst.
+       eauto using trans_invariant_net_sane__net_sane_comm__self,
+         trans_invariant_net_sane__net_sane_comm__sender,
+         trans_invariant_net_sane__net_sane_comm__receiver.
+
+      all: try (replace (NetMod.get n N1) with (NetMod.get n N0)
+               by (eapply (@act_particip_stay PQued PAct); attac)).
       - replace (NetMod.get n N1) with (NetMod.get n N0)
           by (eapply (@act_particip_stay PQued PAct); attac). (* TODO This typeclass sucks *)
 
         consider (net_sane N0); auto.
+      -
+      -
     Qed.
 
       have (N0 =(NComm n0 n1 &t v)=> N1) as T'.
@@ -7627,5 +8147,5 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Print net_undep_send_inv.
-  Goal Net.Model.Que.Channel.Name = Name. 
+  Goal Net.Model.Que.Channel.Name = Name.
 End Srpc.
