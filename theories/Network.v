@@ -21,7 +21,7 @@ Require Import DlStalk.ModelData.
 Require Import DlStalk.Que.
 
 
-Module Type NET(Name : UsualDecidableSet).
+Module Type NET_MOD(Name : UsualDecidableSet).
 
   Parameter t : Type -> Type.
 
@@ -95,20 +95,19 @@ Module Type NET(Name : UsualDecidableSet).
     put_map
     : LTS.
 
-End NET.
+End NET_MOD.
 
+Module Type NET_PARAMS.
+  Declare Module ProcData : PROC_DATA.
+  Declare Module NetMod : NET_MOD(ProcData.NAME).
+  Export ProcData.
+End NET_PARAMS.
 
-Module Net(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
-
-  Module Import Model := Model(MD).
-  Export Model.
-
-
+Module Type NET(Import NetParams : NET_PARAMS).
   (** Coercion to function *)
   Definition NetGet (A : Set) : NetMod.t A -> Name -> A := fun MN n => @NetMod.get A n MN.
   #[export] Hint Transparent NetGet : LTS typeclass_instances.
   #[global] Coercion NetGet : NetMod.t >-> Funclass.
-
 
   Lemma put_put_eq_inv [T] (N : NetMod.t T) n S S' :
     (NetMod.put n S (NetMod.put n S' N)) = NetMod.put n S N.
@@ -504,7 +503,10 @@ Module Net(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
       hsimpl in *.
       specialize (IHpath (NetMod.put n N1 N) &S).
       hsimpl in *.
-      specialize IHpath as (npath & NT1 & HPO); eauto.
+      specialize IHpath as (npath & NT1 & HPO); eattac.
+      exists (NTau n a :: npath).
+      eattac.
+      eapply path_seq1. constructor; eattac.
       eattac.
     Qed.
 
@@ -740,8 +742,20 @@ Module Net(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
           end
       end.
 
+
+    Lemma NComm_neq_stay [n0 n1 m t v] [N0 N1] :
+      (N0 =(NComm n0 n1 t v)=> N1) ->
+      n0 <> m ->
+      n1 <> m ->
+      NetMod.get m N0 = NetMod.get m N1.
+    Proof.
+      intros.
+      eapply act_particip_stay with (a:=NComm n0 n1 &t v); attac.
+    Qed.
+
   End General.
 
+  #[export] Hint Resolve NComm_neq_stay : LTS.
 
   #[export] Hint Constructors NAct NVTrans NTrans Path_of : LTS.
   #[export] Hint Resolve NComm_eq NComm_neq : LTS.
@@ -757,6 +771,9 @@ Module Net(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
 
   #[global] Notation "N0 ~( n @ a )~> N1" := (NVTrans n a N0 N1) (at level 70): type_scope.
 
+End NET.
+
+Module NetTactics(Import NetParams : NET_PARAMS)(Import Net : NET(NetParams)).
   Ltac2 hsimpl_net_ (h : ident option) :=
     repeat (Control.enter (fun _ =>
                              match!goal with
@@ -768,5 +785,4 @@ Module Net(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
                              end)).
 
   Ltac2 Notation "hsimpl_net" h(opt(ident)) := hsimpl_net_ h.
-End Net.
-
+End NetTactics.

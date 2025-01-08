@@ -23,14 +23,9 @@ Require Import DlStalk.Tactics.
 Require Import DlStalk.ModelData.
 Require Import DlStalk.Que.
 
+Module Type QUE_MOD := PROC_DATA <+ QUE.
 
-Module Model(MD : MODEL_DATA).
-  Import MD.
-
-  Module Que := Que(MD).
-  Import Que.
-  Export Que.
-
+Module Type PROC(Import Que : QUE_MOD).
 
   Inductive Act {Payload : Set} : Set :=
   | Send (n : NChan) (v : Payload) : Act
@@ -161,6 +156,12 @@ Module Model(MD : MODEL_DATA).
 
   Inductive PQued := pq : Que Val -> Proc -> Que Val -> PQued.
   #[export] Hint Constructors PQued : LTS.
+
+  Definition pq_I S := match S with pq I' _ _ => I' end.
+  Definition pq_P S := match S with pq _ P _ => P end.
+  Definition pq_O S := match S with pq _ _ O' => O' end.
+
+  #[export] Hint Transparent pq_I pq_P pq_O : LTS.
 
 
   Inductive PTrans : PAct -> PQued -> PQued -> Prop :=
@@ -303,7 +304,282 @@ Module Model(MD : MODEL_DATA).
   #[export] Hint Rewrite
   -> @PTrans_Recv_t_inv @PTrans_Pick_t_inv @PTrans_Tau_t_inv @PTrans_Send_t_inv @PTrans_Push_t_inv using (solve [eauto with LTS datatypes; lia]) : LTS.
 
+End PROC.
 
+Module Type MON_INPUT := MODEL_DATA <+ QUE <+ PROC.
+
+Ltac2 destruct_ma a :=
+  destruct $a as [[[? ?]|[? ?]|]|[[? ?]|[? ?]|]|[[? ?]|[? ?]|]].
+
+Ltac2 Notation "destruct_ma" c(constr) := destruct_ma c.
+
+  Ltac2 evar t :=
+    let u := open_constr:(_:$t) in
+    match Constr.Unsafe.kind u with
+    | Constr.Unsafe.Cast v _ _ => v
+    | _ => Control.throw Init.Assertion_failure
+    end.
+
+
+  Ltac2 rec special_destruct (h : ident) :=
+    let hh := hyp h in
+    match! (Constr.type hh) with
+    | ex ?x =>
+        match (Constr.Unsafe.kind x) with
+        | Constr.Unsafe.Lambda arg _val =>
+            let arg_n := match Constr.Binder.name arg with
+                         | None => Fresh.in_goal @x
+                         | Some n => Fresh.in_goal n
+                         end in
+            destruct $hh as [$arg_n $h];
+            special_destruct h
+        | _ => Control.throw Init.Assertion_failure
+        end
+    | _ /\ _ =>
+        let h' := Fresh.in_goal h in
+        destruct $hh as [$h $h'];
+        Control.enter (fun () => special_destruct h);
+        Control.enter (fun () => special_destruct h')
+    | _ => ()
+    end.
+
+
+  Ltac2 sd t :=
+    match! goal with
+    | [h : _ |- _] =>
+        let h_hyp := hyp h in
+        let h' := Fresh.in_goal h in
+        assert $t as $h' by (eapply $h_hyp; eauto with LTS);
+        clear $h;
+        rename $h' into $h;
+        special_destruct h
+    end.
+
+
+
+  Ltac2 rec pose_matches (l : (ident * constr) list) :=
+    match l with
+    | [] => ()
+    | (i, x)::rest =>
+        match Constr.Unsafe.kind x with
+        | Constr.Unsafe.Var x' =>
+            if Ident.equal x' i then () else pose $x as $i
+        | _ => pose $x as $i
+        end;
+
+        pose_matches rest
+    end.
+
+  Ltac2 rec print_list (l : (ident * constr) list) :=
+    match l with
+    | [] => ()
+    | (i, x)::rest =>
+        printf "%I --> %t" i x;
+        print_list rest
+    end.
+
+
+  Ltac2 rec rebind (l : (ident * constr) list) :=
+    match l with
+    | [] => ()
+    | (v, _t)::rest =>
+        let v_h := hyp v in
+        match! (eval cbv in $v_h) with
+        | ?x =>
+            if Constr.is_var x
+            then ltac1:(x a |- replace x with a in * by auto) (Ltac1.of_constr x) (Ltac1.of_ident v)
+            else ()
+        end;
+        rebind rest
+    end.
+
+  Ltac2 obtain (h : ident) (p : pattern) :=
+    let body := strip_exists h in
+    let m := Pattern.matches p body in
+    pose_matches m;
+    unshelve (rebind m).
+
+  Ltac2 Notation "obtain" h(ident) p(pattern) := unshelve (obtain h p); try assumption.
+
+
+  Ltac2 rec tr(t : constr) :=
+    match (Constr.Unsafe.kind t) with
+    | Constr.Unsafe.Prod prem concl =>
+        match (Constr.Binder.name prem) with
+        | None => t
+        | Some _n =>
+            Constr.Unsafe.make (Constr.Unsafe.Prod prem (tr concl))
+        end
+    | _ => t
+    end.
+
+
+  Ltac2 rec build_impl prems concl :=
+    match prems with
+    | [] => concl
+    | prem::rest =>
+        let concl := Constr.Unsafe.make (Constr.Unsafe.Prod prem concl) in
+        build_impl rest concl
+    end.
+
+  Ltac2 rec move_rels rels (idx : int) t :=
+    match rels with
+    | [] => t
+    | _shift::rest =>
+        move_rels rest (Int.add 1 idx) t
+    end.
+
+  Ltac2 rec normalize_forall' (acc : binder list) (t : constr) :=
+    match (Constr.Unsafe.kind t) with
+    | Constr.Unsafe.Prod prem concl =>
+        match (Constr.Binder.name prem) with
+        | None =>
+            normalize_forall' (prem::acc) concl
+        | Some _n =>
+            (*
+          - lift acc by 1
+          - get future
+          - incr 0 by len acc
+          - construct forall
+
+             *)
+
+            let acc := List.map (
+                           fun prem =>
+                             let n := Constr.Binder.name prem in
+                             let t := Constr.Binder.type prem in
+                             let t := Constr.Unsafe.liftn 1 1 t in
+                             Constr.Binder.unsafe_make n (Constr.Binder.Relevant) t
+                         ) acc
+            in
+
+            let concl := normalize_forall' acc concl in
+
+            let concl := Constr.Unsafe.liftn (List.length acc) 1 concl in
+
+            let kind := Constr.Unsafe.Prod prem concl in
+            let t := Constr.Unsafe.make kind in
+            t
+        end
+    | _ =>
+        let t := build_impl acc t in
+        t
+    end.
+
+
+  Ltac2 rec ignores_rel1 t :=
+    if Constr.Unsafe.closedn 2 t
+    then
+      let t := Constr.Unsafe.substnl ['(False)] 1 t in
+      Constr.Unsafe.closedn 0 t
+    else ignores_rel1 (Constr.Unsafe.liftn (-1) 3 t).
+
+
+  Ltac2 judge_prod t : (ident option * constr * constr) option :=
+    match Constr.Unsafe.kind t with
+    | Constr.Unsafe.Prod prem concl =>
+        let prem_t := Constr.Binder.type prem in
+        match Constr.Binder.name prem with
+        | Some n =>
+            if ignores_rel1 concl
+            then
+              Some (None, prem_t, concl)
+            else
+              Some (Some n, prem_t, concl)
+        | None =>
+            Some (None, prem_t, concl)
+        end
+    | _ =>
+        None
+    end.
+
+
+  Ltac2 rec normalize_forall_step (t : constr) :=
+    match judge_prod t with
+    | Some (None, iprem_t, iconcl) =>
+
+        match judge_prod iconcl with
+        | Some (Some fprem_i, fprem_t, fconcl) =>
+
+            let iprem_t := Constr.Unsafe.liftn 1 1 iprem_t in
+            let fconcl := Constr.Unsafe.liftn 1 1 fconcl in
+            let fconcl := Constr.Unsafe.liftn (-1) 3 fconcl in
+            let fprem_t := Constr.Unsafe.liftn (-1) 1 fprem_t in
+
+            let iprem := Constr.Binder.unsafe_make None (Constr.Binder.Relevant) iprem_t in
+            let ikind := Constr.Unsafe.Prod iprem fconcl in
+            let fprem := Constr.Binder.unsafe_make (Some fprem_i) (Constr.Binder.Relevant) fprem_t in
+            let fkind := Constr.Unsafe.Prod fprem (Constr.Unsafe.make ikind) in
+
+            let t := Constr.Unsafe.make fkind in
+
+            t
+        | _ =>
+
+            let iprem := Constr.Binder.unsafe_make None (Constr.Binder.Relevant) iprem_t in
+            let iconcl := normalize_forall_step iconcl in
+            let ikind := Constr.Unsafe.Prod iprem iconcl in
+            let t := Constr.Unsafe.make ikind in
+            t
+        end
+    | Some (Some iprem_i, iprem_t, iconcl) =>
+
+        let iprem := Constr.Binder.unsafe_make (Some iprem_i) (Constr.Binder.Relevant) iprem_t in
+        let iconcl := normalize_forall_step iconcl in
+        let ikind := Constr.Unsafe.Prod iprem iconcl in
+        let t := Constr.Unsafe.make ikind in
+        t
+    | _ =>
+        t
+    end.
+
+  Ltac2 rec normalize_forall t :=
+    let t' := normalize_forall_step t in
+    if Constr.equal t t'
+    then t
+    else normalize_forall (Constr.Unsafe.liftn -1 1 t').
+
+  Ltac2 normalize_hyp h :=
+    let h_hyp := hyp h in
+    let t := normalize_forall (Constr.type h_hyp) in
+    let v := Fresh.in_goal @H in
+    assert $t as $v by (intros; eapply $h_hyp; eauto);
+    clear $h;
+    rename $v into $h.
+
+  Ltac2 Notation "normalize" h(ident) := normalize_hyp h.
+
+
+  Ltac2 rec split_forall t :=
+    match (Constr.Unsafe.kind t) with
+    | Constr.Unsafe.Prod prem concl =>
+        match (Constr.Binder.name prem) with
+        | None =>
+            split_forall concl
+        | Some n =>
+            let t := Constr.Binder.type prem in
+            let e := evar t in
+            let concl := Constr.Unsafe.substnl [e] 0 concl in
+            let (args, targs, tail) := split_forall concl in
+            (n::args, t::targs, tail)
+        end
+    | _ =>
+        ([], [], t)
+    end.
+
+
+  Import Ltac2.Constr.Unsafe.
+
+  Ltac2 evar_to_ident t :=
+    let s := Message.to_string (Message.of_constr t) in
+    String.set s 0 (Char.of_int 118);
+    match Ident.of_string s with
+    | Some i => i
+    | None => Fresh.in_goal @e
+    end.
+
+
+Module Type MON(Import MonInput : MON_INPUT).
   Inductive Event :=
   | TrSend : NChan -> Val -> Event
   | TrRecv : NChan -> Val -> Event
@@ -330,11 +606,6 @@ Module Model(MD : MODEL_DATA).
   (* #[global] Coercion MValP : Val >-> MVal. *)
   Notation "# v" := (MValP v) (at level 1).
   Notation "^ v" := (MValM v) (at level 1).
-
-  Ltac2 destruct_ma a :=
-    destruct $a as [[[? ?]|[? ?]|]|[[? ?]|[? ?]|]|[[? ?]|[? ?]|]].
-
-  Ltac2 Notation "destruct_ma" c(constr) := destruct_ma c.
 
 
   #[export,refine]
@@ -538,6 +809,15 @@ Module Model(MD : MODEL_DATA).
 
   Inductive MQued := mq : list Event -> Mon -> PQued -> MQued.
   #[export] Hint Constructors MQued : LTS.
+
+  Definition mq_MQ MS := match MS with mq MQ _ _ => MQ end.
+  Definition mq_M MS := match MS with mq _ M _ => M end.
+  Definition mq_S MS := match MS with mq _ _ S' => S' end.
+  Definition mq_I MS := pq_I (mq_S MS).
+  Definition mq_P MS := pq_P (mq_S MS).
+  Definition mq_O MS := pq_O (mq_S MS).
+
+  #[export] Hint Transparent mq_MQ mq_M mq_S mq_I mq_P mq_O : LTS.
 
 
   Inductive MTrans : MAct -> MQued -> MQued -> Prop :=
@@ -1127,6 +1407,13 @@ Module Model(MD : MODEL_DATA).
     | TrSend n v :: MQ' => (n, v) :: MQ_s MQ'
     | _ :: MQ' => MQ_s MQ'
     end.
+
+
+  Definition mq_dI MS := pq_I (mq_S MS) ++ MQ_r (mq_MQ MS).
+  Definition mq_dP MS := pq_P (mq_S MS).
+  Definition mq_dO MS := MQ_s (mq_MQ MS) ++ pq_O (mq_S MS).
+
+  #[export] Hint Transparent mq_dI mq_dP mq_dO : LTS.
 
 
   Lemma MQ_Split_rs MQ : MQ_Split MQ (MQ_r MQ) (MQ_s MQ).
@@ -1833,49 +2120,6 @@ Module Model(MD : MODEL_DATA).
   #[export] Hint Resolve recv_is_ready : LTS.
 
 
-  Ltac2 evar t :=
-    let u := open_constr:(_:$t) in
-    match Constr.Unsafe.kind u with
-    | Constr.Unsafe.Cast v _ _ => v
-    | _ => Control.throw Init.Assertion_failure
-    end.
-
-
-  Ltac2 rec special_destruct (h : ident) :=
-    let hh := hyp h in
-    match! (Constr.type hh) with
-    | ex ?x =>
-        match (Constr.Unsafe.kind x) with
-        | Constr.Unsafe.Lambda arg _val =>
-            let arg_n := match Constr.Binder.name arg with
-                         | None => Fresh.in_goal @x
-                         | Some n => Fresh.in_goal n
-                         end in
-            destruct $hh as [$arg_n $h];
-            special_destruct h
-        | _ => Control.throw Init.Assertion_failure
-        end
-    | _ /\ _ =>
-        let h' := Fresh.in_goal h in
-        destruct $hh as [$h $h'];
-        Control.enter (fun () => special_destruct h);
-        Control.enter (fun () => special_destruct h')
-    | _ => ()
-    end.
-
-
-  Ltac2 sd t :=
-    match! goal with
-    | [h : _ |- _] =>
-        let h_hyp := hyp h in
-        let h' := Fresh.in_goal h in
-        assert $t as $h' by (eapply $h_hyp; eauto with LTS);
-        clear $h;
-        rename $h' into $h;
-        special_destruct h
-    end.
-
-
   Lemma move_ex_r [A] P Q : (P /\ exists x : A, Q x) <-> exists x : A, P /\ Q x.
     split; intros.
     - destruct H as [H [x Hx]]. exists x. auto.
@@ -1888,232 +2132,9 @@ Module Model(MD : MODEL_DATA).
     - destruct H as [x [Hx H]]. split; auto; exists x; auto.
   Qed.
 
-
-  Ltac2 rec pose_matches (l : (ident * constr) list) :=
-    match l with
-    | [] => ()
-    | (i, x)::rest =>
-        match Constr.Unsafe.kind x with
-        | Constr.Unsafe.Var x' =>
-            if Ident.equal x' i then () else pose $x as $i
-        | _ => pose $x as $i
-        end;
-
-        pose_matches rest
-    end.
-
-  Ltac2 rec print_list (l : (ident * constr) list) :=
-    match l with
-    | [] => ()
-    | (i, x)::rest =>
-        printf "%I --> %t" i x;
-        print_list rest
-    end.
-
-
-  Ltac2 rec rebind (l : (ident * constr) list) :=
-    match l with
-    | [] => ()
-    | (v, _t)::rest =>
-        let v_h := hyp v in
-        match! (eval cbv in $v_h) with
-        | ?x =>
-            if Constr.is_var x
-            then ltac1:(x a |- replace x with a in * by auto) (Ltac1.of_constr x) (Ltac1.of_ident v)
-            else ()
-        end;
-        rebind rest
-    end.
-
-  Ltac2 obtain (h : ident) (p : pattern) :=
-    let body := strip_exists h in
-    let m := Pattern.matches p body in
-    pose_matches m;
-    unshelve (rebind m).
-
-  Ltac2 Notation "obtain" h(ident) p(pattern) := unshelve (obtain h p); try assumption.
-
-
   Fact forall_imp : forall [A] P (Q : A -> Prop), (P -> forall x, Q x) -> (forall x, P -> Q x).
     intros. auto.
   Qed.
-
-  Ltac2 rec tr(t : constr) :=
-    match (Constr.Unsafe.kind t) with
-    | Constr.Unsafe.Prod prem concl =>
-        match (Constr.Binder.name prem) with
-        | None => t
-        | Some _n =>
-            Constr.Unsafe.make (Constr.Unsafe.Prod prem (tr concl))
-        end
-    | _ => t
-    end.
-
-
-  Ltac2 rec build_impl prems concl :=
-    match prems with
-    | [] => concl
-    | prem::rest =>
-        let concl := Constr.Unsafe.make (Constr.Unsafe.Prod prem concl) in
-        build_impl rest concl
-    end.
-
-  Ltac2 rec move_rels rels (idx : int) t :=
-    match rels with
-    | [] => t
-    | _shift::rest =>
-        move_rels rest (Int.add 1 idx) t
-    end.
-
-  Ltac2 rec normalize_forall' (acc : binder list) (t : constr) :=
-    match (Constr.Unsafe.kind t) with
-    | Constr.Unsafe.Prod prem concl =>
-        match (Constr.Binder.name prem) with
-        | None =>
-            normalize_forall' (prem::acc) concl
-        | Some _n =>
-            (*
-          - lift acc by 1
-          - get future
-          - incr 0 by len acc
-          - construct forall
-
-             *)
-
-            let acc := List.map (
-                           fun prem =>
-                             let n := Constr.Binder.name prem in
-                             let t := Constr.Binder.type prem in
-                             let t := Constr.Unsafe.liftn 1 1 t in
-                             Constr.Binder.unsafe_make n (Constr.Binder.Relevant) t
-                         ) acc
-            in
-
-            let concl := normalize_forall' acc concl in
-
-            let concl := Constr.Unsafe.liftn (List.length acc) 1 concl in
-
-            let kind := Constr.Unsafe.Prod prem concl in
-            let t := Constr.Unsafe.make kind in
-            t
-        end
-    | _ =>
-        let t := build_impl acc t in
-        t
-    end.
-
-
-  Ltac2 rec ignores_rel1 t :=
-    if Constr.Unsafe.closedn 2 t
-    then
-      let t := Constr.Unsafe.substnl ['(False)] 1 t in
-      Constr.Unsafe.closedn 0 t
-    else ignores_rel1 (Constr.Unsafe.liftn (-1) 3 t).
-
-
-  Ltac2 judge_prod t : (ident option * constr * constr) option :=
-    match Constr.Unsafe.kind t with
-    | Constr.Unsafe.Prod prem concl =>
-        let prem_t := Constr.Binder.type prem in
-        match Constr.Binder.name prem with
-        | Some n =>
-            if ignores_rel1 concl
-            then
-              Some (None, prem_t, concl)
-            else
-              Some (Some n, prem_t, concl)
-        | None =>
-            Some (None, prem_t, concl)
-        end
-    | _ =>
-        None
-    end.
-
-
-  Ltac2 rec normalize_forall_step (t : constr) :=
-    match judge_prod t with
-    | Some (None, iprem_t, iconcl) =>
-
-        match judge_prod iconcl with
-        | Some (Some fprem_i, fprem_t, fconcl) =>
-
-            let iprem_t := Constr.Unsafe.liftn 1 1 iprem_t in
-            let fconcl := Constr.Unsafe.liftn 1 1 fconcl in
-            let fconcl := Constr.Unsafe.liftn (-1) 3 fconcl in
-            let fprem_t := Constr.Unsafe.liftn (-1) 1 fprem_t in
-
-            let iprem := Constr.Binder.unsafe_make None (Constr.Binder.Relevant) iprem_t in
-            let ikind := Constr.Unsafe.Prod iprem fconcl in
-            let fprem := Constr.Binder.unsafe_make (Some fprem_i) (Constr.Binder.Relevant) fprem_t in
-            let fkind := Constr.Unsafe.Prod fprem (Constr.Unsafe.make ikind) in
-
-            let t := Constr.Unsafe.make fkind in
-
-            t
-        | _ =>
-
-            let iprem := Constr.Binder.unsafe_make None (Constr.Binder.Relevant) iprem_t in
-            let iconcl := normalize_forall_step iconcl in
-            let ikind := Constr.Unsafe.Prod iprem iconcl in
-            let t := Constr.Unsafe.make ikind in
-            t
-        end
-    | Some (Some iprem_i, iprem_t, iconcl) =>
-
-        let iprem := Constr.Binder.unsafe_make (Some iprem_i) (Constr.Binder.Relevant) iprem_t in
-        let iconcl := normalize_forall_step iconcl in
-        let ikind := Constr.Unsafe.Prod iprem iconcl in
-        let t := Constr.Unsafe.make ikind in
-        t
-    | _ =>
-        t
-    end.
-
-  Ltac2 rec normalize_forall t :=
-    let t' := normalize_forall_step t in
-    if Constr.equal t t'
-    then t
-    else normalize_forall (Constr.Unsafe.liftn -1 1 t').
-
-  Ltac2 normalize_hyp h :=
-    let h_hyp := hyp h in
-    let t := normalize_forall (Constr.type h_hyp) in
-    let v := Fresh.in_goal @H in
-    assert $t as $v by (intros; eapply $h_hyp; eauto);
-    clear $h;
-    rename $v into $h.
-
-  Ltac2 Notation "normalize" h(ident) := normalize_hyp h.
-
-
-  Ltac2 rec split_forall t :=
-    match (Constr.Unsafe.kind t) with
-    | Constr.Unsafe.Prod prem concl =>
-        match (Constr.Binder.name prem) with
-        | None =>
-            split_forall concl
-        | Some n =>
-            let t := Constr.Binder.type prem in
-            let e := evar t in
-            let concl := Constr.Unsafe.substnl [e] 0 concl in
-            let (args, targs, tail) := split_forall concl in
-            (n::args, t::targs, tail)
-        end
-    | _ =>
-        ([], [], t)
-    end.
-
-
-  Import Ltac2.Constr.Unsafe.
-
-  Ltac2 evar_to_ident t :=
-    let s := Message.to_string (Message.of_constr t) in
-    String.set s 0 (Char.of_int 118);
-    match Ident.of_string s with
-    | Some i => i
-    | None => Fresh.in_goal @e
-    end.
-
 
   (** Any state of a monitored process can be dragged to a "canonical" one, where the monitor is ready
   and has empty queue. **)
@@ -2579,5 +2600,4 @@ Module Model(MD : MODEL_DATA).
     - blast_cases; rewrite IHMQ0; attac.
   Qed.
 
-End Model.
-
+End MON.

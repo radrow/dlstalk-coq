@@ -4,6 +4,9 @@ Require Import DlStalk.Tactics.
 
 Close Scope nat.
 
+Module Empty. End Empty. (* `<+` identity *)
+
+
 Module Type UsualDecidableSet.
   Parameter Inline t' : Set.
   Include UsualDecidableTypeFull with Definition t := t'.
@@ -37,19 +40,19 @@ Module UsualDecidableSetHints(Import M : UsualDecidableSet).
 End UsualDecidableSetHints.
 
 
-Module Type MODEL_DATA.
+Module Type PROC_PARAMS.
   Parameter Inline Val : Set.
-  Parameter Inline Msg : Set.
-  Parameter Inline MState : Set.
 
   Declare Module NAME : UsualDecidableSet.
   Declare Module TAG : UsualDecidableSet.
-End MODEL_DATA.
+End PROC_PARAMS.
 
+Module Type MON_PARAMS.
+  Parameter Inline Msg : Set.
+  Parameter Inline MState : Set.
+End MON_PARAMS.
 
-Module Channel(MD : MODEL_DATA).
-  Import MD.
-
+Module Type CHANNEL(Import ProcParams : PROC_PARAMS).
   #[global] Definition Name := NAME.t'.
   #[global] Definition Tag := TAG.t'.
 
@@ -83,8 +86,18 @@ Module Channel(MD : MODEL_DATA).
   Qed.
 
 
-  Inductive A := ssend (n : NChan) (v : Val) | rrecv (n : NChan) (v : Val) | ttau.
-  Print A_rect.
+  Lemma NChan_neq_Name_inv : forall [n0 n1 : Name] [t0 t1 : Tag],
+      n0 <> n1 ->
+      (n0, t0) <> (n1, t1).
+  Proof. attac. Qed.
+
+  Lemma NChan_neq_Tag_inv : forall [n0 n1 : Name] [t0 t1 : Tag],
+      t0 <> t1 ->
+      (n0, t0) <> (n1, t1).
+  Proof. attac. Qed.
+
+  #[export] Hint Resolve NChan_neq_Name_inv NChan_neq_Tag_inv : core. (* fuck coq *)
+
 
   Class gen_Act (Act : Set) :=
     {
@@ -106,4 +119,10 @@ Module Channel(MD : MODEL_DATA).
 
   Module Export NAME_H := UsualDecidableSetHints(NAME).
   Module Export TAG_H := UsualDecidableSetHints(TAG).
-End Channel.
+End CHANNEL.
+
+Module Type PROC_DATA := PROC_PARAMS <+ CHANNEL.
+
+Module Type MODEL_DATA := PROC_DATA <+ MON_PARAMS.
+
+Module Channel(ProcParams : PROC_PARAMS) := Empty <+ CHANNEL(ProcParams).

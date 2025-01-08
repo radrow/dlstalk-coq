@@ -1,4 +1,116 @@
-(* -*- company-coq-local-symbols: (("pi" . ?π)); -*- *)
+(* -*- company-coq-local-symbols: (("pi" . ?π) ("btw" . ?🤔)); -*- *)
+
+(* From Ltac2 Require Import Ltac2. *)
+(* From Ltac2 Require Import Std. *)
+Module Empty. End Empty.
+
+From Coq Require Import Structures.Equalities.
+
+Require Import DlStalk.Tactics.
+
+Close Scope nat.
+
+
+Module Type WRAP.
+  Parameter t : Set.
+End WRAP.
+
+Module Type PARAMS.
+  Declare Module Arg : WRAP.
+End PARAMS.
+
+Module JOKER.
+End JOKER.
+
+Module Type COMBINED := PARAMS <+ JOKER.
+
+Module Inst <: WRAP.
+  Inductive t_ := Q | R. (* Fix 2: Move this definition away *)
+  Definition t := t_.
+End Inst.
+
+Module Type RECOMBINED := COMBINED with Module Arg := Inst.
+
+Module LOCK_DEFS(Mod : RECOMBINED).
+  Goal Mod.Arg.t -> Inst.t.
+    intros.
+    assert (Mod.Arg.t = Inst.t). exact eq_refl.
+    destruct (H : Inst.t). (* Error: Anomaly "Uncaught exception Not_found." Please report at http://coq.inria.fr/bugs/. *)
+
+
+
+Fail "".
+
+
+
+
+
+
+
+(** ***************** *)
+
+Module Type NAME.
+  Parameter t : Set.
+End NAME.
+
+Module Type TAG.
+  Parameter t : Set.
+End TAG.
+
+Module Type MODEL_DATA.
+  Declare Module Name : NAME.
+  Declare Module Tag : TAG.
+  Parameter MState : Set.
+End MODEL_DATA.
+
+Module Type MODEL(ModelData : MODEL_DATA).
+  Inductive P := p : ModelData.Name.t -> P.
+  Inductive M := m : P -> ModelData.MState -> M.
+End MODEL.
+
+Module Type NET_MOD(ModelData : MODEL_DATA).
+  Parameter t : Set -> Set.
+  Parameter get : forall [A : Set], ModelData.Name.t -> t A -> A.
+End NET_MOD.
+
+Module Type NET(MD : MODEL_DATA)(NetMod : NET_MOD(MD)).
+  Inductive NTrans (A : Set) : NetMod.t A -> Prop :=
+    NT (x : NetMod.t A) : (forall n0 n1, NetMod.get n0 x = NetMod.get n1 x) -> NTrans A x.
+End NET.
+
+Module Tag : TAG.
+  Definition t := bool.
+End Tag.
+
+Module Type LOCKS_MD := MODEL_DATA
+                        with Module Tag := Tag
+                        with Definition MState := unit.
+
+Module Type LOCKS(LocksMD : LOCKS_MD).
+End LOCKS.
+
+Module Type AA(MD : LOCKS_MD).
+  Declare Module NetMod : NET_MOD(MD).
+End AA.
+Module Type NET_LOCKS_PARAMS := LOCKS_MD <+ AA.
+
+Module Type NET_LOCKS(P : NET_LOCKS_PARAMS).
+  Import P.
+End NET_LOCKS.
+
+Module MyParams : NET_LOCKS_PARAMS.
+  Module Name. Definition t := nat. End Name.
+  Module Tag := Tag.
+  Definition MState := unit.
+  Module NetMod. Definition t := fun x : Set => x.
+                 Lemma get : forall [A : Set], Name.t -> t A -> A. auto. Qed.
+  End NetMod.
+End MyParams.
+
+Module NetLocks := Empty <+ NET_LOCKS(MyParams).
+
+
+
 From Ltac2 Require Import Ltac2.
 From Ltac2 Require Import Std.
 

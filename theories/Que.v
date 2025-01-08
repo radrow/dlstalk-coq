@@ -183,9 +183,7 @@ Proof.
     + kill H.
 Qed.
 
-
-Module Que(ModelData : MODEL_DATA).
-
+Module Type QUE(Import ModelData : PROC_DATA).
   #[export] Hint Rewrite -> app_self_l app_self_r app_self_l' app_self_r' using assumption : LTS LTS_concl.
 
   #[export] Hint Rewrite -> length_app using (solve [auto with datatypes; lia]) : LTS LTS_concl.
@@ -194,13 +192,6 @@ Module Que(ModelData : MODEL_DATA).
   #[export] Hint Rewrite -> in_app_or using assumption : LTS LTS_concl.
 
   #[export] Hint Constructors Forall : LTS.
-
-
-  Module Channel := Channel(ModelData).
-  Import Channel.
-  Export Channel.
-
-  Import ModelData.
 
 
   Notation Que E := (list (NChan * E)).
@@ -639,4 +630,4 @@ Module Que(ModelData : MODEL_DATA).
     eattac.
   Qed.
 
-End Que.
+End QUE.
