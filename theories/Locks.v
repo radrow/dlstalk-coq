@@ -7719,9 +7719,4 @@ Module Srpc(Name : UsualDecidableSet)(NetModF : NET).
 
     #[export] Hint Resolve trans_invariant_net_sane : inv.
     #[export] Hint Extern 0 (net_sane _) => solve_invariant : LTS.
-
-
-
-  Print net_undep_send_inv.
-  Goal Net.Model.Que.Channel.Name = Name.
 End Srpc.
