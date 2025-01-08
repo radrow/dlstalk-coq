@@ -1821,15 +1821,19 @@ Module Type MON(Import MonInput : MON_INPUT).
     rename H into T0.
     rename H2 into T1.
 
+    switch a.
     destruct a; try (simpl in *; contradiction).
-    - destruct p; try (contradiction).
+    - case (MActP ?x).
+      destruct x; try (contradiction).
       kill T0.
       eapply IHmpath in T1; auto.
       unshelve eapply (path_seq1 _ T1)...
-    - kill T0; try (contradiction).
+    - case (MActT ?x).
+      kill T0; try (contradiction).
       eapply IHmpath in T1; auto.
       unshelve eapply (path_seq1 _ T1)...
-    - kill T0; try (contradiction)...
+    - case (MActM ?x).
+      kill T0; try (contradiction)...
       eapply IHmpath in T1; auto.
       unshelve eapply (path_seq1 _ T1)...
       destruct M3. eattac.

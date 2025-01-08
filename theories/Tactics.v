@@ -1038,26 +1038,45 @@ Ltac2 unlock () :=
   | [|-_] => ()
   end.
 
-Ltac2 check_case (p : pattern) :=
-  lazy_match! goal with
-  | [h : MARK CASE_remember_str (_ = ?v) |- _] =>
-      let matches := Pattern.matches p v in
-      List.iter (fun (i, v) => pose ($i := $v)) matches;
-      clear $h
+Ltac2 mk_int_ident (base : string) (i : int) : ident :=
+  let i := Message.to_string (Message.of_int i) in
+  let str := String.app base i in
+  match Ident.of_string str with
+  | Some id => id
+  | None => throw (Tactic_failure (Some (Message.of_string (String.app "Failed to make id: " str))))
   end.
 
-Ltac2 Notation "case" p(pattern) := check_case p; unlock ().
+Ltac2 mk_case_ident (i : int) : ident :=
+  mk_int_ident "CASE_GUARDED__________________" i.
 
-Ltac2 switch_ (c : constr) :=
+Ltac2 mk_rem_ident (i : int) : ident :=
+  mk_int_ident "CASE_GUARDED_REM__________________" i.
+
+Ltac2 check_case (i : int option) (p : pattern) :=
+  let c' := hyp (mk_case_ident (Option.default 0 i)) in
+  match! goal with
+  | [h : MARK CASE_remember_str (?c = ?v) |- _] =>
+      if Constr.equal c c'
+      then
+        let matches := Pattern.matches p v in
+        List.iter (fun (i, v) => remember $v as $i) matches;
+        clear $h
+      else fail
+  end.
+
+Ltac2 Notation "case" p(pattern) i(opt(seq("as", tactic))) := check_case i p; unlock ().
+
+Ltac2 switch_ (i : int option) (c : constr) :=
   lock;
-  let i := Fresh.in_goal @LALALA in
-  remember $c as XDDD eqn:$i;
-  let ih := hyp i in
+  let id := mk_case_ident (Option.default 0 i) in
+  let id_rem := mk_rem_ident (Option.default 0 i) in
+  remember $c as $id eqn:$id_rem;
+  let ih := hyp id_rem in
   try (rewrite $ih in * );
-  apply mark_remember in LALALA.
+  apply mark_remember in $id_rem.
 
-Ltac2 Notation "switch" c(constr) := switch_ c.
-Ltac2 Notation "switch" "type" c(constr) := switch_ (find_h c None).
+Ltac2 Notation "switch" c(constr) i(opt(seq("as", tactic))) := switch_ i c.
+Ltac2 Notation "switch" "type" c(constr) i(opt(seq("as", tactic))) := switch_ i (find_h c None).
 
 
 Ltac2 rewrite_hyp (h : ident) (cl : clause option) tac :=
