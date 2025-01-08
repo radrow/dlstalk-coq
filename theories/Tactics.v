@@ -1017,3 +1017,96 @@ Ltac2 blast_cases_ () :=
 
 Ltac2 Notation blast_cases :=
   repeat (Control.enter (fun _ => blast_cases_ ())).
+
+
+
+Inductive MARK (s : string) (P : Prop) := MARK_ (p : P).
+
+
+Definition CASE_lock_str : string. refine '("use tac" : string). Qed.
+Lemma CASE_lock : forall (P : Prop), MARK CASE_lock_str P -> P. intros. inversion H. auto. Qed.
+
+Definition CASE_remember_str : string. refine '("remember me" : string). Qed.
+Lemma unmark_remember : forall (P : Prop), MARK CASE_remember_str P -> P. intros. inversion H. auto. Qed.
+Lemma mark_remember : forall (P : Prop), P -> MARK CASE_remember_str P. intros. constructor. auto. Qed.
+
+Ltac2 lock () := apply CASE_lock.
+Ltac2 Notation "lock" := lock ().
+Ltac2 unlock () :=
+  lazy_match! goal with
+  | [|- MARK CASE_lock_str _] => apply MARK_
+  | [|-_] => ()
+  end.
+
+Ltac2 check_case (p : pattern) :=
+  lazy_match! goal with
+  | [h : MARK CASE_remember_str (_ = ?v) |- _] =>
+      let matches := Pattern.matches p v in
+      List.iter (fun (i, v) => pose ($i := $v)) matches;
+      clear $h
+  end.
+
+Ltac2 Notation "case" p(pattern) := check_case p; unlock ().
+
+Ltac2 switch_ (c : constr) :=
+  lock;
+  let i := Fresh.in_goal @LALALA in
+  remember $c as XDDD eqn:$i;
+  let ih := hyp i in
+  try (rewrite $ih in * );
+  apply mark_remember in LALALA.
+
+Ltac2 Notation "switch" c(constr) := switch_ c.
+Ltac2 Notation "switch" "type" c(constr) := switch_ (find_h c None).
+
+
+Ltac2 rewrite_hyp (h : ident) (cl : clause option) tac :=
+  let cl := default_on_concl cl in
+  first
+    [ Std.rewrite
+        false
+        [{rew_orient := None; rew_repeat := Precisely 1; rew_equatn := fun () => (hyp h, NoBindings)}]
+        cl
+        tac
+    | let {on_hyps:=oh;on_concl:=oc} := cl in
+      Std.setoid_rewrite
+        LTR
+        (fun () => (hyp h, NoBindings))
+        oc
+        None;
+
+      List.iter (fun (h, o, _) =>
+                   Std.setoid_rewrite
+                     LTR
+                     (fun () => (hyp h, NoBindings))
+                     o
+                     (Some h)
+        ) (Option.default [] oh)
+    ].
+
+Ltac2 rec match_rew (t0 : constr) (t1 : constr) : unit :=
+  multi_match! t1 with
+  | _ => unify $t0 $t1
+  | ?f _ => match_rew t0 f
+  | _ => fail
+end.
+
+Ltac2 get_rewrite_hyp (t : constr) : ident :=
+  multi_match! goal with
+  | [h : ?t' = _ |- _] =>
+      match_rew t t'; h
+  | [h : _ = ?t' |- _] =>
+      match_rew t t'; h
+  | [h : ?t' |- _] =>
+      match_rew t t'; h
+end.
+
+Ltac2 hrewrite_ (t : constr) (cl : clause option) tac : unit :=
+  let h := get_rewrite_hyp t in
+  rewrite_hyp h cl tac.
+
+Ltac2 Notation "hrewrite"
+  t(open_constr)
+  cl(opt(clause))
+  tac(opt(seq("by", thunk(tactic)))) :=
+  Control.once (fun _ => hrewrite_ t cl tac).

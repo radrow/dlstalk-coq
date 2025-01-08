@@ -496,59 +496,6 @@ Module Transp(Import MD : MODEL_DATA)(NetMod : NET(MD.NAME)).
 
     Hint Transparent Net_flushing_artifacts MVal_to_Event apply_artifact_to apply_artifact Net_flush_path  Net_flush_target : LTS.
 
-
-    Ltac2 rewrite_hyp (h : ident) (cl : clause option) tac :=
-      let cl := default_on_concl cl in
-      first
-        [ Std.rewrite
-            false
-            [{rew_orient := None; rew_repeat := Precisely 1; rew_equatn := fun () => (hyp h, NoBindings)}]
-            cl
-            tac
-        | let {on_hyps:=oh;on_concl:=oc} := cl in
-          Std.setoid_rewrite
-            LTR
-            (fun () => (hyp h, NoBindings))
-            oc
-            None;
-
-          List.iter (fun (h, o, _) =>
-                       Std.setoid_rewrite
-                         LTR
-                         (fun () => (hyp h, NoBindings))
-                         o
-                         (Some h)
-            ) (Option.default [] oh)
-        ].
-
-    Ltac2 rec match_rew (t0 : constr) (t1 : constr) : unit :=
-      multi_match! t1 with
-      | _ => unify $t0 $t1
-      | ?f _ => match_rew t0 f
-      | _ => fail
-    end.
-
-    Ltac2 get_rewrite_hyp (t : constr) : ident :=
-      multi_match! goal with
-      | [h : ?t' = _ |- _] =>
-          match_rew t t'; h
-      | [h : _ = ?t' |- _] =>
-          match_rew t t'; h
-      | [h : ?t' |- _] =>
-          match_rew t t'; h
-      end.
-
-    Ltac2 hrewrite_ (t : constr) (cl : clause option) tac : unit :=
-      let h := get_rewrite_hyp t in
-      rewrite_hyp h cl tac.
-
-    Ltac2 Notation "hrewrite"
-      t(open_constr)
-      cl(opt(clause))
-      tac(opt(seq("by", thunk(tactic)))) :=
-      Control.once (fun _ => hrewrite_ t cl tac).
-
-
     Lemma lift_path_app_trans : forall MN0 MN1 n mpath0 mpath1,
         (MN0 =[lift_path n (mpath0 ++ mpath1)]=> MN1) ->
         (MN0 =[lift_path n mpath0 ++ lift_path n mpath1]=> MN1).

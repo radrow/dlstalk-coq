@@ -1,116 +1,5 @@
 (* -*- company-coq-local-symbols: (("pi" . ?π) ("btw" . ?🤔)); -*- *)
 
-(* From Ltac2 Require Import Ltac2. *)
-(* From Ltac2 Require Import Std. *)
-Module Empty. End Empty.
-
-From Coq Require Import Structures.Equalities.
-
-Require Import DlStalk.Tactics.
-
-Close Scope nat.
-
-
-Module Type WRAP.
-  Parameter t : Set.
-End WRAP.
-
-Module Type PARAMS.
-  Declare Module Arg : WRAP.
-End PARAMS.
-
-Module JOKER.
-End JOKER.
-
-Module Type COMBINED := PARAMS <+ JOKER.
-
-Module Inst <: WRAP.
-  Inductive t_ := Q | R. (* Fix 2: Move this definition away *)
-  Definition t := t_.
-End Inst.
-
-Module Type RECOMBINED := COMBINED with Module Arg := Inst.
-
-Module LOCK_DEFS(Mod : RECOMBINED).
-  Goal Mod.Arg.t -> Inst.t.
-    intros.
-    assert (Mod.Arg.t = Inst.t). exact eq_refl.
-    destruct (H : Inst.t). (* Error: Anomaly "Uncaught exception Not_found." Please report at http://coq.inria.fr/bugs/. *)
-
-
-
-Fail "".
-
-
-
-
-
-
-
-(** ***************** *)
-
-Module Type NAME.
-  Parameter t : Set.
-End NAME.
-
-Module Type TAG.
-  Parameter t : Set.
-End TAG.
-
-Module Type MODEL_DATA.
-  Declare Module Name : NAME.
-  Declare Module Tag : TAG.
-  Parameter MState : Set.
-End MODEL_DATA.
-
-Module Type MODEL(ModelData : MODEL_DATA).
-  Inductive P := p : ModelData.Name.t -> P.
-  Inductive M := m : P -> ModelData.MState -> M.
-End MODEL.
-
-Module Type NET_MOD(ModelData : MODEL_DATA).
-  Parameter t : Set -> Set.
-  Parameter get : forall [A : Set], ModelData.Name.t -> t A -> A.
-End NET_MOD.
-
-Module Type NET(MD : MODEL_DATA)(NetMod : NET_MOD(MD)).
-  Inductive NTrans (A : Set) : NetMod.t A -> Prop :=
-    NT (x : NetMod.t A) : (forall n0 n1, NetMod.get n0 x = NetMod.get n1 x) -> NTrans A x.
-End NET.
-
-Module Tag : TAG.
-  Definition t := bool.
-End Tag.
-
-Module Type LOCKS_MD := MODEL_DATA
-                        with Module Tag := Tag
-                        with Definition MState := unit.
-
-Module Type LOCKS(LocksMD : LOCKS_MD).
-End LOCKS.
-
-Module Type AA(MD : LOCKS_MD).
-  Declare Module NetMod : NET_MOD(MD).
-End AA.
-Module Type NET_LOCKS_PARAMS := LOCKS_MD <+ AA.
-
-Module Type NET_LOCKS(P : NET_LOCKS_PARAMS).
-  Import P.
-End NET_LOCKS.
-
-Module MyParams : NET_LOCKS_PARAMS.
-  Module Name. Definition t := nat. End Name.
-  Module Tag := Tag.
-  Definition MState := unit.
-  Module NetMod. Definition t := fun x : Set => x.
-                 Lemma get : forall [A : Set], Name.t -> t A -> A. auto. Qed.
-  End NetMod.
-End MyParams.
-
-Module NetLocks := Empty <+ NET_LOCKS(MyParams).
-
-
-
 From Ltac2 Require Import Ltac2.
 From Ltac2 Require Import Std.
 
@@ -122,53 +11,61 @@ From Ltac2 Require Import Printf.
 
 Import Ltac2.Notations.
 
-Require LTS.
-Require ModelData.
-Require Network.
-Require LTSTactics.
-Require Locks.
-Require Misra.
-Require Sound.
+From Coq Require Import String.
+From Coq Require Import Strings.String.
 
-Require Import Lia.
+Inductive MARK (s : string) (P : Prop) := MARK_ (p : P).
 
-From Coq Require Import Program.Equality.
-From Coq Require Import Structures.Equalities.
 
-From Coq Require Import Bool.
-From Coq Require Import Nat.
-From Coq Require Import Structures.OrderedTypeEx.
-Require Import OrderedType.
+Definition CASE_lock_str : string. refine '("use tac" : string). Qed.
+Lemma CASE_lock : forall (P : Prop), MARK CASE_lock_str P -> P. intros. inversion H. auto. Qed.
 
-Require Import Coq.Structures.OrderedTypeEx.
-Require Import Coq.FSets.FMapList.
-Require Import Coq.FSets.FMapFacts.
+Definition CASE_remember_str : string. refine '("remember me" : string). Qed.
+Lemma unmark_remember : forall (P : Prop), MARK CASE_remember_str P -> P. intros. inversion H. auto. Qed.
+Lemma mark_remember : forall (P : Prop), P -> MARK CASE_remember_str P. intros. constructor. auto. Qed.
 
-Import ListNotations.
-Import BoolNotations.
+Ltac2 lock () := apply CASE_lock.
+Ltac2 Notation "lock" := lock ().
 
-Declare Module Name : ModelData.UsualDecidableSet.
-Declare Module NetModF : Network.NET.
 
-Require dpdgraph.dpdgraph.
+Ltac2 unlock () :=
+  lazy_match! goal with
+  | [|- MARK CASE_lock_str _] => apply MARK_
+  | [|-_] => ()
+  end.
 
-Module M := Sound.Soundness(Name)(NetModF).
+Ltac2 check_case (p : pattern) :=
+  lazy_match! goal with
+  | [h : MARK CASE_remember_str (?x = ?v) |- _] =>
+      let matches := Pattern.matches p v in
+      List.iter (fun (i, v) => pose ($i := $v)) matches;
+      clear $h
+  end.
 
-Check M.KIS_invariant.
+Ltac2 Notation "case" p(pattern) := check_case p; unlock ().
 
-Print DependGraph M.KIS_invariant File "KIS_invariant.dpd".
-Print DependGraph M.KIS_invariant_KIC File "KIS_invariant_KIC.dpd".
-Print DependGraph M.KIS_invariant_lock File "KIS_invariant_lock.dpd".
-Print DependGraph M.KIS_invariant_wait File "KIS_invariant_wait.dpd".
-Print DependGraph M.KIS_invariant_Q_in File "KIS_invariant_Q_in.dpd".
-Print DependGraph M.KIS_invariant_R_in File "KIS_invariant_R_in.dpd".
-Print DependGraph M.KIS_invariant_recvp File "KIS_invariant_recvp.dpd".
-Print DependGraph M.KIS_invariant_recvp_hot File "KIS_invariant_recvp_hot.dpd".
-Print DependGraph M.KIS_invariant_send_hot File "KIS_invariant_send_hot.dpd".
-Print DependGraph M.KIS_invariant_sendp_wait File "KIS_invariant_sendp_wait.dpd".
-Print DependGraph M.KIS_invariant_sendp_lock File "KIS_invariant_sendp_lock.dpd".
-Print DependGraph M.KIS_invariant_probe_R File "KIS_invariant_probe_R.dpd".
-Print DependGraph M.KIS_invariant_index_send File "KIS_invariant_index_send.dpd".
-Print DependGraph M.KIS_invariant_index_recv File "KIS_invariant_index_recv.dpd".
-Print DependGraph M.KIS_invariant_no_Q_probe_send File "KIS_invariant_no_Q_probe_send.dpd".
-Print DependGraph M.KIS_invariant_alarm File "KIS_invariant_alarm.dpd".
+Ltac2 switch (c : constr) :=
+  lock;
+  let t := Constr.type c in
+  let i := Fresh.in_goal @LALALA in
+  remember $t as XDDD eqn:$i;
+  let ih := hyp i in
+  try (rewrite $ih in *);
+  apply mark_remember in LALALA.
+
+Ltac2 Notation "switch" c(constr) := switch c.
+
+Goal forall n m, n <= m -> False.
+  intros.
+
+  switch H.
+
+  (* remember (n <= m) as XDDD eqn:LALALA. *)
+  (* rewrite LALALA in *. *)
+  (* apply mark_remember in LALALA. *)
+
+  inversion H; subst.
+  - case (?a <= ?a).
+    assert (a = m) by auto.
+    admit.
+  - check_case (?a <= S ?b).

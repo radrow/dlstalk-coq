@@ -1494,7 +1494,7 @@ Module Type MON(Import MonInput : MON_INPUT).
 
   #[export] Hint Rewrite -> @MQ_r_mrecv_nil @MQ_s_mrecv_nil using assumption : LTS LTS_concl.
   #[export] Hint Resolve MQ_r_mrecv_nil MQ_s_mrecv_nil MQ_nil_mrecv : LTS.
-  
+
 
   Lemma MQ_r_app_mrecv MQ0 MQ1 : MQ_Clear MQ1 -> MQ_r (MQ0 ++ MQ1) = MQ_r MQ0.
   Proof. eattac. Qed.
