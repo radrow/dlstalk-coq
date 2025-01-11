@@ -723,10 +723,6 @@ Module Type LOCKS(Import Proc : PROC_FOR_LOCKS).
 End LOCKS.
 
 
-Module Type NET_PARAMS_WITH(ProcData : PROC_DATA) := NET_PARAMS with Module ProcData := ProcData.
-
-Module Type NET_WITH(ProcData : PROC_DATA) := NET_PARAMS_WITH(ProcData) <+ NET.
-
 Module Type LOCKS_INST := PROC_FOR_LOCKS <+ LOCKS.
 
 (* Module Type NET_LOCKS_PARAMS. *)

@@ -177,34 +177,6 @@ Module Type SRPC_NET(Import Srpc : SRPC_INST)(Import A : SRPC_NET_PARAMS(Srpc)).
     Qed.
 
 
-    Lemma net_ind_of (n : Name) : forall [Node Act : Set] {gen_Act_Act : gen_Act Act} {LTS_node : LTS Act Node}
-                                         (P : NAct (Act:=Act) -> NetMod.t Node -> NetMod.t Node -> Prop),
-
-        (forall (N0 N1 : NetMod.t Node) a, ia a -> @trans Act Node LTS_node a (NetMod.get n N0) (NetMod.get n N1) -> P (NTau n a) N0 N1) ->
-        (forall (N0 N1 : NetMod.t Node) a m, m <> n -> ia a -> (NetMod.get n N0 = NetMod.get n N1) -> P (NTau m a) N0 N1) ->
-        (forall (N0 N1 : NetMod.t Node) t v S0, @trans Act Node LTS_node (send (n, t) v) (NetMod.get n N0) S0 -> @trans Act Node LTS_node (recv (n, t) v) S0 (NetMod.get n N1) -> P (NComm n n t v) N0 N1) ->
-        (forall (N0 N1 : NetMod.t Node) t v m, m <> n -> @trans Act Node LTS_node (send (m, t) v) (NetMod.get n N0) (NetMod.get n N1) -> P (NComm n m t v) N0 N1) ->
-        (forall (N0 N1 : NetMod.t Node) t v m, m <> n -> @trans Act Node LTS_node (recv (m, t) v) (NetMod.get n N0) (NetMod.get n N1) -> P (NComm m n t v) N0 N1) ->
-        (forall (N0 N1 : NetMod.t Node) t v m0 m1, m0 <> n -> m1 <> n -> (NetMod.get n N0 = NetMod.get n N1) -> P (NComm m0 m1 t v) N0 N1) ->
-        (forall (a : NAct(Act:=Act)) (N0 N1 : NetMod.t Node), NTrans a N0 N1 -> P a N0 N1).
-
-    Proof.
-        intros.
-        repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh N0 N1) end).
-
-        consider (_ =(_)=> _); compat_hsimpl in *.
-        - repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh a0) end).
-          smash_eq n n0.
-          + eapply H; hsimpl; auto.
-          + eapply H0; hsimpl; auto.
-        - repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh &t &v) end).
-          smash_eq n n0; try (smash_eq n n').
-          + eapply H1; compat_hsimpl in *; eauto.
-          + eapply H2; compat_hsimpl; eauto.
-          + eapply H3; compat_hsimpl in *; eauto.
-          + eapply H4; compat_hsimpl; eauto.
-      Qed.
-
     Lemma SRPC_net_tau_no_lock [N0 N1 n0 n1 a] :
       SRPC_net N0 ->
       (N0 =(NTau n0 a)=> N1) ->

@@ -97,13 +97,14 @@ Module Type NET_MOD(Name : UsualDecidableSet).
 
 End NET_MOD.
 
-Module Type NET_PARAMS.
-  Declare Module ProcData : PROC_DATA.
-  Declare Module NetMod : NET_MOD(ProcData.NAME).
-  Export ProcData.
-End NET_PARAMS.
 
-Module Type NET(Import NetParams : NET_PARAMS).
+Module Type NET_PARAMS_F(ProcData : PROC_DATA).
+  Declare Module NetMod : NET_MOD(ProcData.NAME).
+End NET_PARAMS_F.
+Module Type NET_PARAMS := PROC_DATA <+ NET_PARAMS_F.
+
+
+Module Type NET_F(Import NetParams : NET_PARAMS).
   (** Coercion to function *)
   Definition NetGet (A : Set) : NetMod.t A -> Name -> A := fun MN n => @NetMod.get A n MN.
   #[export] Hint Transparent NetGet : LTS typeclass_instances.
@@ -726,19 +727,19 @@ Module Type NET(Import NetParams : NET_PARAMS).
         (fun nc v => None)
         (fun _ => None).
 
-    Definition act_artifact (self : Name) (a : Act) (n : Name) : option Act :=
+    Definition net_act_artifact (self : Name) (a : Act) (n : Name) : option Act :=
       gact_rec a
         (fun nc v => let (n', t) := nc in if NAME.eqb n n' then Some (recv (self, t) v) else None)
         (fun nc v => let (n', t) := nc in if NAME.eqb n n' then Some (send (self, t) v) else None)
         (fun _ => None).
 
-    Fixpoint path_artifact (self : Name) (path : list Act) (n : Name) : list Act :=
+    Fixpoint net_path_artifact (self : Name) (path : list Act) (n : Name) : list Act :=
       match path with
       | [] => []
       | a :: path =>
-          match act_artifact self a n with
-          | Some na => na :: path_artifact self path n
-          | None => path_artifact self path n
+          match net_act_artifact self a n with
+          | Some na => na :: net_path_artifact self path n
+          | None => net_path_artifact self path n
           end
       end.
 
@@ -771,9 +772,43 @@ Module Type NET(Import NetParams : NET_PARAMS).
 
   #[global] Notation "N0 ~( n @ a )~> N1" := (NVTrans n a N0 N1) (at level 70): type_scope.
 
-End NET.
 
-Module NetTactics(Import NetParams : NET_PARAMS)(Import Net : NET(NetParams)).
+    Lemma net_ind_of (n : Name) : forall [Node Act : Set] {gen_Act_Act : gen_Act Act} {LTS_node : LTS Act Node}
+                                         (P : NAct (Act:=Act) -> NetMod.t Node -> NetMod.t Node -> Prop),
+
+        (forall (N0 N1 : NetMod.t Node) a, ia a -> @trans Act Node LTS_node a (NetMod.get n N0) (NetMod.get n N1) -> P (NTau n a) N0 N1) ->
+        (forall (N0 N1 : NetMod.t Node) a m, m <> n -> ia a -> (NetMod.get n N0 = NetMod.get n N1) -> P (NTau m a) N0 N1) ->
+        (forall (N0 N1 : NetMod.t Node) t v S0, @trans Act Node LTS_node (send (n, t) v) (NetMod.get n N0) S0 -> @trans Act Node LTS_node (recv (n, t) v) S0 (NetMod.get n N1) -> P (NComm n n t v) N0 N1) ->
+        (forall (N0 N1 : NetMod.t Node) t v m, m <> n -> @trans Act Node LTS_node (send (m, t) v) (NetMod.get n N0) (NetMod.get n N1) -> P (NComm n m t v) N0 N1) ->
+        (forall (N0 N1 : NetMod.t Node) t v m, m <> n -> @trans Act Node LTS_node (recv (m, t) v) (NetMod.get n N0) (NetMod.get n N1) -> P (NComm m n t v) N0 N1) ->
+        (forall (N0 N1 : NetMod.t Node) t v m0 m1, m0 <> n -> m1 <> n -> (NetMod.get n N0 = NetMod.get n N1) -> P (NComm m0 m1 t v) N0 N1) ->
+        (forall (a : NAct(Act:=Act)) (N0 N1 : NetMod.t Node), NTrans a N0 N1 -> P a N0 N1).
+
+    Proof.
+        intros.
+        repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh N0 N1) end).
+
+        consider (_ =(_)=> _); compat_hsimpl in *.
+        - repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh a0) end).
+          smash_eq n n0.
+          + eapply H; hsimpl; auto.
+          + eapply H0; hsimpl; auto.
+        - repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh &t &v) end).
+          smash_eq n n0; try (smash_eq n n').
+          + eapply H1; compat_hsimpl in *; eauto.
+          + eapply H2; compat_hsimpl; eauto.
+          + eapply H3; compat_hsimpl in *; eauto.
+          + eapply H4; compat_hsimpl; eauto.
+      Qed.
+
+
+End NET_F.
+
+
+Module Type NET := NET_PARAMS <+ NET_F.
+
+
+Module NetTactics(Import Net : NET).
   Ltac2 hsimpl_net_ (h : ident option) :=
     repeat (Control.enter (fun _ =>
                              match!goal with

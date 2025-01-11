@@ -306,7 +306,8 @@ Module Type PROC(Import Que : QUE_MOD).
 
 End PROC.
 
-Module Type MON_INPUT := MODEL_DATA <+ QUE <+ PROC.
+
+Module Type MON_PARAMS := MODEL_DATA <+ QUE <+ PROC.
 
 Ltac2 destruct_ma a :=
   destruct $a as [[[? ?]|[? ?]|]|[[? ?]|[? ?]|]|[[? ?]|[? ?]|]].
@@ -579,7 +580,7 @@ Ltac2 Notation "destruct_ma" c(constr) := destruct_ma c.
     end.
 
 
-Module Type MON(Import MonInput : MON_INPUT).
+Module Type MON_F(Import MonInput : MON_PARAMS).
   Inductive Event :=
   | TrSend : NChan -> Val -> Event
   | TrRecv : NChan -> Val -> Event
@@ -2604,4 +2605,6 @@ Module Type MON(Import MonInput : MON_INPUT).
     - blast_cases; rewrite IHMQ0; attac.
   Qed.
 
-End MON.
+End MON_F.
+
+Module MON := MON_PARAMS <+ MON_F.
