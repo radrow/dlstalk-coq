@@ -36,7 +36,13 @@ Import ListNotations.
 Import BoolNotations.
 
 
-Module Type SRPC_PARAMS := PROC_FOR_LOCKS <+ LOCKS.
+Module Type PROC_DATA_LOCKS := PROC_DATA with
+                               Module TAG := Tag.
+
+Module Type PROC_NET_PARAMS <: NET_PARAMS := PROC_DATA_LOCKS <+ NET_PARAMS_F.
+Module Type PROC_NET := PROC_NET_PARAMS <+ QUE <+ PROC <+ NET_F.
+
+Module Type SRPC_PARAMS := PROC_NET <+ LOCKS.
 
 Module SRPC_DEFS(Import Params : SRPC_PARAMS).
 
@@ -1267,6 +1273,3 @@ Module Type SRPC(Import Params : SRPC_PARAMS).
 End SRPC.
 
 Module Type SRPC_INST := SRPC_PARAMS <+ SRPC.
-
-Module Type SRPC_NET_PARAMS(Srpc : SRPC_INST) :=
-  NET_WITH(Srpc) <+ NET_LOCKS(Srpc).

@@ -10,12 +10,18 @@ From Ltac2 Require Import Printf.
 
 Import Ltac2.Notations.
 
-Require Import LTS.
-Require Import ModelData.
-Require Import Network.
-Require Import LTSTactics.
-Require Import Locks.
-Require Import Misra.
+Require Import DlStalk.Lemmas.
+Require Import DlStalk.Tactics.
+Require Import DlStalk.LTS.
+Require Import DlStalk.Model.
+Require Import DlStalk.ModelData.
+Require Import DlStalk.Network.
+Require Import DlStalk.SRPC.
+Require Import DlStalk.Que.
+Require Import DlStalk.Locks.
+Require Import DlStalk.SRPC.
+Require Import DlStalk.SRPCNet.
+Require Import DlStalk.Transp.
 
 Require Import Lia.
 
@@ -34,37 +40,62 @@ Require Import Coq.FSets.FMapFacts.
 Import ListNotations.
 Import BoolNotations.
 
+Record MProbe' {n : Set} : Set := {init : n; index : nat}.
 
-Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
-  Module Import Completeness := Misra(Name)(NetModF).
+Record MState' {n : Set} :=
+  { self : n
+  ; lock_id : nat
+  ; lock : option n
+  ; waitees : list n
+  ; deadlock : bool
+  }.
 
-  Import Locks.NetMap.
-  Import Locks.Tag.
-  Import Model.
-  Import Locks.MD.
+Module Type PROC_DATA_LOCKS :=
+  PROC_DATA
+  with Module TAG := Tag.
 
-  Import Locks.Net.
+Module Type MON_PARAMS_LOCKS_F(ProcData : PROC_DATA_LOCKS) :=
+  MON_PARAMS
+  with Definition Msg := @MProbe' ProcData.Name
+  with Definition MState := @MState' ProcData.Name.
 
-  Notation Name := Name.t'.
+Module Type MODEL_DATA_LOCKS := PROC_DATA_LOCKS <+ MON_PARAMS_LOCKS_F.
 
-  Import Locks.LockDefs.
-  Import Locks.NetLocks.
-  Import Locks.SRPC.
-  Import Locks.NetSRPC.
-  Import Locks.
-  Import Rad.
+Module Type MODEL_NET_PARAMS <: NET_PARAMS := MODEL_DATA_LOCKS <+ NET_PARAMS_F.
+Module Type MODEL_NET <: NET := MODEL_NET_PARAMS <+ QUE <+ PROC <+ MON_F <+ NET_F <+ TRANSP.
 
+Module Type SRPC_MODEL_PARAMS <: SRPC_PARAMS := MODEL_NET <+ LOCKS.
+
+Module Type SRPC_DEFS_WRAP_F(Params : SRPC_MODEL_PARAMS).
+  Module Import SrpcDefs := SRPC_DEFS(Params).
+End SRPC_DEFS_WRAP_F.
+Module Type SRPC_DEFS_WRAP := SRPC_MODEL_PARAMS <+ SRPC_DEFS_WRAP_F.
+
+Module Type SRPC_MODEL(Params : SRPC_MODEL_PARAMS) := SRPC(Params).
+Module Type SRPC_MODEL_INST <: SRPC_INST := SRPC_MODEL_PARAMS <+ SRPC_MODEL.
+
+Module Type SRPC_MODEL_NET_PARAMS := SRPC_MODEL_INST <+ NET_LOCKS.
+
+Module Type SRPC_MODEL_NET_F(Srpc : SRPC_MODEL_INST)(A : SRPC_MODEL_NET_PARAMS) := SRPC_NET(Srpc)(A).
+Module Type SRPC_MODEL_NET := SRPC_MODEL_NET_PARAMS <+ SRPC_NET.
+
+Require Import DlStalk.Compl.
+Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
+  Include COMPL(Srpc).
+  Module Import NT := NetTactics(Srpc).
+
+  Import TD.
 
   Section Inversions.
     (* These hints should not quadrate with SRPC_pq variants because SRPC_net does not expose
       SRPC_pq_in_net *)
 
     Lemma SRPC_M_net_AnySrpc [N S n] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = S ->
       AnySRPC_pq S.
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       kill H. eauto with LTS.
     Qed.
@@ -88,31 +119,29 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       econstructor 3; attac.
     Qed.
 
-
     Lemma SRPC_M_net_in_net_Q_in_M [N n c v v' MQ0 MQ1 M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrRecv (c, Q) v :: MQ1) M (pq I P O) ->
       ~ List.In (c, Q, v') (I ++ MQ_r (MQ0 ++ MQ1)).
 
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       hsimpl in *.
       unfold net_deinstr, deinstr in *; hsimpl in *.
+      rewrite MQ_r_app.
       remember (MQ_r MQ1) as I1 eqn:x; clear x.
       repeat (rewrite (app_assoc) in * ).
       remember (&I ++ MQ_r MQ0) as I0 eqn:x; clear x.
-
       destruct (Deq_dec' I0 (c, Q)); hsimpl in *.
       - rename Q' into I0'.
         assert (Deq (c, Q) v0 (I0 ++ (c, Q, v) :: I1) (I0' ++ (c, Q, v) :: I1)) by attac.
         bullshit (~ List.In (c, Q, v) (I0' ++ (c, Q, v) :: I1)).
       - assert (Deq (c, Q) v ((c, Q, v) :: I1) I1) by attac.
-        assert (Deq (c, Q) v (I0 ++ (c, Q, v) :: I1) (I0 ++ I1)) by eauto using Deq_app_l_not_Deq.
-        bullshit (~ List.In (c, Q, v) (I0 ++ I1)).
+        bullshit (Deq (c, Q) v (I0 ++ (c, Q, v) :: I1) (I0 ++ I1)) by eauto using Deq_app_l_not_Deq.
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_in_M0 [N n c v v' MQ0 MQ1 M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrRecv (c, Q) v :: MQ1) M S ->
       ~ List.In (TrRecv (c, Q) v') MQ0.
     Proof. intros. destruct S as [I P O].
@@ -121,7 +150,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_in_M1 [N n c v v' MQ0 MQ1 M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrRecv (c, Q) v :: MQ1) M S ->
       ~ List.In (TrRecv (c, Q) v') MQ1.
     Proof. intros. destruct S as [I P O].
@@ -130,7 +159,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_in_MP [N n c v v' MQ0 MQ1 M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrRecv (c, Q) v :: MQ1) M (pq I P O) ->
       ~ List.In (c, Q, v') I.
     Proof. intros.
@@ -139,14 +168,14 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_in_P [N n c v v' MQ M I I' P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       Deq (c, Q) v I I' ->
       ~ List.In (c, Q, v') (I' ++ MQ_r MQ).
 
     Proof.
       intros.
-      specialize (H n) as [srpc H].
+      kill H. specialize (H_Sane_SRPC n) as [srpc H].
       hsimpl in *.
       unfold net_deinstr, deinstr in *; hsimpl in *.
       assert (Deq (c, Q) v (&I ++ MQ_r MQ) (I' ++ MQ_r MQ)) by attac.
@@ -154,7 +183,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_in_PP [N n c v v' MQ M I I' P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       Deq (c, Q) v I I' ->
       ~ List.In (c, Q, v') I'.
@@ -163,7 +192,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
            attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_in_PM [N n c v v' MQ M I I' P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       Deq (c, Q) v I I' ->
       ~ List.In (TrRecv (c, Q) v') MQ.
@@ -173,12 +202,12 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_R_in_M [N n s s' v v' MQ0 MQ1 M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrRecv (s, R) v :: MQ1) M (pq I P O) ->
       ~ List.In (s', R, v') (I ++ MQ_r (MQ0 ++ MQ1)).
 
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       hsimpl in *.
       unfold net_deinstr, deinstr in *; hsimpl in *.
       remember (MQ_r MQ1) as I1 eqn:x; clear x.
@@ -195,7 +224,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_R_in_M0 [N n s s' v v' MQ0 MQ1 M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrRecv (s, R) v :: MQ1) M S ->
       ~ List.In (TrRecv (s', R) v') MQ0.
     Proof.
@@ -204,7 +233,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_in_M1 [N n s s' v v' MQ0 MQ1 M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrRecv (s, R) v :: MQ1) M S ->
       ~ List.In (TrRecv (s', R) v') MQ1.
     Proof.
@@ -213,7 +242,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_in_MP [N n s s' v v' MQ0 MQ1 M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrRecv (s, R) v :: MQ1) M (pq I P O) ->
       ~ List.In (s', R, v') I.
     Proof.
@@ -223,21 +252,21 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_R_in_P [N n s s' v v' MQ M I I' P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       Deq (s, R) v I I' ->
       ~ List.In (s', R, v') (I' ++ MQ_r MQ).
 
     Proof.
       intros.
-      specialize (H n) as [srpc H].
+      kill H. specialize (H_Sane_SRPC n) as [srpc H].
       hsimpl in *.
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
 
     Lemma SRPC_M_net_in_net_R_in_PP [N n s s' v v' MQ M I I' P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       Deq (s, R) v I I' ->
       ~ List.In (s', R, v') I'.
@@ -247,7 +276,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_in_PM [N n s s' v v' MQ M I I' P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       Deq (s, R) v I I' ->
       ~ List.In (TrRecv (s', R) v') MQ.
@@ -258,38 +287,36 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_R_in_lock [N n s v MQ M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M S ->
       List.In (TrRecv (s, R) v) MQ ->
       exists c, SRPC_pq (Lock c s) (NetMod.get n N).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *.
       hsimpl in *.
       consider (exists c, srpc = Lock c s); eattac.
-      exists c; eattac.
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_out_lock [N n s v MQ M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M S ->
       List.In (TrSend (s, Q) v) MQ ->
       exists c, SRPC_pq (Lock c s) (NetMod.get n N).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *.
       hsimpl in *.
       consider (exists c, srpc = Lock c s); eattac.
-      exists c; eattac.
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_M [N n c v v' MQ0 MQ1 M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrSend (c, R) v :: MQ1) M (pq I P O) ->
       ~ List.In (c, R, v') (MQ_s (MQ0 ++ MQ1) ++ O).
 
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       hsimpl in *.
       unfold net_deinstr, deinstr in *; hsimpl in *.
       repeat (rewrite <- app_assoc in * ).
@@ -307,7 +334,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_M0 [N n c v v' MQ0 MQ1 M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrSend (c, R) v :: MQ1) M S ->
       ~ List.In (TrSend (c, R) v') MQ0.
     Proof.
@@ -316,7 +343,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_out_uniq_M1 [N n c v v' MQ0 MQ1 M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrSend (c, R) v :: MQ1) M S ->
       ~ List.In (TrSend (c, R) v') MQ1.
     Proof.
@@ -325,7 +352,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_out_uniq_MP [N n c v v' MQ0 MQ1 M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq (MQ0 ++ TrSend (c, R) v :: MQ1) M (pq I P O) ->
       ~ List.In (c, R, v') O.
     Proof.
@@ -335,13 +362,13 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_P [N n c v v' MQ M I P O O'] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       Deq (c, R) v O O' ->
       ~ (List.In (c, R, v') (MQ_s MQ ++ O')).
     Proof.
       intros.
-      specialize (H n) as [srpc H].
+      kill H. specialize (H_Sane_SRPC n) as [srpc H].
       hsimpl in *.
       unfold net_deinstr, deinstr in *; hsimpl in *.
       remember (MQ_s MQ) as O1 eqn:x; clear x.
@@ -356,7 +383,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_PM [N n c v v' MQ M I P O O'] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       Deq (c, R) v O O' ->
       ~ (List.In (TrSend (c, R) v') MQ).
@@ -366,7 +393,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_out_uniq_PP [N n c v v' MQ M I P O O'] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       Deq (c, R) v O O' ->
       ~ (List.In (c, R, v') O').
@@ -377,17 +404,17 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_R_Q_M [N n s v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (TrRecv (s, R) v) MQ ->
       ~ (List.In (s, Q, v') (MQ_s MQ ++ O)).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_Q_MM [N n s v v' MQ M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M S ->
       List.In (TrRecv (s, R) v) MQ ->
       ~ (List.In (TrSend (s, Q) v') MQ).
@@ -397,7 +424,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_Q_MP [N n s v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (TrRecv (s, R) v) MQ ->
       ~ (List.In (TrSend (s, Q) v') MQ).
@@ -408,17 +435,17 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_R_Q_P [N n s v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (s, R, v) I ->
       ~ (List.In (s, Q, v') (MQ_s MQ ++ O)).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_Q_PM [N n s v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (s, R, v) I ->
       ~ (List.In (TrSend (s, Q) v') MQ).
@@ -428,7 +455,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_Q_PP [N n s v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (s, R, v) I ->
       ~ (List.In (s, Q, v') O).
@@ -439,17 +466,17 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_R_M [N n s v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (TrSend (s, Q) v) MQ ->
       ~ (List.In (s, R, v') (I ++ MQ_r MQ)).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_R_MM [N n s v v' MQ M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M S ->
       List.In (TrSend (s, Q) v) MQ ->
       ~ (List.In (TrRecv (s, R) v') MQ).
@@ -459,7 +486,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_R_MP [N n s v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (TrSend (s, Q) v) MQ ->
       ~ (List.In (s, R, v') I).
@@ -470,17 +497,17 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_R_P [N n s v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (s, Q, v) O ->
       ~ (List.In (s, R, v') (I ++ MQ_r MQ)).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_R_PM [N n s v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (s, Q, v) O ->
       ~ (List.In (TrRecv (s, R) v') MQ).
@@ -490,7 +517,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_R_PP [N n s v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (s, Q, v) O ->
       ~ (List.In (s, R, v') I).
@@ -501,17 +528,17 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_excl_R_M [N n c v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (TrRecv (c, Q) v) MQ ->
       ~ List.In (c, R, v') (MQ_s MQ ++ O).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_excl_R_MM [N n c v v' MQ M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M S ->
       List.In (TrRecv (c, Q) v) MQ ->
       ~ List.In (TrSend (c, R) v') MQ.
@@ -521,7 +548,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_excl_R_MP [N n c v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (TrRecv (c, Q) v) MQ ->
       ~ List.In (c, R, v') O.
@@ -532,17 +559,17 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_excl_R_P [N n c v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (c, Q, v) I ->
       ~ List.In (c, R, v') (MQ_s MQ ++ O).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_excl_R_PM [N n c v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (c, Q, v) I ->
       ~ List.In (TrSend (c, R) v') MQ.
@@ -552,7 +579,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_excl_R_PP [N n c v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (c, Q, v) I ->
       ~ List.In (c, R, v') O.
@@ -563,39 +590,39 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_excl_c_M [N n c v MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (TrRecv (c, Q) v) MQ ->
       ~ proc_client c P.
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_excl_c_P [N n c v MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (c, Q, v) I ->
       ~ proc_client c P.
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
 
     Lemma SRPC_M_net_in_net_R_excl_Q_M [N n c v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (TrSend (c, R) v) MQ ->
       ~ List.In (c, Q, v') (I ++ MQ_r MQ).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_excl_Q_MM [N n c v v' MQ M S] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M S ->
       List.In (TrSend (c, R) v) MQ ->
       ~ List.In (TrRecv (c, Q) v') MQ.
@@ -605,7 +632,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_excl_Q_MP [N n c v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (TrSend (c, R) v) MQ ->
       ~ List.In (c, Q, v') I.
@@ -616,17 +643,17 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_R_excl_Q_P [N n c v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (c, R, v) O ->
       ~ List.In (c, Q, v') (I ++ MQ_r MQ).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_excl_Q_PM [N n c v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (c, R, v) O ->
       ~ List.In (TrRecv (c, Q) v') MQ.
@@ -636,7 +663,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_excl_Q_PP [N n c v v' MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (c, R, v) O ->
       ~ List.In (c, Q, v') I.
@@ -647,60 +674,60 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     Qed.
 
     Lemma SRPC_M_net_in_net_R_excl_c_M [N n c v MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (TrRecv (c, Q) v) MQ ->
       ~ proc_client c P.
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
 
     Lemma SRPC_M_net_in_net_R_excl_c_P [N n c v MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       List.In (c, Q, v) I ->
       ~ proc_client c P.
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
 
     Lemma SRPC_M_net_in_net_c_excl_Q_M [N n c v MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       proc_client c P ->
       ~ List.In (TrRecv (c, Q) v) MQ.
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_c_excl_Q_P [N n c v MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       proc_client c P ->
       ~ List.In (c, Q, v) (I).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
 
     Lemma SRPC_M_net_in_net_c_excl_R [N n c v MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       proc_client c P ->
       ~ List.In (c, R, v) (MQ_s MQ ++ O).
     Proof.
-      intros. specialize (H n) as [srpc H].
+      intros. kill H. specialize (H_Sane_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_c_excl_R_M [N n c v MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       proc_client c P ->
       ~ List.In (TrSend (c, R) v) MQ.
@@ -710,7 +737,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_c_excl_R_P [N n c v MQ M I P O] :
-      SRPC_net '' N ->
+      net_sane '' N ->
       NetMod.get n N = mq MQ M (pq I P O) ->
       proc_client c P ->
       ~ List.In (c, R, v) O.
@@ -825,6 +852,8 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       nc = (n, R) /\ p1 = p0.
   Proof. destruct nc as [n' [|]]; split; attac; try (kill H); attac. Qed.
 
+  Import Rad.
+
   Lemma sends_to_mon_many_inv state n ns t p0 p1 :
     sends_to_mon (MSend_all ns t p1 (MRecv state)) n p0 <->
       List.In n ns /\ t = R /\ p1 = p0.
@@ -856,13 +885,13 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
   Definition no_Q_probe_in MN n := no_Q_probe (get_Mc MN n).
 
-
+Module Import REMOVE_ME.
   Inductive KIS (MN : MNet) :=
     KIS_
       (* We are sane *)
-      (H_sane_S : net_sane MN)
+      (H_sane_S : net_sane '' MN)
       (* Dependency is decidable *)
-      (H_dep_dec_C : forall n0 n1, dep_on MN n0 n1 \/ ~ dep_on MN n0 n1)
+      (H_dep_dec_C : forall n0 n1, dep_on '' MN n0 n1 \/ ~ dep_on '' MN n0 n1)
       (* `self` is correct *)
       (H_self_S : forall n0, _of self MN n0 = n0)
       (* We are using the algorithm *)
@@ -878,18 +907,18 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       (* All received probes have their index no higher than the lock id of the initiator *)
       (H_index_recvp_S : forall n0 n1 p, List.In (EvRecv (n1, R) p) (get_MQ MN n0) -> (index p <= _of lock_id MN (init p))%nat)
       (* If we are about to receive a hot probe of someone whose monitor considers locked, then we depend on them. *)
-      (H_sendp_hot_S : forall n0 n1 n2, sends_to MN n1 n0 (hot_of MN n2) -> _of lock MN n2 <> None -> dep_on MN n0 n2)
+      (H_sendp_hot_S : forall n0 n1 n2, sends_to MN n1 n0 (hot_of MN n2) -> _of lock MN n2 <> None -> dep_on '' MN n0 n2)
       (* If we received a hot probe of someone whose monitor considers locked, then we depend on them. *)
-      (H_recvp_hot_S : forall n0 n1 n2, List.In (hot_ev_of MN n2 n0) (get_MQ MN n1) -> _of lock MN n0 <> None -> dep_on MN n1 n0)
+      (H_recvp_hot_S : forall n0 n1 n2, List.In (hot_ev_of MN n2 n0) (get_MQ MN n1) -> _of lock MN n0 <> None -> dep_on '' MN n1 n0)
       (* No false alarms: if anyone screams, they are indeed deadlocked *)
-      (H_alarm_S : forall n, _of deadlock MN n = true -> dep_on MN n n)
+      (H_alarm_S : forall n, _of deadlock MN n = true -> dep_on '' MN n n)
       : KIS MN.
+End REMOVE_ME.
 
-
-  Lemma KIS_sane [MN] : KIS MN -> net_sane MN.
+  Lemma KIS_sane [MN] : KIS MN -> net_sane '' MN.
   Proof. intros; consider (KIS _). Qed.
 
-  Lemma KIS_dep_dec [MN] : KIS MN -> forall n0 n1, dep_on MN n0 n1 \/ ~ dep_on MN n0 n1.
+  Lemma KIS_dep_dec [MN] : KIS MN -> forall n0 n1, dep_on '' MN n0 n1 \/ ~ dep_on '' MN n0 n1.
   Proof. intros; consider (KIS _). Qed.
 
   Lemma KIS_self [MN] : KIS MN -> forall n0, _of self MN n0 = n0.
@@ -913,13 +942,13 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
   Lemma KIS_index_recvp [MN] : KIS MN -> forall n0 n1 p, List.In (EvRecv (n1, R) p) (get_MQ MN n0) -> (index p <= _of lock_id MN (init p))%nat.
   Proof. intros; consider (KIS _). eauto. Qed.
 
-  Lemma KIS_sendp_hot [MN] : KIS MN -> forall n0 n1 n2, sends_to MN n1 n0 (hot_of MN n2) -> _of lock MN n2 <> None -> dep_on MN n0 n2.
+  Lemma KIS_sendp_hot [MN] : KIS MN -> forall n0 n1 n2, sends_to MN n1 n0 (hot_of MN n2) -> _of lock MN n2 <> None -> dep_on '' MN n0 n2.
   Proof. intros; consider (KIS _). eauto. Qed.
 
-  Lemma KIS_recvp_hot [MN] : KIS MN -> forall n0 n1 n2, List.In (hot_ev_of MN n2 n0) (get_MQ MN n1) -> _of lock MN n0 <> None -> dep_on MN n1 n0.
+  Lemma KIS_recvp_hot [MN] : KIS MN -> forall n0 n1 n2, List.In (hot_ev_of MN n2 n0) (get_MQ MN n1) -> _of lock MN n0 <> None -> dep_on '' MN n1 n0.
   Proof. intros; consider (KIS _). eauto. Qed.
 
-  Lemma KIS_alarm [MN] : KIS MN -> forall n, _of deadlock MN n = true -> dep_on MN n n.
+  Lemma KIS_alarm [MN] : KIS MN -> forall n, _of deadlock MN n = true -> dep_on '' MN n n.
   Proof. intros; consider (KIS _). Qed.
 
   #[export] Hint Immediate
@@ -1090,7 +1119,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
   Proof.
     intros.
-    assert (net_sane MN0) by eauto with LTS.
+    assert (net_sane '' MN0) by eauto with LTS.
     destruct (MNAct_to_PNAct a) eqn:?.
     - eauto using net_deinstr_act_do with LTS.
     - now replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
@@ -1102,10 +1131,10 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
   Lemma KIS_invariant_dep_dec [MN0 MN1 a] :
     (MN0 =(a)=> MN1) ->
     KIS MN0 ->
-    forall n0 n1, dep_on MN1 n0 n1 \/ ~ dep_on MN1 n0 n1.
+    forall n0 n1, dep_on '' MN1 n0 n1 \/ ~ dep_on '' MN1 n0 n1.
   Proof.
     intros.
-    assert (net_sane MN0) by eauto with LTS.
+    assert (net_sane '' MN0) by eauto with LTS.
     destruct (MNAct_to_PNAct a) eqn:?.
     - eauto using invariant_dep_dec1 with LTS.
     - replace ('' MN1) with ('' MN0); eauto using net_deinstr_act_skip with LTS.
@@ -1143,6 +1172,8 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
   Hint Immediate KIS_invariant_Rad : LTS.
 
+  Ltac2 Notation "destruct_mna" a(constr) :=
+      destruct $a as [? [[[? [|]]|[? [|]]|]|[[? ?]|[? ?]|]|[[? ?]|[? ?]|]] | ? ? [|] [?|?]]; doubt.
 
   Lemma M_lock_set [MN0 MN1 a n0 n1] :
     KIS MN0 ->
@@ -1189,40 +1220,40 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     - smash_eq n2 n1; eattac.
     - destruct n2 as [? [|]]; eattac.
       smash_eq n n1; eattac.
-      destruct (Name.eqb (init msg) self0); attac.
-      destruct (lock_id0 =? index msg); attac.
+      destruct (NAME.eqb (init msg) &self); attac.
+      destruct (&lock_id =? index msg); attac.
   Qed.
 
 
-  Lemma SRPC_pq_in_net_in_R_no_out [srpc I P O s v] :
-    SRPC_pq_in_net srpc (pq I P O) ->
-    List.In (s, R, v) I ->
-    O = [].
+  (* Lemma SRPC_pq_in_net_in_R_no_out [srpc I P O s v] : *)
+  (*   SRPC_pq_in_net srpc (pq I P O) -> *)
+  (*   List.In (s, R, v) I -> *)
+  (*   O = []. *)
 
-  Proof.
-    intros.
-    enough (forall n t v, ~ List.In (n, t, v) &O) as Hx.
-    {
-      clear - Hx.
-      induction O; intros; auto.
-      destruct a as [[n t] v].
-      bullshit (List.In (n, &t, v) ((n, &t, v)::&O)).
-    }
-    intros n t v'.
-    destruct t.
-    - intros ?.
-      consider (n = s).
-      {
-        assert (exists c, srpc = Lock c s) by eauto with LTS.
-        assert (exists c, srpc = Lock c n) by eauto with LTS.
-        attac.
-      }
-      bullshit.
-    - consider (exists c, srpc = Lock c s) by eauto with LTS.
-      assert (&O = [] \/ &O <> []) as [|] by (destruct O; attac); subst; auto.
-      consider (exists v, List.In (s, Q, v) &O) by eauto with LTS.
-      bullshit.
-  Qed.
+  (* Proof. *)
+  (*   intros. *)
+  (*   enough (forall n t v, ~ List.In (n, t, v) &O) as Hx. *)
+  (*   { *)
+  (*     clear - Hx. *)
+  (*     induction O; intros; auto. *)
+  (*     destruct a as [[n t] v]. *)
+  (*     bullshit (List.In (n, &t, v) ((n, &t, v)::&O)). *)
+  (*   } *)
+  (*   intros n t v'. *)
+  (*   destruct t. *)
+  (*   - intros ?. *)
+  (*     consider (n = s). *)
+  (*     { *)
+  (*       assert (exists c, srpc = Lock c s) by eauto with LTS. *)
+  (*       assert (exists c, srpc = Lock c n) by eauto with LTS. *)
+  (*       attac. *)
+  (*     } *)
+  (*     bullshit. *)
+  (*   - consider (exists c, srpc = Lock c s) by eauto with LTS. *)
+  (*     assert (&O = [] \/ &O <> []) as [|] by (destruct O; attac); subst; auto. *)
+  (*     consider (exists v, List.In (s, Q, v) &O) by eauto with LTS. *)
+  (*     bullshit. *)
+  (* Qed. *)
 
 
   Lemma M_lock_no_send [MN0 MN1 n0 n1 m0 m1 t v] :
@@ -1251,10 +1282,11 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
     consider (O0 = []).
     {
-      consider (net_sane MN0) by eauto with LTS.
+      consider (net_sane '' MN0) by eauto with LTS.
       specialize (H_Sane_SRPC m0) as [srpc Hsrpc].
-      rewrite `(NetMod.get m0 _ = _) in *.
-      eauto using SRPC_pq_in_net_in_R_no_out with LTS.
+      hrewrite NetMod.get in *.
+      replace O0 with (pq_O (pq I0 P0 O0)) by auto.
+      eauto using SRPC_sane_R_in_out_nil with LTS.
     }
 
     consider (_ =(_)=> _).
@@ -1292,10 +1324,10 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     - smash_eq n2 n1; eattac.
     - destruct n2 as [? [|]]; eattac.
       smash_eq n n1; eattac.
-      destruct (Name.eqb (init msg) self0); attac.
-      destruct (lock_id0 =? index msg); attac.
-    - bullshit (NComm n1' n1' Q v <> NComm n1' n1' Q v).
-    - bullshit (NComm n0 n1' Q v <> NComm n0 n1' Q v).
+      destruct (NAME.eqb (init msg) &self); attac.
+      destruct (&lock_id =? index msg); attac.
+    - bullshit (NComm n1' n1' Q # v <> NComm n1' n1' Q # v).
+    - bullshit (NComm n0 n1' Q # v <> NComm n0 n1' Q # v).
   Qed.
 
 
@@ -1328,10 +1360,11 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
         consider (O0 = []).
         {
-          consider (net_sane MN0) by eauto with LTS.
+          consider (net_sane '' MN0) by eauto with LTS.
           specialize (H_Sane_SRPC n0) as [srpc Hsrpc].
           rewrite `(NetMod.get n0 _ = _) in *.
-          eauto using SRPC_pq_in_net_in_R_no_out with LTS.
+          replace (O0) with (pq_O (pq I0 P0 O0)) by auto. (* TODO seek and destroy this bs *)
+          eauto using SRPC_sane_R_in_out_nil with LTS.
         }
 
         consider (_ =(_)=> _).
@@ -1370,10 +1403,11 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
     consider (O0 = []).
     {
-      consider (net_sane MN0) by eauto with LTS.
+      consider (net_sane '' MN0) by eauto with LTS.
       specialize (H_Sane_SRPC n0) as [srpc Hsrpc].
       rewrite `(NetMod.get n0 _ = _) in *.
-      eauto using SRPC_pq_in_net_in_R_no_out with LTS.
+      replace (O0) with (pq_O (pq I0 P0 O0)) by auto. (* TODO seek and destroy this bs *)
+      eauto using SRPC_sane_R_in_out_nil with LTS.
     }
 
     unfold net_deinstr, deinstr in *.
@@ -1457,14 +1491,14 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       Control.enter (fun _ => consider (h = Rad.Rad_handle) by eauto with LTS);
       destruct s; hsimpl in *; simpl in *; doubt.
 
-    - assert (List.In n1 (n2::waitees0)) by (blast_cases; attac).
+    - assert (List.In n1 (n2::&waitees)) by (blast_cases; attac).
       attac.
-    - assert (List.In n1 waitees0) by (blast_cases; attac).
+    - assert (List.In n1 &waitees) by (blast_cases; attac).
       bullshit.
-    - assert (List.In n1 waitees0) by (blast_cases; attac).
+    - assert (List.In n1 &waitees) by (blast_cases; attac).
       bullshit.
-    - bullshit (List.In n1 waitees0 /\ n1 <> n0) by eauto using in_remove.
-    - bullshit (List.In n1 waitees0 /\ n1 <> n2) by eauto using in_remove.
+    - bullshit (List.In n1 &waitees /\ n1 <> n0) by eauto using in_remove.
+    - bullshit (List.In n1 &waitees /\ n1 <> n2) by eauto using in_remove.
   Qed.
 
 
@@ -1489,10 +1523,10 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
     all: blast_cases; eattac.
     - smash_eq n1 n0; attac.
-      bullshit (List.In n1 (List.remove Name.eq_dec n0 waitees0)) by eauto using in_in_remove.
+      bullshit (List.In n1 (List.remove NAME.eq_dec n0 &waitees)) by eauto using in_in_remove.
 
     - smash_eq n1 n2; attac.
-      bullshit (List.In n1 (List.remove Name.eq_dec n2 waitees0)) by eauto using in_in_remove.
+      bullshit (List.In n1 (List.remove NAME.eq_dec n2 &waitees)) by eauto using in_in_remove.
   Qed.
 
 
@@ -1581,7 +1615,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
     all: blast_cases; eattac.
 
-    consider (lock_id0 = index0) by (apply PeanoNat.Nat.eqb_eq; auto).
+    consider (&lock_id = &index) by (apply PeanoNat.Nat.eqb_eq; auto).
     eauto with LTS.
   Qed.
 
@@ -1594,20 +1628,20 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
   Proof.
     intros.
 
-    destruct (net_sane_lock_dec MN1 n0 n1); eauto using KIS_invariant_sane with LTS.
+    destruct (net_sane_lock_dec '' MN1 n0 n1); eauto using KIS_invariant_sane with LTS.
     right.
 
-    destruct (net_sane_lock_dec MN0 n0 n1); eauto with LTS.
+    destruct (net_sane_lock_dec '' MN0 n0 n1); eauto with LTS.
     - consider (exists v, a = NComm n1 n0 R (MValP v))
         by eauto using SRPC_M_net_unlock_reply with LTS.
       unfold get_MQ in *.
       consider (_ =(_)=> _).
       eattac.
-    - assert (net_sane MN0) by eauto with LTS.
-      assert (net_sane MN1) by eauto with LTS.
+    - assert (net_sane '' MN0) by eauto with LTS.
+      assert (net_sane '' MN1) by eauto with LTS.
 
-      assert ((exists v, List.In (TrRecv (n1, Locks.R) v) (get_MQ MN1 n0))
-                              \/ forall v, ~ List.In (TrRecv (n1, Locks.R) v) (get_MQ MN1 n0)
+      assert ((exists v, List.In (TrRecv (n1, R) v) (get_MQ MN1 n0))
+                              \/ forall v, ~ List.In (TrRecv (n1, R) v) (get_MQ MN1 n0)
              ) as [|]; auto.
       {
         generalize (get_MQ MN1 n0) as Q0. clear.
@@ -1634,7 +1668,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
         all:
           repeat (Control.enter (fun _ => match! goal with [h : context [NetMod.get ?n0 (NetMod.put ?n1 ?s ?net)] |- _] =>
-                           if Constr.equal n0 n1 then fail else destruct (Name.eq_dec $n0 $n1); hsimpl in * end)).
+                           if Constr.equal n0 n1 then fail else destruct (NAME.eq_dec $n0 $n1); hsimpl in * end)).
         all: doubt.
 
         destruct `(_ \/ _); attac.
@@ -1658,10 +1692,10 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
   Proof.
     intros.
-    destruct (net_sane_lock_dec MN1 n0 n1); eauto with LTS.
+    destruct (net_sane_lock_dec '' MN1 n0 n1); eauto with LTS.
     exfalso.
 
-    destruct (in_dec Name.eq_dec n0 (_of waitees MN0 n1)).
+    destruct (in_dec NAME.eq_dec n0 (_of waitees MN0 n1)).
     - assert (net_lock_on '' MN0 n0 n1) by eauto with LTS.
       consider (exists v, a = NComm n1 n0 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
 
@@ -1671,8 +1705,8 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       consider (h = Rad.Rad_handle) by eauto with LTS.
       destruct s.
       hsimpl_net.
-      + bullshit (~ List.In n0 (List.remove Name.eq_dec n0 waitees0)) by eauto using remove_In.
-      + bullshit (~ List.In n0 (List.remove Name.eq_dec n0 waitees0)) by eauto using remove_In.
+      + bullshit (~ List.In n0 (List.remove NAME.eq_dec n0 &waitees)) by eauto using remove_In.
+      + bullshit (~ List.In n0 (List.remove NAME.eq_dec n0 &waitees)) by eauto using remove_In.
 
     - rename n into Hn.
       assert (exists v, a = NTau n1 (MActP (Recv (n0, Q) v))) by eauto using M_wait_add with LTS.
@@ -1702,7 +1736,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     (MN0 =(a)=> MN1) ->
     sends_to MN0 n0 n1 p ->
     ~ sends_to MN1 n0 n1 p ->
-    a = NComm n0 n1 R p.
+    a = NComm n0 n1 R ^ p.
 
   Proof.
     intros.
@@ -1763,7 +1797,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
     destruct (NetMod.get n1 MN1) as [MQ1 [h1 s1] S1] eqn:?.
 
-    destruct (net_sane_lock_dec MN1 n0 n1); eauto with LTS.
+    destruct (net_sane_lock_dec '' MN1 n0 n1); eauto with LTS.
 
     destruct (sends_to_dec MN0 n1 n0 p).
     - assert (net_lock_on '' MN0 n0 n1) by eauto with LTS.
@@ -1778,7 +1812,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       + hsimpl in *.
         enough (net_lock_on '' MN0 n0 n1).
         {
-          consider (exists v', NTau n1 (MActP (Recv (n0, Locks.Q) v)) = NComm n1 n0 R (MValP v')) by eauto using SRPC_M_net_unlock_reply with LTS.
+          consider (exists v', NTau n1 (MActP (Recv (n0, Q) v)) = NComm n1 n0 R (MValP v')) by eauto using SRPC_M_net_unlock_reply with LTS.
           bullshit.
         }
 
@@ -1818,9 +1852,9 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
       destruct p.
 
-      destruct (NetMod.get init0 MN0) as [MQp0 [h' sp0] Sp0] eqn:?.
+      destruct (NetMod.get &init MN0) as [MQp0 [h' sp0] Sp0] eqn:?.
       consider (h' = Rad.Rad_handle) by eauto with LTS.
-      destruct (NetMod.get init0 MN1) as [MQp1 [h' sp1] Sp1] eqn:?.
+      destruct (NetMod.get &init MN1) as [MQp1 [h' sp1] Sp1] eqn:?.
       assert (handle (get_M MN1 n0) = Rad_handle) by eauto with LTS.
 
       destruct_mna a;
@@ -1842,8 +1876,8 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
         ltac1:(autounfold with LTS_get in * ).
         hsimpl_net; hsimpl in *.
         all: blast_cases; attac.
-        consider (self0 = n0) by eauto with LTS.
-        consider (sends_to_mon _ _ _).
+        consider (&self = n0) by eauto with LTS.
+        bullshit.
 
       + hsimpl in *.
 
@@ -1857,18 +1891,17 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
             by (ltac1:(autounfold with LTS_get in * ); hsimpl in *; eattac).
           enough (List.In (EvRecv (n1, R) p) (get_MQ MN0 (init p))) by eauto with LTS.
 
-          absurd (self0 = init p); auto.
+          absurd (&self = init p); auto.
           enough (_of self MN0 (init p) = (init p)) by (ltac1:(autounfold with LTS_get in * ); attac).
           eauto with LTS.
         * enough (index p <= _of lock_id MN0 (init p))
             by (ltac1:(autounfold with LTS_get in * ); hsimpl in *; eattac).
-          enough (List.In (EvRecv (t1, R) p) (get_MQ MN0 n0)) by eauto with LTS.
+          enough (List.In (EvRecv (n3, R) p) (get_MQ MN0 n0)) by eauto with LTS.
 
-          enough (self0 = n0) by (ltac1:(autounfold with LTS_get in * ); attac).
+          enough (&self = n0) by (ltac1:(autounfold with LTS_get in * ); attac).
 
           enough (_of self MN0 n0 = n0) by (ltac1:(autounfold with LTS_get in * ); attac).
           eauto with LTS.
-          Unshelve. attac. attac.
   Qed.
 
 
@@ -1877,7 +1910,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     (MN0 =(a)=> MN1) ->
     ~ List.In (EvRecv (n1, t) p) (get_MQ MN0 n0) ->
     List.In (EvRecv (n1, t) p) (get_MQ MN1 n0) ->
-    a = NComm n1 n0 t p.
+    a = NComm n1 n0 t ^ p.
 
   Proof.
     intros.
@@ -1905,7 +1938,14 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
     assert (handle (get_M MN1 (init p)) = Rad_handle) by eauto with LTS.
 
-    destruct (in_dec Event_eq_dec (EvRecv (n1, R) p) (get_MQ MN0 n0)).
+    assert (In (EvRecv (n1, R) p) (get_MQ MN0 n0) \/ ~ In (EvRecv (n1, R) p) (get_MQ MN0 n0)) as [|].
+    - induction (get_MQ MN0 n0); attac.
+      destruct `(_ \/ _); attac.
+      destruct a0; attac.
+      destruct n.
+      destruct (MProbe_eq_dec p m); attac.
+      destruct t; attac.
+      smash_eq n n1; attac.
     - assert (index p <= _of lock_id MN0 (init p)) by eauto with LTS.
       destruct (PeanoNat.Nat.eq_dec (_of lock_id MN1 (init p)) (_of lock_id MN0 (init p))).
       1: attac.
@@ -1917,7 +1957,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       ltac1:(autounfold with LTS_get in * ); hsimpl in *.
       hsimpl_net; hsimpl in *; doubt.
       all: blast_cases; attac.
-    - assert (a = NComm n1 n0 R p) by eauto using  M_recv_ev_act.
+    - assert (a = NComm n1 n0 R ^ p) by eauto using  M_recv_ev_act.
       destruct (PeanoNat.Nat.eq_dec (_of lock_id MN1 (init p)) (_of lock_id MN0 (init p))).
       2: consider (exists n1' v, a = NComm (init p) n1' Q (MValP v)) by (eauto using M_lock_id_update; hsimpl in * ); bullshit.
       enough (sends_to MN0 n1 n0 p) by (rewrite `(_of lock_id MN1 _ = _) in *; eauto with LTS).
@@ -1934,7 +1974,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     KIS MN0 ->
     forall n0 n1 n2, List.In (hot_ev_of MN1 n1 n2) (get_MQ MN1 n0) ->
                                   _of lock MN1 n2 <> None ->
-                                  dep_on MN1 n0 n2.
+                                  dep_on '' MN1 n0 n2.
 
   Proof.
     intros.
@@ -1954,10 +1994,20 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     destruct (NetMod.get n2 MN1) as [MQ21 [h2 s21] S21] eqn:?.
     assert (handle (get_M MN1 n2) = Rad_handle) by eauto with LTS.
 
-    destruct (in_dec Event_eq_dec (hot_ev_of MN1 n1 n2) (get_MQ MN0 n0)).
+    assert (In (hot_ev_of MN1 n1 n2) (get_MQ MN0 n0) \/ ~ In (hot_ev_of MN1 n1 n2) (get_MQ MN0 n0)) as [|].
+    {
+      unfold hot_ev_of. clear.
+      induction (get_MQ MN0 n0); attac.
+      destruct `(_ \/ _); attac.
+      destruct a; attac.
+      destruct n.
+      destruct (MProbe_eq_dec (hot_of MN1 n2) m); attac.
+      destruct t; attac.
+      smash_eq n n1; attac.
+    }
     2: {
       unfold hot_ev_of in *.
-      consider (a = NComm n1 n0 R (hot_of MN1 n2)) by eauto using M_recv_ev_act.
+      consider (a = NComm n1 n0 R ^ (hot_of MN1 n2)) by eauto using M_recv_ev_act.
       assert (sends_to MN0 n1 n0 (hot_of MN1 n2)).
       {
         remember (hot_of MN1 n2) as p; clear - H.
@@ -1968,21 +2018,21 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       {
         assert (net_lock_on '' MN0 n0 n1) by eauto with LTS.
         split; auto.
-        destruct (net_sane_lock_dec MN1 n0 n1); eauto with LTS.
-        consider (exists v, NComm n1 n0 R (hot_of MN1 n2) = NComm n1 n0 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
+        destruct (net_sane_lock_dec '' MN1 n0 n1); eauto with LTS.
+        consider (exists v, NComm n1 n0 R ^ (hot_of MN1 n2) = NComm n1 n0 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
         bullshit.
       }
       assert (_of lock MN0 n2 <> None).
       {
         intros ?.
         destruct (_of lock MN1 n2) as [n3|] eqn:?; doubt.
-        consider (exists v, NComm n1 n0 R (hot_of MN1 n2) = NComm n2 n3 Q (MValP v)) by eauto using M_lock_set.
+        consider (exists v, NComm n1 n0 R ^ (hot_of MN1 n2) = NComm n2 n3 Q (MValP v)) by eauto using M_lock_set.
       }
       assert (hot_of MN1 n2 = hot_of MN0 n2).
       {
         enough (_of lock_id MN1 n2 = _of lock_id MN0 n2) by (unfold hot_of; attac).
         destruct (PeanoNat.Nat.eq_dec (_of lock_id MN1 n2) (_of lock_id MN0 n2)); auto.
-        consider (exists n3' v, NComm n1 n0 R (hot_of MN1 n2) = NComm n2 n3' Q (MValP v)) by eauto using M_lock_id_update.
+        consider (exists n3' v, NComm n1 n0 R ^ (hot_of MN1 n2) = NComm n2 n3' Q (MValP v)) by eauto using M_lock_id_update.
         bullshit.
       }
       rewrite `(hot_of _ _ = _) in *.
@@ -2031,39 +2081,34 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
       assert (dep_on '' MN0 n0 n2) by (assert (_of lock MN0 n2 <> None) by attac; eauto with LTS).
       assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|] by eauto with LTS; auto.
 
-      consider (exists m0 m1 v, (n0 = m0 \/ dep_on MN0 n0 m0) /\ a = NComm m1 m0 R (MValP v)).
+      consider (exists n0' v, (n0 = n0' \/ dep_on '' MN1 n0 n0') /\ a = NComm n2 n0' R (MValP v)).
       {
         destruct (MNAct_to_PNAct a) eqn:?.
         - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
-          consider (exists m0 m1 v, (n0 = m0 \/ dep_on MN0 n0 m0) /\ p = NComm m1 m0 R v)
-            by eauto using net_dep_open with LTS.
+          consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ dep_on '' MN1 n0 n0')).
+          {
+            eapply net_dep_on_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
+            eapply SRPC_net_lock_uniq; eauto with LTS.
+            eapply SRPC_net_lock_neq_nil; eauto with LTS.
+          }
 
-          exists m0, m1, v.
-          destruct `(_ \/ _); hsimpl in *.
-          + assert (NActCorr a (@NComm PAct _ m1 m0 R v)) by (eapply NActCorr_MNAct_to_PNAct; eauto).
-            consider (NActCorr _ _).
-          + assert (NActCorr a (@NComm PAct _ m1 m0 R v)) by (eapply NActCorr_MNAct_to_PNAct; eauto).
-            consider (NActCorr _ _).
-        - replace ('' MN1) with ('' MN0) by eauto using eq_sym, net_deinstr_act_skip.
+          exists n0', v.
+          split.
+          1: {destruct `(_ \/ _); eauto using eq_sym.}
+          destruct_mna a; doubt.
+          attac.
+        - replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
           bullshit.
       }
 
-      consider (net_lock_on '' MN0 m0 m1 /\ ~ net_lock_on '' MN1 m0 m1) by eauto using SRPC_M_net_reply_unlock with LTS.
-
-      consider ((n0 = m0 \/ (dep_on MN0 n0 m0 /\ dep_on MN1 n0 m0)) /\ n2 = m1).
-      {
-        eassert ('' MN0 =(_)=> '' MN1) by (eapply net_deinstr_act_do with (ma:=NComm m1 m0 R v); attac).
-        eauto using SRPC_net_unlock_uniq_dep with LTS.
-      }
-
-      bullshit (m1 <> m1) by eauto using M_lock_no_send.
+      bullshit (n2 <> n2) by eauto using M_lock_no_send.
   Qed.
 
 
   Lemma KIS_invariant_sendp_hot [MN0 MN1 a] :
     (MN0 =(a)=> MN1) ->
     KIS MN0 ->
-    (forall n0 n1 n2, sends_to MN1 n1 n0 (hot_of MN1 n2) -> _of lock MN1 n2 <> None -> dep_on MN1 n0 n2).
+    (forall n0 n1 n2, sends_to MN1 n1 n0 (hot_of MN1 n2) -> _of lock MN1 n2 <> None -> dep_on '' MN1 n0 n2).
 
   Proof.
     intros.
@@ -2108,7 +2153,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
       assert (net_lock_on '' MN0 n0 n1).
       {
-        destruct (net_sane_lock_dec MN0 n0 n1); auto with LTS.
+        destruct (net_sane_lock_dec '' MN0 n0 n1); auto with LTS.
         consider (exists v, a = NComm n0 n1 Q (MValP v)) by eauto using SRPC_M_net_new_lock_query with LTS.
         destruct `(_ \/ _); bullshit.
       }
@@ -2119,25 +2164,31 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
         assert (_of self MN0 n1 = n1) by eauto with LTS.
         unfold hot_ev_of, hot_of in *; ltac1:(autounfold with LTS_get in * ).
         destruct s. simpl in *; hsimpl in *.
-        destruct lock0.
+        destruct &lock.
         consider (sends_to_mon _ _ _); attac 2.
         consider (sends_to_mon _ _ _).
+        bullshit.
       - assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|] by eauto with LTS; auto.
-        assert (dep_on MN0 n0 n2).
+        assert (dep_on '' MN0 n0 n2).
         {
-          enough (dep_on MN0 n1 n2) by attac.
+          enough (dep_on '' MN0 n1 n2) by attac.
           enough (exists n', List.In (hot_ev_of MN0 n' n2) (get_MQ MN0 n1)) by (hsimpl in *; eauto with LTS).
           unfold hot_ev_of, hot_of, sends_to in *.
           ltac1:(autounfold with LTS_get in * ); hsimpl in *.
           consider (_ =(_)=> _); compat_hsimpl in *.
           blast_cases; attac.
         }
-        assert (exists m0 m1 v, (n0 = m0 \/ dep_on MN0 n0 m0) /\ NTau n1 (MActM Tau) = NComm m1 m0 R (MValP v)).
+
+        assert (exists m0 m1 v, (n0 = m0 \/ dep_on '' MN0 n0 m0) /\ NTau n1 (MActM Tau) = NComm m1 m0 R (MValP v)).
         {
           destruct (MNAct_to_PNAct (NTau n1 (MActM Tau))) eqn:?.
           - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
-            consider (exists m0 m1 v, (n0 = m0 \/ dep_on MN0 n0 m0) /\ p = NComm m1 m0 R v)
-              by eauto using net_dep_open with LTS.
+            consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ dep_on '' MN1 n0 n0')).
+            {
+              eapply net_dep_on_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
+              eapply SRPC_net_lock_uniq; eauto with LTS.
+              eapply SRPC_net_lock_neq_nil; eauto with LTS.
+            }
             bullshit.
           - replace ('' MN1) with ('' MN0) by eauto using eq_sym, net_deinstr_act_skip.
             bullshit.
@@ -2183,39 +2234,34 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
 
       assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|] by eauto with LTS; auto.
 
-      consider (exists m0 m1 v, (n0 = m0 \/ dep_on MN0 n0 m0) /\ a = NComm m1 m0 R (MValP v)).
+      consider (exists n0' v, (n0 = n0' \/ dep_on '' MN1 n0 n0') /\ a = NComm n2 n0' R (MValP v)).
       {
         destruct (MNAct_to_PNAct a) eqn:?.
         - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
-          consider (exists m0 m1 v, (n0 = m0 \/ dep_on MN0 n0 m0) /\ p = NComm m1 m0 R v)
-            by eauto using net_dep_open with LTS.
+          consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ dep_on '' MN1 n0 n0')).
+          {
+            eapply net_dep_on_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
+            eapply SRPC_net_lock_uniq; eauto with LTS.
+            eapply SRPC_net_lock_neq_nil; eauto with LTS.
+          }
 
-          exists m0, m1, v.
-          destruct `(_ \/ _); hsimpl in *.
-          + assert (NActCorr a (@NComm PAct _ m1 m0 R v)) by (eapply NActCorr_MNAct_to_PNAct; eauto).
-            consider (NActCorr _ _).
-          + assert (NActCorr a (@NComm PAct _ m1 m0 R v)) by (eapply NActCorr_MNAct_to_PNAct; eauto).
-            consider (NActCorr _ _).
-        - replace ('' MN1) with ('' MN0) by eauto using eq_sym, net_deinstr_act_skip.
+          exists n0', v.
+          split.
+          1: {destruct `(_ \/ _); eauto using eq_sym.}
+            destruct_mna a; doubt.
+          attac.
+        - replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
           bullshit.
       }
 
-      consider (net_lock_on '' MN0 m0 m1 /\ ~ net_lock_on '' MN1 m0 m1) by eauto using SRPC_M_net_reply_unlock with LTS.
-
-      consider ((n0 = m0 \/ (dep_on MN0 n0 m0 /\ dep_on MN1 n0 m0)) /\ n2 = m1).
-      {
-        eassert ('' MN0 =(_)=> '' MN1) by (eapply net_deinstr_act_do with (ma:=NComm m1 m0 R v); attac).
-        eauto using SRPC_net_unlock_uniq_dep with LTS.
-      }
-
-      bullshit (m1 <> m1) by eauto using M_lock_no_send.
+      bullshit (n2 <> n2) by eauto using M_lock_no_send.
   Qed.
 
 
   Lemma KIS_invariant_alarm [MN0 MN1 a] :
     (MN0 =(a)=> MN1) ->
     KIS MN0 ->
-    forall n, _of deadlock MN1 n = true -> dep_on MN1 n n.
+    forall n, _of deadlock MN1 n = true -> dep_on '' MN1 n n.
 
   Proof.
     intros.
@@ -2277,7 +2323,7 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
   Proof.
     intros.
     assert (KIS MN1) by eauto with LTS.
-    enough (dep_on MN1 n n) by eauto using dep_self_deadlocked with LTS.
+    enough (dep_on '' MN1 n n) by eauto using dep_self_deadlocked with LTS.
     consider (KIS MN1).
   Qed.
 
@@ -2298,4 +2344,4 @@ Module Soundness(Name : UsualDecidableSet)(NetModF : NET).
     consider (KIS (net_instr I1 N1)).
   Qed.
 
-End Soundness.
+End SOUND.

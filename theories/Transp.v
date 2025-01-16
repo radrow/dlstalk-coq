@@ -34,36 +34,39 @@ Module MonNetTactics(M : MON_NET).
   Ltac2 Notation "destruct_mna" a(constr) := destruct_mna_ a.
 End MonNetTactics.
 
-
-Module Type TRANSP(Import Params : MON_NET).
-
-  Module Import Tactics := MonNetTactics(Params).
-
+Module TranspDefs(Import Params : MON_NET).
   (** Not-monitored network *)
   Definition PNet := NetMod.t PQued.
   (** Monitored network *)
   Definition MNet := NetMod.t MQued.
+End TranspDefs.
+
+Module Type TRANSP(Import Params : MON_NET).
+
+  Module Import TD := TranspDefs(Params).
+
+  Module Import Tactics := MonNetTactics(Params).
 
   #[export] Hint Transparent PNet MNet : LTS typeclass_instances.
 
 
-  Lemma pq_I_net_inv : forall I P O n [N : PNet],
+  Lemma pq_I_net_inv' : forall I P O n [N : PNet], (* TODO prime' is due to a name clash in SRPCNet.v *)
       NetMod.get n N = pq I P O ->
       pq_I (NetMod.get n N) = I.
   Proof. intros. rewrite H. attac. Qed.
 
-  Lemma pq_P_net_inv : forall I P O n N,
+  Lemma pq_P_net_inv' : forall I P O n N,
       NetMod.get n N = pq I P O ->
       pq_P (NetMod.get n N) = P.
   Proof. intros. rewrite H. attac. Qed.
 
-  Lemma pq_O_net_inv : forall I P O n N,
+  Lemma pq_O_net_inv' : forall I P O n N,
       NetMod.get n N = pq I P O ->
       pq_O (NetMod.get n N) = O.
   Proof. intros. rewrite H. attac. Qed.
 
-  #[export] Hint Rewrite -> pq_I_net_inv pq_P_net_inv pq_O_net_inv using spank : LTS LTS_concl.
-  #[export] Hint Resolve pq_I_net_inv pq_P_net_inv pq_O_net_inv : LTS LTS_concl.
+  #[export] Hint Rewrite -> pq_I_net_inv' pq_P_net_inv' pq_O_net_inv' using spank : LTS LTS_concl.
+  #[export] Hint Resolve pq_I_net_inv' pq_P_net_inv' pq_O_net_inv' : LTS LTS_concl.
 
 
   Lemma mq_MQ_net_inv : forall MQ M S n [N : MNet],
@@ -449,2811 +452,30 @@ Module Type TRANSP(Import Params : MON_NET).
   Definition ready_net N := forall n, ready_in n N.
 
 
-  Section Completeness.
-    Declare Custom Entry put.
-    Notation "n := S" := (NetMod.put n S) (in custom put at level 10, n constr, S constr).
-    Notation "N ::: [ f0 ] [ .. ] [ f1 ]" := (f1 (.. (f0 N) ..)) (at level 10, f0 custom put, f1 custom put).
-
-    Notation "N ::: [ n0 := S0 ]" :=
-      (NetMod.put n0 S0 N)
-        ( at level 10,
-          only printing,
-          format "N  :::  [  n0  :=  S0  ]"
-        ).
-
-    Notation "N ::: [ n0 := S0 ] [ n1 := S1 ]" :=
-      (NetMod.put n1 S1 (NetMod.put n0 S0 N))
-        ( at level 10,
-          only printing,
-          format "N  :::  '[hv' '/' '[' [  n0  :=  S0  ] ']'  '/' '[' [  n1  :=  S1  ] ']' ']'"
-        ).
-
-    Notation "N ::: [ n0 := S0 ] [ n1 := S1 ] [ n2 := S2 ]" :=
-      (NetMod.put n2 S2 (NetMod.put n1 S1 (NetMod.put n0 S0 N)))
-        ( at level 10,
-          only printing,
-          format "N  :::  '[hv' '/' '[' [  n0  :=  S0  ] ']'  '/' '[' [  n1  :=  S1  ] ']' '/' '[' [  n2  :=  S2  ] ']' ']'"
-        ).
-
-    Notation "N ::: [ n0 := S0 ] [ n1 := S1 ] [ n2 := S2 ] [ n3 := S3 ]" :=
-      (NetMod.put n3 S3 (NetMod.put n2 S2 (NetMod.put n1 S1 (NetMod.put n0 S0 N))))
-        ( at level 10,
-          only printing,
-          format "N  :::  '[hv' '/' '[' [  n0  :=  S0  ] ']'  '/' '[' [  n1  :=  S1  ] ']' '/' '[' [  n2  :=  S2  ] ']' '/' '[' [  n3  :=  S3  ] ']' ']'"
-        ).
-
-
-    Definition MVal_to_Event (origin : NChan) (mv : MVal) : Event :=
-      match mv with
-      | MValP v => TrRecv origin v
-      | MValM e => EvRecv origin e
-      end.
-
-    Fixpoint flushing_M_artifact (self : Name) (M : MCode) (n : Name) : list Event :=
-      match M with
-      | MRecv _ => []
-      | MSend (n', t) e M' =>
-          let MQ := flushing_M_artifact self M' n in
-          if NAME.eqb n n' then EvRecv (self, t) e :: MQ else MQ
-      end.
-
-
-    Fixpoint flushing_M_artifacts (self : Name) (M : MCode) : list (Name * Event) :=
-      match M with
-      | MRecv _ => []
-      | MSend (n, t) e M' =>
-          (n, MVal_to_Event (self, t) (MValM e)) :: flushing_M_artifacts self M'
-      end.
-
-    Fixpoint flushing_artifacts (self : Name) (MQ : list Event) (M : Mon) : list (Name * Event) :=
-      match MQ with
-      | [] => flushing_M_artifacts self (state M)
-      | e :: MQ' =>
-          let l0 := flushing_M_artifacts self (state M) in
-          let l1 := flushing_artifacts self MQ' {|handle:=handle M; state:=handle M e (next_state (state M))|} in
-          l0 ++ match e with
-            | TrSend (n, t) v => (n, MVal_to_Event (self, t) (MValP v)) :: l1
-            | _ => l1
-            end
-      end.
-
-
-    Definition Net_flushing_M_artifacts (origin : Name) (MN : MNet) : list (Name * Event) :=
-      match NetMod.get origin MN with
-      | mq _ M _ => flushing_M_artifacts origin (state M)
-      end.
-
-    Definition Net_flushing_artifacts (origin : Name) (MN : MNet) : list (Name * Event) :=
-      match NetMod.get origin MN with
-      | mq MQ M _ => flushing_artifacts origin MQ M
-      end.
-
-
-    Fixpoint Net_path_artifacts (origin : Name) (mpath : list MNAct) : list (Name * Event) :=
-      match mpath with
-      | [] => []
-      | NTau _ _ :: mpath => Net_path_artifacts origin mpath
-      | NComm n0 n1 t v :: mpath =>
-          if NAME.eqb n0 origin
-          then (n1, MVal_to_Event (origin, t) v) :: Net_path_artifacts origin mpath
-          else Net_path_artifacts origin mpath
-      end.
-
-    Lemma Net_path_artifacts_app_inv : forall n mpath0 mpath1,
-        Net_path_artifacts n (mpath0 ++ mpath1) = Net_path_artifacts n mpath0 ++ Net_path_artifacts n mpath1.
-    Proof.
-      induction mpath0; attac.
-      destruct a; attac.
-      smash_eq n0 n; attac.
-      f_equal.
-      attac.
-    Qed.
-
-
-    Definition apply_artifact_to (origin : Name) (n : Name) (e : Event)  (MN : MNet) :=
-      match NetMod.get n MN with
-      | mq MQ0 M0 S0 => MN ::: [n := mq (MQ0 ++ [e]) M0 S0]
-      end.
-
-    Definition apply_artifact (origin : Name) (MN : MNet) (art : Name * Event) :=
-      match art with
-      | (n, e) => apply_artifact_to origin n e MN
-      end.
-
-    Definition apply_artifacts (origin : Name) := List.fold_left (apply_artifact origin).
-
-    Definition Net_flush_M_path (n : Name) (MN : MNet) : list MNAct :=
-      match NetMod.get n MN with
-      | mq _ M _ => lift_path n (flush_mcode (state M))
-      end.
-
-
-    Definition Net_flush_path (n : Name) (MN : MNet) : list MNAct :=
-      lift_path n (flush_path (NetMod.get n MN)).
-
-
-    Definition Net_flush_target (n : Name) (MN : MNet) : MNet :=
-      apply_artifacts n (Net_flushing_artifacts n MN)
-        (NetMod.put n (flush_MS (NetMod.get n MN)) MN).
-
-
-    Definition Net_flush_M_target (n : Name) (MN : MNet) : MNet :=
-      match NetMod.get n MN with
-      | mq MQ0 M0 S0 => apply_artifacts n (Net_flushing_M_artifacts n MN)
-                         (NetMod.put n (mq MQ0 ({|handle:=handle M0; state:=MRecv (next_state (state M0))|}) S0) MN)
-      end.
-
-
-    Hint Transparent Net_flushing_artifacts MVal_to_Event apply_artifact_to apply_artifact Net_flush_path  Net_flush_target : LTS.
-
-
-    Fixpoint flushing_artifact_of (n : Name) (l : list (Name * Event)) : list Event :=
-      match l with
-      | [] => []
-      | (m, e)::l =>
-          if NAME.eqb n m then e :: flushing_artifact_of n l
-          else flushing_artifact_of n l
-      end.
-
-    Lemma flushing_artifact_of_app_inv : forall n l0 l1,
-        flushing_artifact_of n (l0 ++ l1) = flushing_artifact_of n l0 ++ flushing_artifact_of n l1.
-
-    Proof.
-      induction l0; attac.
-      smash_eq n n0; attac.
-      f_equal.
-      eapply IHl0.
-    Qed.
-
-    Lemma flushing_artifact_of_M_eq : forall n0 n1 M0,
-        flushing_M_artifact n0 M0 n1 = flushing_artifact_of n1 (flushing_M_artifacts n0 M0).
-
-    Proof.
-      intros.
-      induction M0; attac.
-    Qed.
-
-    Lemma flushing_arifact_of_eq : forall n0 n1 MQ0 M0,
-        flushing_artifact n0 MQ0 M0 n1 = flushing_artifact_of n1 (flushing_artifacts n0 MQ0 M0).
-
-    Proof.
-      intros.
-      generalize dependent M0.
-      induction MQ0; intros.
-      - eauto using flushing_artifact_of_M_eq.
-      - simpl.
-        replace (flushing_M_artifact n0 (state M0) n1)
-          with (flushing_artifact_of n1 (flushing_M_artifacts n0 (state M0))) by eauto using flushing_artifact_of_M_eq.
-        rewrite flushing_artifact_of_app_inv.
-        rewrite flushing_artifact_of_M_eq.
-        apply app_inv_r.
-        destruct a; attac.
-        smash_eq n1 n2; attac.
-        f_equal.
-        attac.
-    Qed.
-
-    Lemma Net_path_flushing_M_artifacts_of_eq' : forall n0 n1 M0,
-        flushing_artifact_of n1 (Net_path_artifacts n0 (lift_path n0 (flush_mcode M0))) =
-          flushing_artifact_of n1 (flushing_M_artifacts n0 M0).
-    Proof.
-      induction M0; attac.
-      attac.
-    Qed.
-
-    Lemma Net_path_flushing_M_artifacts_of_eq : forall n0 n1 MN0,
-        flushing_artifact_of n1 (Net_path_artifacts n0 (Net_flush_M_path n0 MN0)) = flushing_artifact_of n1 (Net_flushing_M_artifacts n0 MN0).
-
-    Proof.
-      intros.
-      unfold Net_flushing_M_artifacts, Net_flush_M_path.
-
-      destruct (NetMod.get n0 MN0) as [MQ0 [h M0] S0].
-      eauto using Net_path_flushing_M_artifacts_of_eq'.
-    Qed.
-
-    Lemma lift_path_app_inv : forall n mpath0 mpath1,
-        lift_path n (mpath0 ++ mpath1) = lift_path n mpath0 ++ lift_path n mpath1.
-    Proof.
-      induction mpath0; attac.
-      destruct_ma a; try (rewrite <- app_comm_cons); f_equal; attac.
-    Qed.
-
-    Lemma Net_path_flushing_artifacts_of_eq : forall n0 n1 MN0,
-        flushing_artifact_of n1 (Net_path_artifacts n0 (Net_flush_path n0 MN0)) = flushing_artifact_of n1 (Net_flushing_artifacts n0 MN0).
-
-    Proof.
-      intros.
-      unfold Net_flushing_artifacts, Net_flush_path.
-      destruct (NetMod.get n0 MN0) as [MQ0 M0 S0].
-      clear MN0.
-
-      rewrite <- flushing_arifact_of_eq.
-
-      generalize dependent M0.
-      induction MQ0; intros.
-      - simpl.
-        rewrite Net_path_flushing_M_artifacts_of_eq'.
-        now rewrite flushing_artifact_of_M_eq.
-      - simpl.
-        rewrite <- IHMQ0; clear IHMQ0.
-        rewrite lift_path_app_inv.
-        rewrite flushing_artifact_of_M_eq.
-        rewrite Net_path_artifacts_app_inv.
-        rewrite flushing_artifact_of_app_inv.
-        rewrite Net_path_flushing_M_artifacts_of_eq'.
-        destruct a; attac.
-        apply app_inv_r; attac.
-    Qed.
-
-
-    Lemma Net_path_flushing_M_artifacts_eq : forall n0 MN0,
-        Net_path_artifacts n0 (Net_flush_M_path n0 MN0) = Net_flushing_M_artifacts n0 MN0.
-
-    Proof.
-      intros.
-
-      unfold Net_flush_M_path, Net_flushing_M_artifacts in *.
-      destruct (NetMod.get n0 MN0) as [MQ0 [h M0] S0].
-      induction M0; attac.
-      attac.
-    Qed.
-
-    Lemma Net_path_flushing_M_artifacts_eq' : forall n0 M,
-        Net_path_artifacts n0 (lift_path n0 (flush_mcode (state M))) = flushing_M_artifacts n0 (state M).
-
-    Proof.
-      intros.
-      destruct M as [h M].
-      unfold Net_flush_M_path, Net_flushing_M_artifacts in *.
-      induction M; attac.
-      attac.
-    Qed.
-
-
-    Lemma Net_path_flushing_artifacts_eq : forall n0 MN0,
-        Net_path_artifacts n0 (Net_flush_path n0 MN0) = Net_flushing_artifacts n0 MN0.
-
-    Proof.
-      intros.
-
-      unfold Net_flush_path, Net_flushing_artifacts in *.
-      destruct (NetMod.get n0 MN0) as [MQ0 M0 S0].
-
-      generalize dependent M0 S0.
-      clear MN0.
-      induction MQ0; intros.
-      - attac.
-        apply Net_path_flushing_M_artifacts_eq'.
-      - simpl.
-        rewrite <- Net_path_flushing_M_artifacts_eq'.
-        rewrite lift_path_app_inv.
-        rewrite Net_path_artifacts_app_inv.
-        apply app_inv_r.
-
-        destruct a; attac; attac.
-        f_equal.
-        attac.
-    Qed.
-
-
-    Lemma lift_path_app_trans : forall MN0 MN1 n mpath0 mpath1,
-        (MN0 =[lift_path n (mpath0 ++ mpath1)]=> MN1) ->
-        (MN0 =[lift_path n mpath0 ++ lift_path n mpath1]=> MN1).
-
-    Proof.
-      intros.
-      generalize dependent MN0.
-      induction mpath0; attac.
-
-      destruct_ma a; attac.
-
-      all:
-        try
-          (solve [edestruct (IHmpath0 _ `(_ =[lift_path n (_ ++ _)]=> _)) as [MN0' [? ?]];
-                  attac;
-                  eapply path_seq1 > [|eattac 15];
-                  eattac; econstructor; eattac 15]
-          ).
-    Qed.
-
-
-    Lemma lift_path_app_trans' : forall MN0 MN1 n mpath0 mpath1,
-        (MN0 =[lift_path n mpath0 ++ lift_path n mpath1]=> MN1) ->
-        (MN0 =[lift_path n (mpath0 ++ mpath1)]=> MN1).
-
-    Proof.
-      intros.
-      generalize dependent MN0.
-      induction mpath0; intros.
-      1: { attac. }
-
-      rewrite <- app_comm_cons in *.
-
-      destruct_ma a; try (solve [attac]); hsimpl in H |- *.
-
-      all: specialize (IHmpath0 _ (path_seq `(_ =[lift_path n mpath0]=> _) `(_ =[lift_path n mpath1]=> _)));
-          eapply path_seq1 > [|eattac]; econstructor; eattac 15.
-    Qed.
-
-
-    Lemma Net_flush_M_go : forall n MN0,
-        MN0 =[Net_flush_M_path n MN0]=> Net_flush_M_target n MN0.
-
-    Proof.
-      intros.
-      unfold Net_flush_M_target.
-      rewrite <- Net_path_flushing_M_artifacts_eq.
-      unfold Net_flush_M_path.
-
-      destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
-
-      destruct M0 as [h M0].
-      generalize dependent MQ0 MN0.
-      induction M0; attac.
-      1: { rewrite <- `(NetMod.get n MN0 = _). attac. }
-
-      hsimpl.
-
-      pose (MN0' := NetMod.put n (mq MQ0 {|handle:=h; state:=M0|} S0) MN0).
-      destruct (NetMod.get n0 MN0') as [MQ0' M0' S0'] eqn:?.
-      pose (MN1 := NetMod.put n0 (mq (MQ0' ++ [EvRecv (n, t) msg]) M0' S0') MN0').
-
-      apply path_seq1 with (N1:=MN1).
-      1: { constructor 2 with (N0':=MN0'); attac. }
-
-      destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
-      consider (M1 = {| handle := h; state := M0 |}) by (subst MN0' MN1; smash_eq n n0; attac).
-      consider (S1 = S0) by (subst MN0' MN1; smash_eq n n0; attac).
-
-      specialize (IHM0 MN1 MQ1 ltac:(attac)).
-
-      enough (
-          apply_artifacts n (Net_path_artifacts n (lift_path n (flush_mcode M0)))
-            (MN1 ::: [ n := mq MQ1 {| handle := h; state := MRecv (next_state M0) |} S0 ])
-
-          = apply_artifacts n (Net_path_artifacts n (lift_path n (flush_mcode M0)))
-              (apply_artifact_to n n0 (EvRecv (n, t) msg)
-                 (MN0 ::: [ n := mq MQ0 {| handle := h; state := MRecv (next_state M0) |} S0 ]))) by (rewrite <- `(apply_artifacts n _ _ = _); attac).
-      clear IHM0.
-
-      f_equal.
-
-      subst MN0' MN1; attac.
-      unfold apply_artifact_to.
-      hsimpl in *.
-      smash_eq n n0; attac.
-      rewrite NetMod.put_put_neq; attac.
-    Qed.
-
-
-    Lemma apply_artifacts_inv_S : forall n0 n1 MQs MN0 MQ0 M0 S0 MQ1 M1 S1,
-        NetMod.get n0 MN0 = mq MQ0 M0 S0 ->
-        NetMod.get n0 (apply_artifacts n1 MQs MN0) = mq MQ1 M1 S1 ->
-        S1 = S0.
-
-    Proof.
-      induction MQs; attac.
-      destruct a; simpl in *.
-      unfold apply_artifact_to in *.
-      smash_eq n n0; attac.
-      + eapply IHMQs with (MN0:= (MN0 ::: [ n := mq (MQ0 ++ [e]) M0 S0 ])); attac.
-      + destruct (NetMod.get n MN0) as [MQ0' M0' S0'].
-        eapply IHMQs with (MN0:= (MN0 ::: [ n := mq (MQ0' ++ [e]) M0' S0' ])); attac.
-    Qed.
-    Lemma apply_artifacts_inv_M : forall n0 n1 MQs MN0 MQ0 M0 S0 MQ1 M1 S1,
-        NetMod.get n0 MN0 = mq MQ0 M0 S0 ->
-        NetMod.get n0 (apply_artifacts n1 MQs MN0) = mq MQ1 M1 S1 ->
-        M1 = M0.
-
-    Proof.
-      induction MQs; attac.
-      destruct a; simpl in *.
-      unfold apply_artifact_to in *.
-      smash_eq n n0; attac.
-      + eapply IHMQs with (MN0:= (MN0 ::: [ n := mq (MQ0 ++ [e]) M0 S0 ])); attac.
-      + destruct (NetMod.get n MN0) as [MQ0' M0' S0'].
-        eapply IHMQs with (MN0:= (MN0 ::: [ n := mq (MQ0' ++ [e]) M0' S0' ])); attac.
-    Qed.
-    Lemma apply_artifacts_inv_MQ : forall n0 n1 MQs MN0 MQ0 M0 S0 MQ1 M1 S1,
-        NetMod.get n0 MN0 = mq MQ0 M0 S0 ->
-        NetMod.get n0 (apply_artifacts n1 MQs MN0) = mq MQ1 M1 S1 ->
-        MQ1 = MQ0 ++ flushing_artifact_of n0 MQs.
-
-    Proof.
-      induction MQs; attac.
-      unfold apply_artifact_to in *.
-      smash_eq n n0; attac.
-      + enough (MQ1 = (MQ0 ++ [e]) ++ flushing_artifact_of n MQs) by attac.
-        eapply IHMQs with (MN0:= (MN0 ::: [ n := mq (MQ0 ++ [e]) M0 S0 ])); attac.
-      + destruct (NetMod.get n MN0) as [MQ0' M0' S0'].
-        eapply IHMQs with (MN0:= (MN0 ::: [ n := mq (MQ0' ++ [e]) M0' S0' ])); attac.
-    Qed.
-
-    Hint Rewrite -> apply_artifacts_inv_S apply_artifacts_inv_M apply_artifacts_inv_MQ using spank : LTS LTS_concl.
-
-
-    Lemma apply_artifacts_app_inv : forall n MQs0 MQs1 MN0,
-        apply_artifacts n (MQs0 ++ MQs1) MN0 = apply_artifacts n MQs1 (apply_artifacts n MQs0 MN0).
-
-    Proof.
-      intros.
-      generalize dependent MN0.
-      induction MQs0; attac.
-    Qed.
-
-
-    Lemma flushing_artifact_M_flushed_nil : forall n MN0,
-        Net_flushing_M_artifacts n (Net_flush_M_target n MN0) = [].
-
-    Proof.
-      intros.
-      unfold Net_flushing_M_artifacts, Net_flush_M_target in *.
-      destruct (NetMod.get n MN0) as [MQ0 [h s0] S0] eqn:?.
-      attac.
-      unfold Net_flushing_M_artifacts in *.
-      attac.
-      generalize dependent l m p MQ0 S0 MN0.
-      induction s0; attac.
-      destruct to.
-
-      assert (NetMod.get n (MN0 ::: [ n := mq MQ0 {| handle := h; state := MRecv (next_state s0) |} S0 ]) = mq MQ0 {| handle := h; state := MRecv (next_state s0) |} S0). attac.
-      assert (p = S0) by eauto using apply_artifacts_inv_S with LTS.
-      eassert (m = {|handle:=h; state := _|}) by eauto using apply_artifacts_inv_M with LTS.
-      eassert (l = MQ0 ++ flushing_artifact_of n _) by eauto using apply_artifacts_inv_MQ with LTS.
-      subst.
-      attac.
-    Qed.
-
-    Open Scope nat.
-
-    (** How much MQ would be consumed from the front *)
-    Definition Net_flush_act_consumption (a : MNAct) :=
-      match a with
-      | NTau _ _ => 1
-      | NComm _ _ _ (MValM _) => 0
-      | NComm _ _ _ (MValP _) => 1
-      end.
-
-    Fixpoint Net_flush_path_consumption (mpath : list MNAct) :=
-      match mpath with
-      | [] => 0
-      | a :: mpath => Net_flush_act_consumption a + Net_flush_path_consumption mpath
-      end.
-
-    Lemma Net_flush_act_split : forall a n MN0 MN1 MQ0 MQ1 M0 S0 M1 S1,
-        Flushing_NAct n a ->
-        NetMod.get n MN0 = mq MQ0 M0 S0 ->
-        NetMod.get n MN1 = mq MQ1 M1 S1 ->
-        (MN0 =(a)=> MN1) ->
-        exists MQ0' MQ1',
-          MQ0 = MQ0' ++ MQ1' /\
-          MQ1 = MQ1' ++ flushing_artifact_of n (Net_path_artifacts n [a]) /\
-          length MQ0' = Net_flush_act_consumption a.
-
-    Proof.
-      intros.
-      consider (_ =(_)=> _); attac.
-      - destruct a0; attac.
-        + destruct p; attac.
-          exists [TrRecv n0 v], MQ; attac.
-        + destruct a; attac.
-          exists [EvRecv n0 msg], MQ; attac.
-      - rewrite `(NetMod.get n MN0 = _) in *.
-        smash_eq n n'; attac.
-        + destruct v; attac.
-          * exists [], MQ1; eattac.
-          * exists [TrSend (n, t) v], MQ1; eattac.
-        + destruct v; attac.
-          * exists [], MQ2; eattac.
-          * exists [TrSend (n', t) v], MQ2; eattac.
-    Qed.
-
-
-    Lemma Net_flush_act_cont : forall a n MN0 MN1 MQ0 MQ1 M0 S0 M1 S1 MQ' e,
-        Flushing_NAct n a ->
-        e = flushing_artifact_of n (Net_path_artifacts n [a]) ->
-        NetMod.get n MN0 = mq MQ0 M0 S0 ->
-        NetMod.get n MN1 = mq (MQ1 ++ e) M1 S1 ->
-        (MN0 =(a)=> MN1) ->
-        (MN0 ::: [n := mq (MQ0 ++ MQ') M0 S0] =(a)=> MN1 ::: [n := mq (MQ1 ++ MQ' ++ e) M1 S1]).
-
-    Proof.
-      intros.
-      consider (_ =(a)=> _).
-      - hsimpl in *.
-        constructor; attac.
-        replace (MN0 ::: [ n := mq (MQ1 ++ MQ') M1 S1 ]) with
-          (MN0 ::: [ n := mq (MQ0 ++ MQ') M0 S0] ::: [ n := mq (MQ1 ++ MQ') M1 S1 ]) by attac.
-        constructor; attac.
-        hrewrite (NetMod.get n MN0) in *.
-        eauto using Flushing_cont, path_seq0, path_split0 with LTS.
-      - destruct (NetMod.get n N0') as [MQ0' M0' S0'] eqn:?.
-
-        pose (MN0' := MN0 ::: [ n := mq (MQ0 ++ MQ') M0 S0 ] ::: [n0 := mq (MQ0' ++ MQ') M0' S0']).
-        constructor 2 with (N0':=MN0').
-        + assert (mq (MQ0 ++ MQ') M0 S0 =( send (n', t) v )=> mq (MQ0' ++ MQ') M0' S0').
-          {
-            assert (Flushing_act (send (n', t) v)) by (attac; destruct v; attac).
-            assert (mq MQ0 M0 S0 =(send (n', t) v)=> (NetMod.get n N0')) by attac.
-            hsimpl in *.
-            hsimpl in *.
-            eauto using Flushing_cont, path_seq0, path_split0 with LTS.
-          }
-
-          subst MN0'; attac.
-        + subst MN0'.
-          rewrite app_assoc.
-          smash_eq n n0; attac.
-          hsimpl in *.
-          smash_eq n n'; hsimpl in *.
-          * replace (MN0 ::: [ n := mq ((MQ1 ++ MQ') ++ [MVal_to_Event (n, t) v]) M1 S1 ])
-              with (MN0 ::: [ n := mq (MQ0' ++ MQ') M0' S0' ] ::: [ n := mq ((MQ1 ++ MQ') ++ [MVal_to_Event (n, t) v]) M1 S1 ]) by attac.
-            attac.
-            destruct v; attac.
-          * rewrite NetMod.put_put_neq; auto.
-            hsimpl.
-            constructor.
-            attac.
-    Qed.
-
-
-    Lemma Net_flush_act_retract : forall a n MN0 MN1 MQ0 MQ1 M0 S0 M1 S1 MQ' e,
-        Flushing_NAct n a ->
-        e = flushing_artifact_of n (Net_path_artifacts n [a]) ->
-        NetMod.get n MN0 = mq (MQ0 ++ MQ') M0 S0 ->
-        NetMod.get n MN1 = mq (MQ1 ++ MQ' ++ e) M1 S1 ->
-        (MN0 =(a)=> MN1) ->
-        (MN0 ::: [n := mq MQ0 M0 S0] =(a)=> MN1 ::: [n := mq (MQ1 ++ e) M1 S1]).
-
-    Proof.
-      intros.
-      consider (_ =(a)=> _).
-      - hsimpl in *.
-        constructor; attac.
-        replace (MN0 ::: [ n := mq MQ1 M1 S1 ]) with
-          (MN0 ::: [ n := mq MQ0 M0 S0] ::: [ n := mq MQ1 M1 S1 ]) by attac.
-        constructor; attac.
-        hrewrite (NetMod.get n MN0) in *.
-        eauto using Flushing_retract1.
-      - destruct (NetMod.get n N0') as [MQ0' M0' S0'] eqn:?.
-        hsimpl in *.
-        rewrite `(NetMod.get n MN0 = _) in *.
-        hsimpl in *.
-        smash_eq n n'; hsimpl in *.
-        + replace (MN0 ::: [ n := mq (MQ1 ++ [MVal_to_Event (n, t) v]) M1 S1 ])
-            with (MN0::: [ n := mq MQ0 M0 S0 ] ::: [ n := mq (MQ1 ++ [MVal_to_Event (n, t) v]) M1 S1 ]) by attac.
-          destruct v.
-          * consider (exists MQ0'', MQ0' = MQ0'' ++ MQ') by attac.
-            apply NComm_eq with (S:=mq MQ0'' M0' S0'); destruct M0'; attac.
-          * consider (exists MQ0'', MQ0' = MQ0'' ++ MQ') by attac.
-            apply NComm_eq with (S:=mq MQ0'' M0' S0'); destruct M0'; attac.
-        + hsimpl in *.
-          rewrite NetMod.put_put_neq in *; auto. attac.
-          replace (MN0 ::: [ n := mq MQ1 M1 S1 ] [ n' := &S ])
-            with (MN0 ::: [ n := mq MQ0 M0 S0 ] [ n := mq MQ1 M1 S1 ] [ n' := &S ]) by attac.
-          apply NComm_neq; attac.
-          destruct v; attac.
-          * consider (MQ1 = MQ0) by eauto using app_inv_tail.
-            destruct M3; attac.
-          * rewrite app_comm_cons in *.
-            consider (MQ0 = (TrSend (n', t) v :: MQ1)) by eauto using app_inv_tail.
-            attac.
-    Qed.
-
-
-    (** Flushing act does not add to the front
-     *)
-    Lemma Net_flush_act_nihil_novi : forall a n MN0 MN1 MQ0 M0 S0 M1 S1 MQ' MQs,
-        Flushing_NAct n a ->
-        MQs = flushing_artifact_of n (Net_path_artifacts n [a]) ->
-        NetMod.get n MN0 = mq MQ0 M0 S0 ->
-        NetMod.get n MN1 = mq (MQ' ++ MQ0 ++ MQs) M1 S1 ->
-        (MN0 =(a)=> MN1) ->
-        MQ' = [].
-
-    Proof.
-      intros.
-
-      destruct MQ'; auto.
-      exfalso; simpl in *.
-      consider (_ =(_)=> _); hsimpl in *; attac.
-      - rewrite `(NetMod.get n MN0 = _) in *.
-        consider (_ =(a0)=> _); hsimpl in *; attac.
-        + absurd (length MQ = length (e :: MQ' ++ EvRecv n0 v :: MQ)); attac.
-        + absurd (length MQ = length (e :: MQ' ++ TrRecv n0 v :: MQ)); attac.
-      - smash_eq n n'.
-        + hsimpl in *.
-          destruct v; attac.
-          * destruct MQ1; attac.
-            absurd (length MQ1 = length (MQ' ++ e :: MQ1)); attac.
-          * destruct MQ1; attac.
-            absurd (length MQ1 = length (MQ' ++ TrSend (n, t) v :: e :: MQ1)); attac.
-        + hsimpl in *.
-          destruct v; attac.
-          * destruct MQ1; attac.
-            absurd (length MQ1 = length (MQ' ++ e :: MQ1)); attac.
-          * destruct MQ1; attac.
-            absurd (length MQ1 = length (MQ' ++ TrSend (n', t) v :: e :: MQ1)); attac.
-    Qed.
-
-
-    (* (** Flushing does not add to the front *) *)
-    (* Lemma Net_flush_nihil_novi : forall mpath n MN0 MN1 MQ0 M0 S0 M1 S1 MQ' MQs, *)
-    (*     Forall (Flushing_NAct n) mpath -> *)
-    (*     MQs = flushing_artifact_of n (Net_path_artifacts n mpath) -> *)
-    (*     NetMod.get n MN0 = mq MQ0 M0 S0 -> *)
-    (*     NetMod.get n MN1 = mq (MQ' ++ MQ0 ++ MQs) M1 S1 -> *)
-    (*     (MN0 =[mpath]=> MN1) -> *)
-    (*     MQ' = []. *)
-
-    (* Proof. *)
-    (*   induction mpath; intros. *)
-    (*   1: { destruct MQ'; attac. *)
-    (*        destruct MQ0; attac. *)
-    (*        absurd (length MQ0 = length (MQ' ++ e :: MQ0)); attac. *)
-    (*   } *)
-
-    (*   replace (a::mpath) with ([a] ++ mpath) by auto. *)
-    (*   rewrite Net_path_artifacts_app_inv in *. *)
-    (*   rewrite flushing_artifact_of_app_inv in *. *)
-    (*   subst MQs. *)
-    (*   hsimpl in * |-. *)
-
-    (*   rename MN1 into MN2. *)
-    (*   rename N1 into MN1. *)
-    (*   rename M1 into M2. *)
-    (*   rename S1 into S2. *)
-    (*   destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?. *)
-
-      (* remember (flushing_artifact_of n (Net_path_artifacts n [a])) as MQe. *)
-      (* remember (flushing_artifact_of n (Net_path_artifacts n mpath)) as MQs. *)
-
-      (* consider (exists MQ0' MQ1', MQ0 = MQ0' ++ MQ1' /\ MQ1 = MQ1' ++ MQe) *)
-      (*   by (subst; eauto using Net_flush_act_split). *)
-
-    Lemma Net_path_artifact_length : forall mpath n MQ,
-        MQ = Net_path_artifacts n mpath ->
-        (length MQ <= length mpath)%nat.
-
-    Proof.
-      induction mpath; attac.
-      destruct a; attac.
-      smash_eq n0 n; attac.
-      eauto using le_n_S.
-    Qed.
-
-
-    Lemma Flushing_act_NAct : forall a na n,
-        Flushing_act a ->
-        Some na = lift_act n a ->
-        Flushing_NAct n na.
-
-    Proof.
-      intros.
-      destruct_ma a; attac.
-    Qed.
-
-    Lemma Flushing_path_NAct : forall mpath mnpath n,
-        Forall Flushing_act mpath ->
-        mnpath = lift_path n mpath ->
-        Forall (Flushing_NAct n) mnpath.
-
-    Proof.
-      induction mpath; attac.
-      destruct (lift_act n a) eqn:?; attac.
-      - simpl in *.
-        rewrite `(_ = Some n0).
-        constructor; eauto using Flushing_act_NAct.
-      - rewrite `(_ = None).
-        attac.
-    Qed.
-
-
-    Lemma lift_flush_mcode_path_Flushing : forall mpath n M,
-        mpath = lift_path n (flush_mcode M) ->
-        Forall (Flushing_NAct n) mpath.
-
-    Proof.
-      intros.
-      subst.
-      induction M; attac.
-      constructor; attac.
-    Qed.
-
-    Lemma Event_to_MAct_Flushing : forall e, Flushing_act (Event_to_MAct e).
-    Proof. destruct e; attac. Qed.
-
-    Lemma lift_mk_flush_path_Flushing : forall mpath n MQ M,
-        mpath = lift_path n (mk_flush_path MQ M) ->
-        Forall (Flushing_NAct n) mpath.
-
-    Proof.
-      intros. subst.
-      destruct M as [h s].
-      generalize dependent s.
-      induction MQ; attac.
-      - eauto using lift_flush_mcode_path_Flushing.
-      - simpl in *.
-        rewrite lift_path_app_inv in *.
-        apply Forall_app.
-        split; eauto using lift_flush_mcode_path_Flushing.
-        assert (Flushing_act (Event_to_MAct a)) by eauto using Event_to_MAct_Flushing.
-        simpl.
-        blast_cases; attac; constructor; attac.
-    Qed.
-
-
-    Lemma lift_flush_path_Flushing : forall mpath n MS,
-        mpath = lift_path n (flush_path MS) ->
-        Forall (Flushing_NAct n) mpath.
-
-    Proof.
-      intros.
-      destruct MS as [MQ [h s] S].
-      simpl in *.
-      eauto using lift_mk_flush_path_Flushing.
-    Qed.
-
-    Lemma Net_flush_path_Flushing : forall mpath n MN0,
-        mpath = Net_flush_path n MN0 ->
-        Forall (Flushing_NAct n) mpath.
-
-    Proof.
-      intros.
-      unfold Net_flush_path in *.
-      eauto using lift_flush_path_Flushing.
-    Qed.
-
-
-    Definition sub_flush n MN mpath := exists mpath', mpath ++ mpath' = Net_flush_path n MN.
-
-    Lemma sub_flush_Flushing : forall n MN mpath,
-        sub_flush n MN mpath -> Forall (Flushing_NAct n) mpath.
-    Proof.
-      intros.
-      destruct H.
-      assert (Forall (Flushing_NAct n) (mpath ++ x)) by eauto using Net_flush_path_Flushing.
-      attac.
-    Qed.
-
-    Lemma sub_flush_nil : forall n MN0, sub_flush n MN0 [].
-    Proof.
-      intros.
-      exists (Net_flush_path n MN0). attac.
-    Qed.
-
-    Lemma sub_flush_inv_l : forall n MN0 mpath0 mpath1,
-        sub_flush n MN0 (mpath0 ++ mpath1) ->
-        sub_flush n MN0 mpath0.
-    Proof.
-      intros.
-      destruct H.
-      exists (mpath1 ++ x).
-      rewrite app_assoc. attac.
-    Qed.
-
-
-    Lemma sub_flush_inv_r1 : forall n MN0 MN1 a mpath,
-        sub_flush n MN0 (a :: mpath) ->
-        (MN0 =(a)=> MN1) ->
-        sub_flush n MN1 mpath.
-
-    Proof.
-      intros.
-      destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
-      destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
-      destruct H as [mpath1 ?].
-      assert (Flushing_NAct n a).
-      {
-        assert (Forall (Flushing_NAct n) ((a :: mpath) ++ mpath1)) by eauto using Net_flush_path_Flushing with LTS.
-        attac.
-      }
-
-      unfold sub_flush, Net_flush_path in *.
-      rewrite `(NetMod.get n MN1 = _) in *.
-      rewrite `(NetMod.get n MN0 = _) in *.
-      rewrite <- app_comm_cons in *.
-
-      destruct M1 as [h s1].
-      destruct a; consider (MN0 =(_)=> _); attac.
-      - exists mpath1.
-        destruct m; doubt; attac.
-        + destruct p; attac.
-          destruct n0.
-          kill H.
-        + destruct a; doubt.
-          kill H.
-          hsimpl in *.
-          simpl in *.
-          kill H0.
-      - smash_eq n n1.
-        + destruct p.
-          * kill H.
-            hsimpl in *.
-            simpl in *.
-            rewrite mk_flush_cont_path.
-            rewrite lift_path_app_inv.
-            kill H0.
-            destruct MQ1.
-            -- kill H.
-               simpl.
-               rewrite H0.
-               rewrite <- app_assoc.
-               eattac.
-            -- kill H.
-               simpl.
-               rewrite H0.
-               rewrite <- app_assoc.
-               eattac.
-          * kill H.
-            hsimpl in *.
-            simpl in *.
-            rewrite mk_flush_cont_path.
-            rewrite lift_path_app_inv.
-            kill H0.
-            destruct MQ1.
-            -- kill H.
-               simpl.
-               rewrite H0.
-               rewrite <- app_assoc.
-               eattac.
-            -- kill H.
-               simpl.
-               rewrite H0.
-               rewrite <- app_assoc.
-               eattac.
-        + destruct p.
-          * kill H.
-            hsimpl in *.
-            simpl in *.
-            destruct MQ1.
-            -- kill H0.
-               simpl.
-               eattac.
-            -- kill H0.
-               simpl.
-               eattac.
-          * kill H.
-            hsimpl in *.
-            simpl in *.
-            destruct MQ1.
-            -- kill H0.
-               simpl.
-               eattac.
-            -- kill H0.
-               simpl.
-               eattac.
-    Qed.
-
-
-    Lemma sub_flush_inv_r : forall n MN0 MN1 mpath0 mpath1,
-        sub_flush n MN0 (mpath0 ++ mpath1) ->
-        (MN0 =[mpath0]=> MN1) ->
-        sub_flush n MN1 mpath1.
-
-    Proof.
-      intros.
-      generalize dependent mpath1 MN0 MN1.
-      induction mpath0; attac.
-      assert (sub_flush n N1 (mpath0 ++ mpath1)) by eauto using sub_flush_inv_r1.
-      eauto.
-    Qed.
-
-
-    Lemma sub_flush_extend : forall n mpath MN0 MN1 MQ0 MQ' M0 S0,
-        NetMod.get n MN0 = mq MQ0 M0 S0 ->
-        sub_flush n MN0 mpath ->
-        sub_flush n (MN1 ::: [n := mq (MQ0 ++ MQ') M0 S0]) mpath.
-
-    Proof.
-      induction MQ0; attac.
-    Admitted.
-
-
-    Lemma sub_flush_keep1 : forall n a mpath MN0 MN1 MQ0 MQ1 MQs M0 S0 M1 S1,
-        MQs = flushing_artifact_of n (Net_path_artifacts n [a]) ->
-        NetMod.get n MN0 = mq (MQ0 ++ MQ1) M0 S0 ->
-        NetMod.get n MN1 = mq (MQ1 ++ MQs) M1 S1 ->
-        (MN0 =(a)=> MN1) ->
-        sub_flush n MN0 (a :: mpath) ->
-        sub_flush n (MN1 ::: [n := mq MQ1 M1 S1]) mpath.
-
-    Proof.
-      intros.
-
-      assert (Forall (Flushing_NAct n) [a]).
-      {
-        enough (Forall (Flushing_NAct n) ([a] ++ mpath)) by attac.
-        eauto using sub_flush_Flushing.
-      }
-
-      assert (Forall (Flushing_NAct n) mpath).
-      {
-        enough (Forall (Flushing_NAct n) ([a] ++ mpath)) by attac.
-        eauto using sub_flush_Flushing.
-      }
-
-      unfold sub_flush, Net_flush_path in *.
-      rewrite `(NetMod.get n MN0 = _) in *.
-
-      destruct a; consider (MN0 =(_)=> _).
-      - hsimpl in *.
-        destruct m; attac.
-        + destruct p; attac.
-          destruct n0.
-          destruct MQ0; simpl in *.
-          1: absurd (MQ = TrRecv (n0, t) v :: MQ); auto; clear; induction MQ; attac.
-          kill H7.
-          assert (MQ0 = []). eapply app_self_r'; eauto.
-          attac.
-        + destruct a; attac.
-          destruct MQ0; simpl in *.
-          1: absurd (MQ = EvRecv n0 msg :: MQ); auto; clear; induction MQ; attac.
-          kill H7.
-          assert (MQ0 = []). eapply app_self_r'; eauto.
-          attac.
-      - hsimpl in *.
-        rewrite `(NetMod.get n MN0 = _) in *.
-        smash_eq n n1.
-        + destruct p; hsimpl in *.
-          * assert (MQ0 ++ MQ1 = MQ1). eapply app_inv_l. eauto.
-            assert (MQ0 = []). eapply app_self_r'; eauto.
-            subst.
-            hsimpl in *. simpl in *.
-            destruct MQ1; simpl.
-            -- simpl in H3.
-               kill H3.
-               attac.
-            -- simpl in H3.
-               kill H3.
-               attac.
-          * rewrite `(TrSend (n, t) v :: MQ1 = [TrSend (n, t) v] ++ MQ1) in H6.
-            assert (MQ0 = [TrSend (n, t) v]). eapply app_inv_l. eauto.
-            subst.
-            simpl in H3.
-            kill H3.
-            attac.
-        + destruct p; hsimpl in *.
-          * simpl in *.
-            destruct MQ1; simpl in *.
-            -- kill H3.
-               simpl.
-               attac.
-            -- kill H3.
-               simpl.
-               attac.
-          * rewrite `(TrSend (n1, t) v :: MQ1 = [TrSend (n1, t) v] ++ MQ1) in H6.
-               assert (MQ0 = [TrSend (n1, t) v]). eapply app_inv_l. eauto.
-               subst.
-               simpl in H3.
-               kill H3.
-               attac.
-    Qed.
-
-
-    Lemma sub_flush_keep : forall n mpath0 mpath1 MN0 MN1 MQ0 MQs M0 S0 MQ1 M1 S1,
-        MQs = flushing_artifact_of n (Net_path_artifacts n mpath0) ->
-        NetMod.get n MN0 = mq (MQ0 ++ MQ1) M0 S0 ->
-        NetMod.get n MN1 = mq (MQ1 ++ MQs) M1 S1 ->
-        (MN0 =[mpath0]=> MN1) ->
-        sub_flush n MN0 (mpath0 ++ mpath1) ->
-        sub_flush n (MN1 ::: [n := mq MQ1 M1 S1]) mpath1.
-
-    Proof.
-      induction mpath0; intros.
-      {
-        hsimpl in *.
-        attac. rewrite <- `(NetMod.get _ _ = _).
-        attac.
-      }
-
-      assert (Flushing_NAct n a /\ Forall (Flushing_NAct n) (mpath0 ++ mpath1))
-        by (eapply Forall_cons_iff; eapply sub_flush_Flushing; eauto).
-
-      replace (a::mpath0) with ([a] ++ mpath0) by auto.
-      rewrite Net_path_artifacts_app_inv in *.
-      rewrite flushing_artifact_of_app_inv in *.
-
-      subst MQs.
-
-      hsimpl in * |-.
-      rename MN1 into MN2.
-      rename N1 into MN1.
-      rename M1 into M2.
-      rename S1 into S2.
-      destruct (NetMod.get n MN1) as [MQ1' M1 S1] eqn:?.
-
-      remember (flushing_artifact_of n (Net_path_artifacts n [a])) as MQe.
-      remember (flushing_artifact_of n (Net_path_artifacts n mpath0)) as MQs.
-
-      rewrite <- app_comm_cons in *.
-      simpl app in *.
-
-      consider (MQ1' = MQ1 ++ MQe). admit.
-
-      (* specialize IHmpath0 with (MN0 := MN1) *)
-      (*                          (mpath1 := mpath1) *)
-      (*                          (MQs := MQs). *)
-
-      assert (sub_flush n (MN1 ::: [n := mq MQ1 M1 S1]) (mpath0 ++ mpath1)).
-      eapply sub_flush_keep1; eauto.
-
-      specialize IHmpath0 with (MN0 := MN1 )(MQ0 := MQ1 ++ MQe)(M0 := M1)(S0 := S1)
-                               (MN1 := MN2 )(MQ1 := MQ1)(M1 := M2)(S1 := S2)
-                               (MQs := MQs)
-                               (mpath1 := mpath1).
-      eapply IHmpath0; auto.
-    Admitted.
-
-
-    Lemma Net_flush_cont_iff : forall mpath n MN0 MN1
-                                 MQ0 MQ1 M0 S0 M1 S1 MQ' MQa,
-        sub_flush n MN0 mpath ->
-        MQa = flushing_artifact_of n (Net_path_artifacts n mpath) ->
-        NetMod.get n MN0 = mq MQ0 M0 S0 ->
-        NetMod.get n MN1 = mq (MQ1 ++ MQa) M1 S1 ->
-        (MN0 =[mpath]=> MN1) <->
-        (MN0 ::: [n := mq (MQ0 ++ MQ') M0 S0] =[mpath]=> MN1 ::: [n := mq (MQ1 ++ MQ' ++ MQa) M1 S1]).
-
-    Proof.
-      induction mpath; intros.
-      1: { split; hsimpl in *; attac.
-           enough (MN0 = MN1) by attac.
-           apply NetMod.extensionality.
-           attac.
-           enough (NetMod.get n0 (MN0  ::: [ n := mq (MQ0 ++ MQ') M0 S0 ]) = NetMod.get n0 (MN1 ::: [ n := mq (MQ1 ++ MQ') M1 S1 ])).
-           {
-             smash_eq n n0; attac.
-             assert (MQ0 = MQ1). eapply app_inv_l. eauto.
-             attac.
-           }
-           smash_eq n n0; attac.
-      }
-
-      assert (Flushing_NAct n a /\ Forall (Flushing_NAct n) mpath)
-        by (eapply Forall_cons_iff; eapply sub_flush_Flushing; eauto).
-
-      replace (a::mpath) with ([a] ++ mpath) by auto.
-      rewrite Net_path_artifacts_app_inv in *.
-      rewrite flushing_artifact_of_app_inv in *.
-      subst MQa.
-
-      split; intros.
-      - hsimpl in * |-.
-        rename MN1 into MN2.
-        rename N1 into MN1.
-        rename MQ1 into MQ2.
-        rename M1 into M2.
-        rename S1 into S2.
-        destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
-
-        remember (flushing_artifact_of n (Net_path_artifacts n [a])) as MQe.
-        remember (flushing_artifact_of n (Net_path_artifacts n mpath)) as MQs.
-
-        assert (sub_flush n MN0 [a]) by eauto using sub_flush_inv_l.
-        assert (sub_flush n MN1 mpath) by eauto using sub_flush_inv_r1.
-
-        consider (exists MQ0' MQ1', MQ0 = MQ0' ++ MQ1' /\ MQ1 = MQ1' ++ MQe /\ length MQ0' = Net_flush_act_consumption a)
-          by (subst; eauto using Net_flush_act_split).
-
-        eapply path_seq1 with (N1 := MN1 ::: [n := mq (MQ1' ++ MQ' ++ MQe) M1 S1]).
-        1: { eauto using Net_flush_act_cont. }
-
-        replace (MQ2 ++ MQ' ++ MQe ++ MQs) with  (MQ2 ++ (MQ' ++ MQe) ++ MQs) by (now repeat (rewrite app_assoc in * )).
-
-        assert (MN1 ::: [ n := mq (MQ1') M1 S1 ] =[ mpath ]=>
-                  MN2 ::: [ n := mq (MQ2 ++ MQs) M2 S2 ]).
-        {
-          eapply IHmpath with (MQ' := MQe); eauto.
-          1: eauto using sub_flush_keep1.
-          attac. rewrite app_assoc in H2.
-          rewrite NetMod.get_put_eq. eauto.
-          repeat (rewrite NetMod.put_put_eq).
-          rewrite <- `(NetMod.get n MN1 = _).
-          rewrite <- `(NetMod.get n MN2 = _).
-          attac.
-        }
-
-        assert (MN1 ::: [ n := mq MQ1' M1 S1 ] [ n := mq (MQ1' ++ (MQ' ++ MQe)) M1 S1 ]
-                =[ mpath ]=>
-                  MN2 ::: [ n := mq (MQ2 ++ MQs) M2 S2 ] [ n := mq (MQ2 ++ (MQ' ++ MQe) ++ MQs) M2 S2 ]
-               ).
-        {
-          eapply IHmpath with
-            (MN0 := MN1 ::: [ n := mq MQ1' M1 S1 ])
-            (MN1 := MN2 ::: [ n := mq (MQ2 ++ MQs) M2 S2 ]); eauto.
-          {
-            eauto using sub_flush_keep1.
-          }
-          attac.
-          rewrite NetMod.get_put_eq. repeat (rewrite app_assoc).
-          attac.
-        }
-
-        attac.
-
-      - hsimpl in * |-.
-        rename MN1 into MN2.
-        rename N1 into MN1.
-        rename MQ1 into MQ2.
-        rename M1 into M2.
-        rename S1 into S2.
-        destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
-
-        remember (flushing_artifact_of n (Net_path_artifacts n [a])) as MQe.
-        remember (flushing_artifact_of n (Net_path_artifacts n mpath)) as MQs.
-
-        assert (sub_flush n MN0 [a]) by eauto using sub_flush_inv_l.
-        (* assert (sub_flush n MN1 mpath) by eauto using sub_flush_inv_r1. *)
-
-        consider (exists MQ0' MQ1', MQ0 = MQ0' ++ MQ1' /\ MQ1 = MQ1' ++ MQe /\ length MQ0' = Net_flush_act_consumption a)
-          by (subst; eauto using Net_flush_act_split).
-
-        eapply path_seq1 with (N1 := MN1 ::: [n := mq (MQ1' ++ MQ' ++ MQe) M1 S1]).
-        1: { eauto using Net_flush_act_cont. }
-
-        replace (MQ2 ++ MQ' ++ MQe ++ MQs) with  (MQ2 ++ (MQ' ++ MQe) ++ MQs) by (now repeat (rewrite app_assoc in * )).
-
-        assert (MN1 ::: [ n := mq (MQ1') M1 S1 ] =[ mpath ]=>
-                  MN2 ::: [ n := mq (MQ2 ++ MQs) M2 S2 ]).
-        {
-          eapply IHmpath with (MQ' := MQe); eauto. admit.
-          attac. rewrite app_assoc in H2.
-          rewrite NetMod.get_put_eq. eauto.
-          repeat (rewrite NetMod.put_put_eq).
-          rewrite <- `(NetMod.get n MN1 = _).
-          rewrite <- `(NetMod.get n MN2 = _).
-          attac.
-        }
-
-        assert (MN1 ::: [ n := mq MQ1' M1 S1 ] [ n := mq (MQ1' ++ (MQ' ++ MQe)) M1 S1 ]
-                =[ mpath ]=>
-                  MN2 ::: [ n := mq (MQ2 ++ MQs) M2 S2 ] [ n := mq (MQ2 ++ (MQ' ++ MQe) ++ MQs) M2 S2 ]
-               ).
-        {
-          eapply IHmpath with
-            (MN0 := MN1 ::: [ n := mq MQ1' M1 S1 ])
-            (MN1 := MN2 ::: [ n := mq (MQ2 ++ MQs) M2 S2 ]); eauto. admit.
-          attac.
-          rewrite NetMod.get_put_eq. repeat (rewrite app_assoc).
-          attac.
-        }
-
-        attac.
-
-          hsimpl.
-          hsimpl.
-          eapply IHmpath; eauto.
-          admit.
-          attac.
-
-        eapply IHmpath; eauto.
-
-
-
-
-
-    Lemma Net_flush_retract : forall mpath n MN0 MN1 MQ0 MQ1 M0 S0 M1 S1 MQ' MQs,
-        mpath = Net_flush_path n MN0 ->
-        MQs = flushing_artifact_of n (Net_path_artifacts n mpath) ->
-        NetMod.get n MN0 = mq (MQ0 ++ MQ') M0 S0 ->
-        NetMod.get n MN1 = mq (MQ1 ++ MQ' ++ MQs) M1 S1 ->
-        (MN0 =[mpath]=> MN1) ->
-        (MN0 ::: [n := mq MQ0 M0 S0] =[mpath]=> MN1 ::: [n := mq (MQ1 ++ MQs) M1 S1]).
-
-    Proof.
-      induction mpath; intros.
-      {
-        hsimpl in *. attac.
-      }
-
-      assert (Flushing_NAct n a /\ Forall (Flushing_NAct n) mpath)
-        by (eapply Forall_cons_iff; eapply Net_flush_path_Flushing; eauto).
-
-      replace (a::mpath) with ([a] ++ mpath) by auto.
-      rewrite Net_path_artifacts_app_inv in *.
-      rewrite flushing_artifact_of_app_inv in *.
-      subst MQs.
-
-      hsimpl in * |-.
-      rename MN1 into MN2.
-      rename N1 into MN1.
-      rename MQ1 into MQ2.
-      rename M1 into M2.
-      rename S1 into S2.
-      destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
-
-      remember (flushing_artifact_of n (Net_path_artifacts n [a])) as MQe.
-      remember (flushing_artifact_of n (Net_path_artifacts n mpath)) as MQs.
-
-      unfold Net_flush_path in *.
-      rewrite `(NetMod.get n MN0 = _) in *.
-      simpl flush_path in *.
-
-      destruct MQ0.
-      {
-        destruct M0 as [h s0].
-        consider (exists t n' v, a = NComm n n' t (MValM v)).
-        {
-          destruct a; attac.
-          - destruct s0; attac.
-            destruct to; bullshit.
-          - destruct p; eattac.
-            destruct s0; attac.
-            destruct to; bullshit.
-        }
-
-        destruct M1 as [h1 s1].
-        consider (MQ1 = MQe /\ h1 = h /\ s0 = MSend (n', &t) v s1 /\ S1 = S0).
-        {
-          consider (MN0 =(_)=> _).
-          consider (MN0 ~(_ @ _)~> _).
-          consider (_ ~(_ @ _)~> MN1).
-          clear IHmpath.
-          smash_eq n n'; hsimpl in *.
-          - hsimpl. eauto.
-          - hsimpl. eauto.
-        }
-
-        smash_eq n n'.
-        + consider (MQe = [EvRecv (n, t) v]) by attac.
-          rewrite `(_ = [EvRecv _ _]) in *.
-          apply path_seq1 with (N1:= MN1 ::: [n := mq ([] ++ MQ' ++ [EvRecv (n, t) v]) {|handle:=h; state:=s1|} S0]).
-          {
-            eauto using Net_flush_act_cont.
-          }
-
-      }
-
-
-
-    Proof.
-      induction mpath; intros.
-      1: { hsimpl in *. attac. }
-
-      replace (a::mpath) with ([a] ++ mpath) by auto.
-      rewrite Net_path_artifacts_app_inv in *.
-      rewrite flushing_artifact_of_app_inv in *.
-      subst MQs.
-
-      hsimpl in * |-.
-      rename MN1 into MN2.
-      rename N1 into MN1.
-      rename MQ1 into MQ2.
-      rename M1 into M2.
-      rename S1 into S2.
-      destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
-
-      remember (flushing_artifact_of n (Net_path_artifacts n [a])) as MQe.
-      remember (flushing_artifact_of n (Net_path_artifacts n mpath)) as MQs.
-
-
-    Lemma Net_flush_cont : forall mpath n MN0 MN1
-                             MQ0 MQ1 M0 S0 M1 S1 MQ' MQa,
-        mpath = Net_flush_path n MN0 ->
-        MQa = flushing_artifact_of n (Net_path_artifacts n mpath) ->
-        NetMod.get n MN0 = mq MQ0 M0 S0 ->
-        NetMod.get n MN1 = mq (MQ1 ++ MQa) M1 S1 ->
-        (MN0 =[mpath]=> MN1) ->
-        (MN0 ::: [n := mq (MQ0 ++ MQ') M0 S0] =[mpath]=> MN1 ::: [n := mq (MQ1 ++ MQ' ++ MQa) M1 S1]).
-
-    Proof.
-      induction mpath; intros.
-      { 1: attac. }
-
-      assert (Flushing_NAct n a /\ Forall (Flushing_NAct n) mpath)
-        by (eapply Forall_cons_iff; eapply Net_flush_path_Flushing; eauto).
-
-      replace (a::mpath) with ([a] ++ mpath) by auto.
-      rewrite Net_path_artifacts_app_inv in *.
-      rewrite flushing_artifact_of_app_inv in *.
-      subst MQa.
-
-      hsimpl in * |-.
-      rename MN1 into MN2.
-      rename N1 into MN1.
-      rename MQ1 into MQ2.
-      rename M1 into M2.
-      rename S1 into S2.
-      destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
-
-      remember (flushing_artifact_of n (Net_path_artifacts n [a])) as MQe.
-      remember (flushing_artifact_of n (Net_path_artifacts n mpath)) as MQs.
-
-      unfold Net_flush_path in *.
-      rewrite `(NetMod.get n MN0 = _) in *.
-      simpl flush_path in *.
-
-      destruct MQ0.
-      {
-        destruct M0 as [h s0].
-        consider (exists t n' v, a = NComm n n' t (MValM v)).
-        {
-          destruct a; attac.
-          - destruct s0; attac.
-            destruct to; bullshit.
-          - destruct p; eattac.
-            destruct s0; attac.
-            destruct to; bullshit.
-        }
-
-        destruct M1 as [h1 s1].
-        consider (MQ1 = MQe /\ h1 = h /\ s0 = MSend (n', &t) v s1 /\ S1 = S0).
-        {
-          consider (MN0 =(_)=> _).
-          consider (MN0 ~(_ @ _)~> _).
-          consider (_ ~(_ @ _)~> MN1).
-          clear IHmpath.
-          smash_eq n n'; hsimpl in *.
-          - hsimpl. eauto.
-          - hsimpl. eauto.
-        }
-
-        smash_eq n n'.
-        + consider (MQe = [EvRecv (n, t) v]) by attac.
-          rewrite `(_ = [EvRecv _ _]) in *.
-          apply path_seq1 with (N1:= MN1 ::: [n := mq ([] ++ MQ' ++ [EvRecv (n, t) v]) {|handle:=h; state:=s1|} S0]).
-          {
-            eauto using Net_flush_act_cont.
-          }
-
-      }
-
-      consider (exists MQ0' MQ1', MQ0 = MQ0' ++ MQ1' /\ MQ1 = MQ1' ++ MQe /\ length MQ0' = Net_flush_act_consumption a)
-        by (subst; eauto using Net_flush_act_split).
-
-      eapply path_seq1 with (N1 := MN1 ::: [n := mq (MQ1' ++ MQ' ++ MQe) M1 S1]).
-      1: { eauto using Net_flush_act_cont. }
-
-      assert
-
-      assert (MN1 ::: [ n := mq (MQ1' ++ (MQe ++ MQ')) M1 S1 ] =[ mpath ]=>
-                MN2 ::: [ n := mq (MQ2 ++ (MQe ++ MQ') ++ MQs) M2 S2 ]).
-      eapply IHmpath; eauto.
-
-
-      eapply IHmpath in H2.
-      4: {
-        apply Heqm.
-      }
-      rewrite app_assoc in *.
-      eapply H2.
-
-      replace (MQ2 ++ MQ' ++ MQe ++ MQs) with  (MQ2 ++ (MQ' ++ MQe) ++ MQs) by (now repeat (rewrite app_assoc in * )).
-
-      specialize IHmpath with (MQa := MQs)
-                              (MQ0 := MQ1')
-                              (MQ' := MQ' ++ MQe)
-                              (MQ1 := MQ2).
-      eapply IHmpath.
-
-
-      enough (MN1 ::: [n := mq (MQ1') M1 S1] ::: [ n := mq (MQ1' ++ MQ' ++ MQe) M1 S1 ] =[ mpath ]=>
-            MN2 ::: [ n := mq (MQ2 ++ MQ' ++ MQe ++ MQs) M2 S2 ]).
-      eattac.
-
-      eapply IHmpath; eauto. admit.
-
-
-
-
-
-      assert (MN0 ::: [n := mq MQ0' M0 S0] =(a)=> MN1 ::: [n := mq ([] ++ MQe) M1 S1]).
-      {
-        replace (mq (MQ1' ++ MQe) M1 S1) with (mq ([] ++ MQ1' ++ MQe) M1 S1) by auto.
-        eauto using Net_flush_act_retract.
-      }
-
-      assert (MN0 ::: [n := mq (MQ0' ++ (MQ1' ++ MQ')) M0 S0] =(a)=>
-                MN1 ::: [n := mq ([] ++ (MQ1' ++ MQ') ++ MQe) M1 S1]).
-      {
-        enough (MN0 :::  [ n := mq MQ0' M0 S0 ] ::: [n := mq (MQ0' ++ (MQ1' ++ MQ')) M0 S0]
-                =(a)=>
-                  MN1 ::: [ n := mq ([] ++ MQe) M1 S1 ] ::: [n := mq ([] ++ (MQ1' ++ MQ') ++ MQe) M1 S1]) by attac.
-        eapply Net_flush_act_cont; attac.
-      } simpl app in *.
-
-
-
-
-      assert (MN0 ::: [n := mq (MQ0 ++ MQ') M0 S0] =(a)=> MN1 ::: [n := mq (MQ1 ++ MQ') M0 S0]) by eauto using Net_flush_act_cont.
-
-
-      eapply path_seq1 with (N1 := MN1 ::: [n := mq (MQ1' ++ MQ' ++ MQe) M1 S1]).
-      1: { eauto using Net_flush_act_cont. }
-
-      destruct M0 as [h s].
-
-      destruct MQ0'; simpl in *.
-      {
-        destruct a; hsimpl in *.
-        - consider (MN0 =(NTau _ _)=> _).
-          destruct m; doubt; attac.
-          * destruct p; attac.
-            destruct n0.
-            absurd (MQ = TrRecv (n0, t) v :: MQ); eauto.
-            clear. induction MQ; attac.
-          * destruct a; try (contradiction).
-            consider (_ =(MActM Tau)=> _).
-            absurd (MQ = EvRecv n0 msg :: MQ); eauto.
-            clear. induction MQ; attac.
-        - consider (MN0 =(NComm _ _ t p)=> MN1).
-          smash_eq n n1; attac.
-          * rewrite `(NetMod.get n MN0 = _) in *.
-            destruct p.
-            -- consider (_ =(MActM _)=> _).
-               consider (_ =(MActM _)=> _).
-               erewrite `(MVal_to_Event (n, t) ^ m :: _ = [MVal_to_Event (n, t) ^ m] ++ _) in *; eauto.
-               erewrite `(MVal_to_Event (n, t) ^ m :: _ = [MVal_to_Event (n, t) ^ m] ++ _) in *; eauto.
-               eapply IHmpath.
-               
-               eapply IHmpath.
-               absurd (MQ0 = TrSend (n, t) v :: MQ0); eauto.
-               clear. induction MQ0; attac.
-          * rewrite `(NetMod.get n MN0 = _) in *.
-
-
-      }
-
-      destruct MQ0', s; simpl in *.
-      - destruct a; hsimpl in *.
-        + consider (MN0 =(NTau _ _)=> MN1).
-          destruct m; doubt; attac.
-          * destruct p; attac.
-            destruct n0.
-            absurd (MQ = TrRecv (n0, t) v :: MQ); eauto.
-            clear. induction MQ; attac.
-          * destruct a; try (contradiction).
-            consider (_ =(MActM Tau)=> _).
-            absurd (MQ = EvRecv n0 msg :: MQ); eauto.
-            clear. induction MQ; attac.
-        + consider (MN0 =(NComm _ _ t p)=> MN1).
-          smash_eq n n1; attac.
-          * rewrite `(NetMod.get n MN0 = _) in *.
-            destruct p.
-            -- hsimpl in *; bullshit.
-            -- consider (&S =(_)=> _).
-               consider (_ =(MActT _)=> _).
-               absurd (MQ0 = TrSend (n, t) v :: MQ0); eauto.
-               clear. induction MQ0; attac.
-          * rewrite `(NetMod.get n MN0 = _) in *.
-
-            destruct p.
-            -- hsimpl in *; bullshit.
-            -- consider (_ =(MActT _)=> _).
-               absurd (MQ = TrSend (n1, t) v :: MQ); eauto.
-               clear. induction MQ; attac.
-      - destruct a; hsimpl in *.
-        + consider (MN0 =(NTau _ _)=> MN1).
-          destruct m; doubt; attac.
-          * destruct p; attac.
-          * destruct a; try (contradiction).
-            consider (_ =(MActM Tau)=> _); bullshit.
-        + consider (MN0 =(NComm _ _ t p)=> MN1).
-          smash_eq n n1; attac.
-          * rewrite `(NetMod.get n MN0 = _) in *.
-            destruct p.
-            -- consider (_ =(MActM _)=> _).
-               consider (_ =(MActM _)=> _).
-
-            -- consider (&S =(_)=> _).
-               consider (_ =(MActT _)=> _).
-               absurd (MQ0 = TrSend (n, t) v :: MQ0); eauto.
-               clear. induction MQ0; attac.
-          * rewrite `(NetMod.get n MN0 = _) in *.
-
-            destruct p.
-            -- hsimpl in *; bullshit.
-            -- consider (_ =(MActT _)=> _).
-               absurd (MQ = TrSend (n1, t) v :: MQ); eauto.
-               clear. induction MQ; attac.
-
-
-      eapply path_seq1 with (N1 := MN1 ::: [n := mq (MQ1' ++ MQ' ++ MQe) M1 S1]).
-      1: { eauto using Net_flush_act_cont. }
-
-      specialize IHmpath with (MQa := MQs)
-                              (MQ0 := MQ1')
-                              (MQ' := MQ' ++ MQe)
-                              (MQ1 := MQ2).
-
-      replace (MQ2 ++ MQ' ++ MQe ++ MQs) with  (MQ2 ++ (MQ' ++ MQe) ++ MQs) by (now repeat (rewrite app_assoc in * )).
-      eapply IHmpath; eauto.
-
-
-
-      apply IHmpath; eauto.
-
-
-      destruct MQ0.
-      - consider (exists MQ0' MQ1',
-                     [] = MQ0' ++ MQ1' /\
-                       MQ1 = MQ1' ++ MQe
-                 ) by (subst; eauto using Net_flush_act_split).
-
-        eapply path_seq1 with (N1 := MN1 ::: [n := mq (MQ1' ++ MQ' ++ MQe) M1 S1]).
-        1: { eauto using Net_flush_act_cont. }
-
-        destruct (app_eq_nil MQ0' MQ1'); auto. subst MQ0' MQ1'.
-        simpl app in *.
-
-
-        replace (MQ2 ++ MQ' ++ MQe ++ MQs) with  (MQ2 ++ (MQ' ++ MQe) ++ MQs) by (now repeat (rewrite app_assoc in * )).
-
-        specialize IHmpath with (MQa := MQs)
-                                (MQ0 := [])
-                                (MQ' := MQ' ++ MQe)
-                                (MQ1 := MQ2).
-        simpl app in *.
-        eapply IHmpath; eauto.
-                                  ()
-                                (MQ1 := MQ2 ++ MQe).
-
-                                (MN1 := MN2)
-                                (MN0 := MN1).
-
-        replace (MQ2 ++ MQ' ++ MQe ++ MQs) with  (MQ2 ++ (MQ' ++ MQe) ++ MQs) by (now repeat (rewrite app_assoc in * )).
-
-
-        replace (MQ2 ++ MQe ++ MQs) with ((MQ2 ++ MQe) ++ MQs) by (now rewrite app_assoc).
-        eapply IHmpath.
-
-      consider (exists MQ0' MQ1',
-                   MQ0 = MQ0' ++ MQ1' /\
-                     MQ1 = MQ1' ++ MQe
-               ) by (subst; eauto using Net_flush_act_split).
-
-      eapply path_seq1 with (N1 := MN1 ::: [n := mq (MQ1' ++ MQ' ++ MQe) M1 S1]).
-      1: { eauto using Net_flush_act_cont. }
-
-
-      destruct MQ0.
-      - hsimpl in *.
-        consider (_ =(a)=> _); attac.
-        + admit.
-        + destruct v; attac.
-          smash_eq n n'; attac.
-
-
-
-
-      enough (MN1 ::: [ n := mq (MQ1') M1 S1 ] =[ mpath ]=>
-                MN2 ::: [ n := mq (MQ2 ++ MQs) M2 S2 ]).
-      eapply IHmpath.
-
-      specialize IHmpath with (MN0 := MN1)(MN1 := MN2)(MQ' := MQ' ++ MQe)(MQa := MQs).
-      repeat (rewrite <- app_assoc in IHmpath).
-      apply IHmpath; auto.
-
-
-    Lemma Net_flush_retract : forall mpath n MN0 MN1 MQ0 MQ1 M0 S0 M1 S1 MQ' MQs,
-        Forall (Flushing_NAct n) mpath ->
-        MQs = flushing_artifact_of n (Net_path_artifacts n mpath) ->
-        NetMod.get n MN0 = mq (MQ0 ++ MQ') M0 S0 ->
-        NetMod.get n MN1 = mq (MQ1 ++ MQ' ++ MQs) M1 S1 ->
-        (MN0 =[mpath]=> MN1) ->
-        (MN0 ::: [n := mq MQ0 M0 S0] =[mpath]=> MN1 ::: [n := mq (MQ1 ++ MQs) M1 S1]).
-
-    Proof.
-      induction mpath; intros.
-      1: { hsimpl in *. attac. }
-
-      replace (a::mpath) with ([a] ++ mpath) by auto.
-      rewrite Net_path_artifacts_app_inv in *.
-      rewrite flushing_artifact_of_app_inv in *.
-      subst MQs.
-
-      hsimpl in * |-.
-      rename MN1 into MN2.
-      rename N1 into MN1.
-      rename MQ1 into MQ2.
-      rename M1 into M2.
-      rename S1 into S2.
-      destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
-
-      remember (flushing_artifact_of n (Net_path_artifacts n [a])) as MQe.
-      remember (flushing_artifact_of n (Net_path_artifacts n mpath)) as MQs.
-
-      destruct MQ0.
-      - simpl app in *.
-        consider (exists MQ0' MQ1',
-                     [] ++ MQ' = MQ0' ++ MQ1' /\
-                       MQ1 = MQ1' ++ MQe
-                 ) by (subst; eauto using Net_flush_act_split).
-        simpl app in *.
-
-        assert (MN0 ::: [n := mq MQ0' M0 S0] =(a)=> MN1 ::: [n := mq ([] ++ MQe) M1 S1]).
-        {
-          replace (mq (MQ1' ++ MQe) M1 S1) with (mq ([] ++ MQ1' ++ MQe) M1 S1) by auto.
-          eauto using Net_flush_act_retract.
-        } simpl app in *.
-
-
-        assert (MQ1 = []).
-        {
-          consider (exists MQ0' MQ1',
-                       [] ++ MQ' = MQ0' ++ MQ1' /\
-                         MQ1 = MQ1' ++ MQe
-                   ) by (subst; eauto using Net_flush_act_split).
-          simpl app in *.
-
-          destruct MQ0'.
-          + simpl app in *.
-            assert (MQ1' = []). eapply Net_flush_act_nihil_novi; eauto.
-
-
-
-
-      rewrite `(MQ0 ++ _ = _) in *.
-
-
-      consider (exists MQ0'' MQ1'', MQ0 = MQ0' ++ MQ0'' /\ MQ1' = MQ1'' ++ MQ').
-      {
-        clear IHmpath.
-        assert (MQ0' = [] \/ exists e, MQ0' = [e]) as [|].
-        {
-          destruct a; hsimpl in *; blast_cases; doubt; attac.
-          - consider (_ =(NTau _ _)=> _); hsimpl in *; blast_cases; attac.
-            destruct MQ0'; attac.
-          - consider (_ =(NTau _ _)=> _); hsimpl in *; blast_cases; attac.
-            destruct MQ0'; attac.
-          - destruct MQ0'; attac.
-            enough (MQ0' = []) by attac.
-            consider (MN0 =(NComm _ _ _ _)=> MN1); hsimpl in *; blast_cases; hsimpl in *; attac.
-            + absurd (MQ1' = (e :: (MQ0' ++ MQ1'))); try (eapply app_inv_l; attac).
-              clear.
-              destruct MQ1'; attac.
-              replace (e::MQ1') with ([e] ++ MQ1') by auto.
-              rewrite app_assoc in *.
-              absurd ([] ++ MQ1' = (MQ0' ++ [e]) ++ MQ1'); auto.
-              intros ?.
-              absurd ([] = (MQ0' ++ [e])); attac.
-
-            + absurd (MQ1' = (e :: (MQ0' ++ MQ1'))); try (eapply app_inv_l; attac).
-              clear.
-              destruct MQ1'; attac.
-              replace (e::MQ1') with ([e] ++ MQ1') by auto.
-              rewrite app_assoc in *.
-              absurd ([] ++ MQ1' = (MQ0' ++ [e]) ++ MQ1'); auto.
-              intros ?.
-              absurd ([] = (MQ0' ++ [e])); attac.
-        }
-        - subst; hsimpl in *.
-          exists MQ0, MQ0.
-          attac.
-        - destruct MQ0.
-          2: { attac. }
-          hsimpl in *.
-          exfalso.
-          destruct MQ1'; attac.
-          + consider (MN0 =(a)=> MN1); hsimpl in *; attac.
-            * destruct a0; attac.
-              destruct p; attac.
-            consider (&S = mq MQ1' M1 S1) by (consider (NetMod.get n _ =(a0)=> &S); attac).
-            consider (NetMod.get n _ =(a0)=> _); attac.
-
-
-        assert (MQe = [] \/ exists e, MQe = [e]) as [|] by (destruct a; doubt; hsimpl in *; attac; smash_eq n n1; attac).
-        - subst.
-        destruct a; subst; hsimpl in *.
-        - destruct m; attac.
-          + destruct p; attac.
-            consider (MN0 =(NTau n _)=> MN1); attac.
-            replace (TrRecv n0 v :: MQ1') with ([TrRecv n0 v] ++ MQ1') by auto.
-            consider (MQ0' = [TrRecv n0 v]) by (eapply app_inv_l; eauto).
-            destruct MQ0; attac.
-            consider (_ =(NTau n _)=> _); attac.
-            admit.
-          + consider (MN0 =(NTau n _)=> MN1); attac.
-          + consider (MN0 =(NTau n _)=> MN1); attac.
-            destruct a; attac.
-            replace (EvRecv n0 msg :: MQ) with ([EvRecv n0 msg] ++ MQ) by auto.
-            consider (MQ0' = [EvRecv n0 msg]) by (eapply app_inv_l; eauto).
-            destruct MQ0; attac.
-            admit.
-        - consider (_ =(NComm _ _ t p)=> MN1).
-          attac.
-          destruct p; attac.
-          + smash_eq n n1; attac.
-            kill H6.
-            attac.
-            destruct M1; attac.
-            destruct M; attac.
-            destruct MQ; attac.
-          + smash_eq n n1; attac.
-            * kill H6; attac.
-              destruct MQ0; attac.
-              destruct M1; attac.
-              destruct M; attac.
-              rewrite NetMod.put_put_neq in *; auto.
-            hsimpl in *.
-            smash_eq n n1.
-
-      }
-
-
-      assert (MN0 ::: [n := mq MQ0' M0 S0] =(a)=> MN1 ::: [n := mq ([] ++ MQe) M1 S1]).
-      {
-        replace (mq (MQ1' ++ MQe) M1 S1) with (mq ([] ++ MQ1' ++ MQe) M1 S1) by auto.
-        eauto using Net_flush_act_retract.
-      } simpl app in *.
-
-      
-      assert (MQ0 = MQ0' ++ )
-
-      assert (MN0 ::: [n := mq MQ0' M0 S0] =(a)=> MN1 ::: [n := mq ([] ++ MQe) M1 S1]).
-      {
-        replace (mq (MQ1' ++ MQe) M1 S1) with (mq ([] ++ MQ1' ++ MQe) M1 S1) by auto.
-        eauto using Net_flush_act_retract.
-      } simpl app in *.
-
-
-      rewrite `(MQ0 ++ _ = _) in *.
-      assert (MN0 ::: [n := mq MQ0' M0 S0] =(a)=> MN1 ::: [n := mq ([] ++ MQe) M1 S1]).
-      {
-        replace (mq (MQ1' ++ MQe) M1 S1) with (mq ([] ++ MQ1' ++ MQe) M1 S1) by auto.
-        eauto using Net_flush_act_retract.
-      } simpl app in *.
-
-      assert (exists MQ0'', MQ1' = MQ0'' ++ MQ').
-      {
-        destruct a; hsimpl in *; attac.
-        - kill H6; attac.
-          consider (&S = mq [] M1 S1) by (enough (NetMod.get n (MN1 ::: [ n := mq [] M1 S1 ]) = NetMod.get n (MN0 ::: [ n := &S ])); attac).
-
-          destruct m; attac.
-          + kill H9. attac. destruct MQ0; attac.
-            kill H3.
-            attac.
-      }
-
-
-      assert (MN0 ::: [n := MQ0 M0 S0] =(a)=> MN1 ::: [n := MQ1 ]).
-
-
-      eapply path_seq1 with (N1 := MN1 ::: [n := mq (MQ0' ++ MQe) M1 S1]).
-      1: { eauto using Net_flush_act_retract. }
-
-
-
-
-
-
-      replace (flushing_artifact_of n
-                 match a with
-                 | NTau _ _ => Net_path_artifacts n mpath
-                 | NComm n0 n1 t v =>
-                     if NAME.eqb n0 n
-                     then (n1, MVal_to_Event (n, t) v) :: Net_path_artifacts n mpath
-                     else Net_path_artifacts n mpath
-                 end) with (MQe ++ MQs).
-                           admit. destruct a; subst. attac.
-
-      specialize IHmpath with (MN0 := MN1)(MN1 := MN2).
-
-      assert (MN1 ::: [ n := mq (MQ1' ++ MQe) M1 S1] =[mpath]=> MN2 ::: [ n := mq (MQ2 ++ MQe ++ MQs) M1 S1 ]).
-      specialize IHmpath; eauto. subst. auto. attac.
-
-      specialize IHmpath with
-        (MQ)
-
-
-      assert (MN0 ::: [n := mq (MQ0' ++ MQe) M0 S0] =(a)=> MN1 ::: [n := mq (MQ1 ++ MQe) M1 S1]).
-      (* { *)
-      (*   replace (mq (MQ1' ++ MQe) M1 S1) with (mq ([] ++ MQ1' ++ MQe) M1 S1) by auto. *)
-      (*   eauto using Net_flush_act_retract. *)
-      (* } *)
-
-
-
-      assert (MN0 ::: [n := mq MQ0' M0 S0] =(a)=> MN1 ::: [n := mq ([] ++ MQe) M1 S1]).
-      {
-        replace (mq (MQ1' ++ MQe) M1 S1) with (mq ([] ++ MQ1' ++ MQe) M1 S1) by auto.
-        eauto using Net_flush_act_retract.
-      }
-
-      eapply IHmpath in H4.
-
-      specialize IHmpath with (MN0 := MN1 ::: [n := mq MQe M1 S1])
-                              (MN1 := MN2)
-                              (MQ0 := MQe).
-
-      assert (MN1 ::: [ n := mq MQe M1 S1 ] [ n := mq (MQ0 ++ MQ') M0 S0 ] =[ mpath ]=>
-                MN2 ::: [ n0 := mq (MQ1 ++ MQ' ++ MQa) M2 S2 ]).
-
-      assert ((MN0 ::: [n := mq MQ0' M0 S0] =(a)=> MN1 ::: [n := mq ( ++ MQ' ++ e) M1 S1])).
-
-
-
-    Lemma Net_flush_split : forall mpath n MN0 MN1 MQ0 MQ1 M0 S0 M1 S1,
-        Forall (Flushing_NAct n) mpath ->
-        NetMod.get n MN0 = mq MQ0 M0 S0 ->
-        NetMod.get n MN1 = mq MQ1 M1 S1 ->
-        (MN0 =[mpath]=> MN1) ->
-        exists MQ0' MQ1',
-          MQ0 = MQ0' ++ MQ1' /\
-          MQ1 = MQ1' ++ flushing_artifact_of n (Net_path_artifacts n mpath).
-
-    Proof.
-      induction mpath; intros.
-      1: { exists []; eattac. }
-
-      replace (a :: mpath) with ([a] ++ mpath) by auto.
-      rewrite Net_path_artifacts_app_inv.
-      rewrite flushing_artifact_of_app_inv.
-
-      hsimpl in * |-.
-
-      rename MN1 into MN2.
-      rename N1 into MN1.
-      rename MQ1 into MQ2.
-      rename M1 into M2.
-      rename S1 into S2.
-      destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
-
-      specialize IHmpath with (MN0 := MN1).
-
-      remember (flushing_artifact_of n (Net_path_artifacts n [a])) as MQe.
-      consider (exists MQ0' MQ1',
-                   MQ0 = MQ0' ++ MQ1' /\
-                     MQ1 = MQ1' ++ MQe
-               ) by (subst; eauto using Net_flush_act_split).
-
-      assert (MN0 ::: [n := mq MQ0' M0 S0] =(a)=> MN1 ::: [n := mq ([] ++ MQe) M1 S1]).
-      {
-        replace (mq (MQ1' ++ MQe) M1 S1) with (mq ([] ++ MQ1' ++ MQe) M1 S1) by auto.
-        eauto using Net_flush_act_retract.
-      }
-
-      kill H5.
-      - attac.
-        hsimpl in *.
-        assert (&S = mq [] M1 S1).
-        enough (NetMod.get n (MN1 ::: [ n := mq [] M1 S1 ]) = NetMod.get n (MN0 ::: [ n := &S ])). attac. attac.
-        subst. attac.
-        destruct a0; attac.
-        + destruct p; attac.
-
-
-      remember (flushing_artifact_of n (Net_path_artifacts n mpath)) as MQs.
-      consider (exists MQ1'' MQ2',
-                   MQ1' ++ MQe = MQ1'' ++ MQ2' /\
-                     MQ2 = MQ2' ++ MQs) by eattac; clear IHmpath.
-
-
-      remember (flushing_artifact_of n (Net_path_artifacts n mpath)) as MQs.
-      consider (exists MQ1'' MQ2',
-                   MQ1' ++ MQe = MQ1'' ++ MQ2' /\
-                     MQ2 = MQ2' ++ MQs) by eattac; clear IHmpath.
-
-      enough (exists MQ0'0 MQ1'0, MQ0' ++ MQ1' = MQ0'0 ++ MQ1'0 /\ MQ2' = MQ1'0 ++ MQe) by attac.
-
-      rewrite `(MQ1' ++ MQe = _) in *.
-      destruct a; attac; attac.
-      smash_eq n n1; attac.
-      destruct MQ2'.
-      - hsimpl in *; simpl in *.
-        assert (MQ0' = []).
-        destruct MQ0'; attac.
-        consider (_ =(NComm _ _ _ _)=> _); compat_hsimpl in *. attac. destruct p; attac.
-      enough (exists X0 X1 X2 X3, MQ0' = X0 ++ X2 )
-      (*
-        MQ0'  MQ1'    MQ2'
-        MQ0'0 MQ1'0   MQ1'0 MQe
-       *)
-
-      assert (MN1 ::: [n := mq (MQ0' ++ MQ1' ++ MQ)])
-
-
-      assert (MN0 ::: [n := mq (MQ0' ++ MQ1') M0 S0] =(a)=> MN1 ::: [n := mq (MQ1' ++ MQ' ++ e) M1 S1]).
-
-      destruct a; attac; attac.
-      smash_eq n n1; attac.
-
-      destruct p; attac.
-      - destruct MQ2'; attac.
-        +
-        assert (exists MQ2'', MQ2' = MQ2' ++ [EvRecv (n, t) m])
-        generalize dependent MQ1'' MQ2'.
-        induction MQ; attac.
-        + destruct MQ1'', MQ2'; eattac.
-          exists [], [].
-
-        }
-        attac.
-
-      consider (exists MQ1'' MQ2',
-                   MQ1 = MQ1'' ++ MQ2' /\
-                     MQ2 = MQ2' ++ flushing_artifact_of n (Net_path_artifacts n mpath)) by eattac.
-
-      consider (exists MQ0' MQ1',
-                   MQ0 = MQ0' ++ MQ1' /\
-                     (MQ1'' ++ MQ2') = MQ1' ++ flushing_artifact_of n (Net_path_artifacts n [a])
-               ) by eauto using Net_flush_act_split.
-
-      destruct a; attac; attac.
-      smash_eq n n1; attac.
-
-
-      enough (exists MQ0'0 MQ1'0,
-                 MQ0' ++ MQ1' = MQ0'0 ++ MQ1'0 /\
-                 MQ2' = MQ1'0 ++ flushing_artifact_of n
-                                      match a with
-                                      | NTau _ _ => []
-                                      | NComm n0 n1 t v => if NAME.eqb n0 n then [(n1, MVal_to_Event (n, t) v)] else []
-                                      end ) by attac.
-
-
-      consider (exists MQ1'' MQ2',
-                   MQ1 = MQ1'' ++ MQ2' /\
-                   MQ2 = MQ2' ++ flushing_artifact_of n (Net_path_artifacts n mpath)) by eattac.
-
-      consider (exists MQ0' MQ1',
-                   MQ0 = MQ0' ++ MQ1' /\
-                     (MQ1'' ++ MQ2') = MQ1' ++ flushing_artifact_of n (Net_path_artifacts n [a])
-               ) by eauto using Net_flush_act_split.
-
-      exists (MQ0'' ++ MQ1').
-
-      eattac.
-    Qed.
-
-
-
-    Lemma Net_flush_go : forall n MN0,
-        MN0 =[Net_flush_path n MN0]=> Net_flush_target n MN0.
-
-    Proof.
-      intros.
-
-      destruct (NetMod.get n (Net_flush_target n MN0)) as [MQx Mx Sx] eqn:?.
-
-      unfold Net_flush_target in *.
-      rewrite <- Net_path_flushing_artifacts_eq.
-      unfold Net_flush_path.
-
-      destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
-
-      generalize dependent M0 S0 MN0.
-      induction MQ0; attac.
-      - assert (MN0 =[Net_flush_M_path n MN0]=> Net_flush_M_target n MN0) by eauto using Net_flush_M_go.
-        unfold Net_flush_M_target in *.
-        rewrite <- Net_path_flushing_M_artifacts_eq in *.
-        unfold Net_flush_M_path in *.
-        now rewrite `(NetMod.get n MN0 = _) in *.
-      - rewrite lift_path_app_inv.
-        rewrite Net_path_artifacts_app_inv.
-        rewrite apply_artifacts_app_inv.
-        (* unfold Net_flushing_artifacts. *)
-
-        pose (MN1 := Net_flush_M_target n MN0).
-
-        apply path_seq with (P2:=MN1).
-        + assert (MN0 =[Net_flush_M_path n MN0]=> Net_flush_M_target n MN0) by eauto using Net_flush_M_go.
-          unfold Net_flush_M_target in *.
-          unfold Net_flush_M_path in *.
-          subst MN1.
-          now rewrite `(NetMod.get n MN0 = _) in *.
-        + destruct M0 as [h s0].
-          destruct (NetMod.get n MN1) as [MQ1 [h1 s1] S1] eqn:?.
-
-          assert (S1 = S0 /\ {|handle:=h1; state:=s1|} = {| handle := h; state := MRecv (next_state s0) |} /\ MQ1 = (a :: MQ0) ++ flushing_artifact_of n (Net_flushing_M_artifacts n MN0)).
-          {
-            subst MN1.
-            unfold Net_flushing_M_artifacts, Net_flush_M_target in *.
-            hrewrite (NetMod.get n MN0) in *.
-            simpl next_state; simpl handle.
-            simpl next_state in *. simpl handle in *.
-
-            assert (NetMod.get n (MN0 ::: [ n := mq (a :: MQ0)
-                                                    {| handle := h; state := MRecv (next_state s0) |} S0 ])
-                    = mq (a :: MQ0)
-                         {| handle := h; state := MRecv (next_state s0) |} S0
-                   ) by attac.
-            assert (S1 = S0) by eauto using apply_artifacts_inv_S with LTS.
-            assert ({|handle:=h1; state:=s1|} = {| handle := h; state := MRecv (next_state s0) |}) by eauto using apply_artifacts_inv_M with LTS.
-            eassert (MQ1 = (a :: MQ0) ++ flushing_artifact_of n _) by eauto using apply_artifacts_inv_MQ with LTS.
-            unfold Net_flushing_M_artifacts, Net_flush_M_target in *.
-            repeat split; auto.
-            hrewrite (NetMod.get n MN0) in *.
-            simpl next_state; simpl handle.
-            attac.
-          }
-
-          pose (MN1' := NetMod.put n (mq (MQ0 ++ flushing_artifact_of n (flushing_M_artifacts n s0)) {|handle:=h; state:=h1 a (next_state s1) |} S0) MN1).
-
-          destruct a; attac; attac.
-          * destruct (NetMod.get n1 MN1') as [MQ1' M1' S1'] eqn:?.
-            pose (MN2 := NetMod.put n1 (mq (MQ1' ++ [TrRecv (n, t) v]) M1' S1') MN1').
-            unfold Net_flushing_M_artifacts, Net_flush_M_target in *.
-            apply path_seq1 with (N1:=MN2).
-            1: { constructor 2 with (N0':=MN1'); attac. }
-
-            pose (MN2' := NetMod.put n1 (mq MQ0 M1' S1') MN1').
-            specialize (IHMQ0 MN2').
-            smash_eq n n1.
-            -- specialize (IHMQ0 S1' M1').
-               assert (S1' = S0) by (subst MN1 MN1'; attac).
-               (* eassert (M1' = {|handle:=_; state:=_|}) by (subst MN1 MN1'; attac). *)
-               assert (MQ1' = MQ0 ++ flushing_artifact_of n (flushing_M_artifacts n s0)) by (subst MN1 MN1'; attac).
-               subst.
-               specialize (IHMQ0 ltac:(subst MN1 MN1' MN2'; attac)).
-
-
-              assert (Forall Flushing_act (lift_path n (mk_flush_path MQ0 M1'))).
-              hsimpl in *.
-
-               subst MN1 MN1' MN2'.
-               hsimpl in *.
-               simpl in *.
-               unfold Net_path_artifacts, Net_flushing_M_artifacts in *.
-               hsimpl in *.
-
-
-
-               assert (flushing_artifact_of n (flushing_M_artifacts n s0) [TrRecv (n, t) v] = []).
-               simpl in *.
-               specialize (IHMQ0 ltac:(eattac) ltac:(eattac) ltac:(eattac)).
-            -- 
-
-
-
-
-
-
-    Definition lift_act (n : Name) (a : MAct) : option MNAct :=
-      match a with
-      | MActM (Send (n', t) v) => Some (NComm n n' t ^ v)
-      | MActT (Send (n', t) v) => Some (NComm n n' t # v)
-      | MActP v => Some (NTau n a)
-      | MActM Tau => Some (NTau n a)
-      | MActT Tau => Some (NTau n a)
-      | _ => None
-      end.
-
-
-    Definition lift_path (n : Name) (mpath : )
-
-    Definition lift_flushing (n : Name) (a : MAct) : Flushing_act a -> MNAct.
-      intros.
-      refine '(
-          match a as a' return a = a' -> MNAct with
-          | MActM (Send (n', t) v) => fun e => NComm n n' t ^ v
-          | MActT (Send (n', t) v) => fun e => NComm n n' t # v
-          | MActP v => fun e => NTau n a
-          | MActM Tau => fun e => NTau n a
-          | MActT Tau => fun e => NTau n a
-          | _ => fun e => _
-          end eq_refl
-        ); bullshit.
-    Defined.
-
-
-    Lemma lift_flushing_Flushing : forall n a (HF : Flushing_act a),
-        Flushing_NAct n (lift_flushing n a HF).
-
-    Proof.
-      intros.
-      destruct_ma a; attac.
-    Qed.
-
-
-    Definition lower_flushing (na : MNAct) : MAct :=
-      match na with
-      | NComm n n' t (MValM v) => MActM (Send (n', t) v)
-      | NComm n n' t (MValP v) => MActT (Send (n', t) v)
-      | NTau n a => a
-      end.
-
-
-    Definition lower_flushing_artifact (n : Name) (na : MNAct) : list Event :=
-      match na with
-      | NComm n0 n1 t (MValM v) => if NAME.eqb n n1 then [EvRecv (n0, t) v] else []
-      | NComm n0 n1 t (MValP v) => if NAME.eqb n n1 then [TrRecv (n0, t) v] else []
-      | _ => []
-      end.
-
-
-    Lemma lift_flushing_irrelevance : forall n a (HF HF' : Flushing_act a),
-        lift_flushing n a HF = lift_flushing n a HF'.
-
-    Proof. intros; destruct_ma a; attac. Qed.
-
-    Hint Resolve lift_flushing_irrelevance : LTS.
-
-
-    Lemma lower_flushing_Flushing : forall n na,
-        Flushing_NAct n na ->
-        Flushing_act (lower_flushing na).
-
-    Proof. intros. destruct_mna na; attac. Qed.
-
-
-    Lemma lower_flushing_path_Flushing : forall n mpath,
-        Forall (Flushing_NAct n) mpath ->
-        Forall Flushing_act (List.map lower_flushing mpath).
-
-    Proof.
-      induction mpath; attac.
-      split; eauto using lower_flushing_Flushing with LTS.
-    Qed.
-
-    Hint Resolve lower_flushing_Flushing lower_flushing_path_Flushing : LTS.
-
-
-    Lemma lower_lift_flushing n a (HF : Flushing_act a) :
-        lower_flushing (lift_flushing n a HF) = a.
-    Proof. intros. destruct_ma a; attac. Qed.
-
-    Lemma lift_lower_flushing n a (HF : Flushing_act (lower_flushing a)) :
-      Flushing_NAct n a ->
-      lift_flushing n (lower_flushing a) HF = a.
-    Proof. intros. destruct_mna a; attac. Qed.
-
-    Hint Rewrite -> @lower_lift_flushing @lift_lower_flushing using spank : LTS LTS_concl.
-
-    Hint Extern 10 (NetMod.get _ _ =(_)=> _) =>
-           ltac2:(match! goal with
-                  | [h : NetMod.get _ _ = ?c |- _] =>
-                      let hh := hyp h in
-                      rewrite $hh
-                  end
-                 ) : LTS.
-
-    (** If a node can perform a flushing action, then the network can too. *)
-    Lemma Flushing_act_available : forall [ma] [MS1] n MN0 (HF : Flushing_act ma),
-        (NetMod.get n MN0 =(ma)=> MS1) ->
-        exists MN1, (MN0 =(lift_flushing n ma HF)=> MN1).
-
-    Proof.
-      intros.
-      destruct MS1 as [MQ1 M1 S1].
-      consider (_ =(_)=> _); attac.
-      - smash_eq n n1.
-        + exists (NetMod.put n ( mq (MQ1 ++ [EvRecv (n, t) msg]) M1 S1) MN0).
-          destruct M1.
-          eapply NTrans_Comm_eq_inv; eattac.
-        + destruct (NetMod.get n1 MN0) as [MQ' M' S'] eqn:?.
-          exists (NetMod.put n1 (mq (MQ' ++ [EvRecv (n, t) msg]) M' S') (NetMod.put n (mq MQ1 M1 S1) MN0)); eattac.
-          destruct M1.
-          eapply NTrans_Comm_neq_inv; eattac.
-      - eexists (NetMod.put n (mq MQ1 {|handle:=h; state:=h (EvRecv n0 v) s|} S1) MN0); eattac 15.
-      - smash_eq n n1; attac.
-        + exists (NetMod.put n (mq (MQ1 ++ [TrRecv (n, t) v]) {|handle:=h; state:=h (TrSend (n, t) v) s|} S1) MN0); eattac.
-          eapply NTrans_Comm_eq_inv.
-          eexists _, _.
-          rewrite `(NetMod.get _ _ = _).
-          eattac.
-        + destruct (NetMod.get n1 MN0) as [MQ' M' S'] eqn:?.
-          exists (NetMod.put n1 (mq (MQ' ++ [TrRecv (n, t) v]) M' S') (NetMod.put n (mq MQ1 {| handle := h; state := h (TrSend (n1, t) v) s |} S1) MN0)); eattac.
-          eapply NTrans_Comm_neq_inv; eattac.
-      - eexists (NetMod.put n (mq MQ1 {| handle := h; state := h (TrRecv n0 v) s |} _) MN0); eattac 15.
-    Qed.
-
-
-    Lemma Flushing_act_get_eq : forall ma MN0 MN1 n MQ1 M1 S1,
-        Flushing_NAct n ma ->
-        (MN0 =(ma)=> MN1) ->
-        (NetMod.get n MN0 =(lower_flushing ma)=> mq MQ1 M1 S1) ->
-        NetMod.get n MN1 = mq (MQ1 ++ lower_flushing_artifact n ma) M1 S1.
-
-    Proof.
-      intros.
-      destruct_mna ma; consider (MN0 =(_)=> _); eattac.
-      - destruct M2, M3; simpl in *.
-        smash_eq n n1; hsimpl in *; attac.
-      - smash_eq n n1; hsimpl in *; attac.
-    Qed.
-
-
-    Lemma Flushing_act_get_neq : forall ma MN0 MN1 n n' MQ1 M1 S1,
-        n <> n' ->
-        Flushing_NAct n ma ->
-        (MN0 =(ma)=> MN1) ->
-        (NetMod.get n' MN0 = mq MQ1 M1 S1) ->
-        NetMod.get n' MN1 = mq (MQ1 ++ lower_flushing_artifact n' ma) M1 S1.
-
-    Proof.
-      intros.
-      destruct_mna ma; consider (MN0 =(_)=> _); eattac.
-      - destruct M2; simpl in *.
-        smash_eq n' n1; hsimpl in *; eattac.
-      - smash_eq n' n1; hsimpl in *; eattac.
-    Qed.
-
-
-    Lemma Flushing_act_get : forall ma MN0 MN1 n n' MQ1 M1 S1 MQ' M' S',
-        Flushing_NAct n ma ->
-        (MN0 =(ma)=> MN1) ->
-        (NetMod.get n MN0 =(lower_flushing ma)=> mq MQ1 M1 S1) ->
-        (NetMod.get n' (NetMod.put n (mq MQ1 M1 S1) MN0) = mq MQ' M' S') ->
-        NetMod.get n' MN1 = mq (MQ' ++ lower_flushing_artifact n' ma) M' S'.
-
-    Proof.
-      intros.
-      smash_eq n n'.
-      - eapply Flushing_act_get_eq; eattac.
-      - eapply Flushing_act_get_neq; eattac.
-    Qed.
-
-
-    Fixpoint lift_flushing_path (n : Name) mpath (HF : Forall Flushing_act mpath) : list MNAct.
-      refine '(match mpath as mpath' return mpath = mpath' -> list MNAct with
-               | [] => fun _ => []
-               | ma::mpath0 => fun e => lift_flushing n ma _ :: lift_flushing_path n mpath0 _
-               end eq_refl
-        ); attac.
-    Defined.
-
-
-    Lemma lift_flushing_path_Flushing : forall n mpath (HF : Forall Flushing_act mpath),
-        Forall (Flushing_NAct n) (lift_flushing_path n mpath HF).
-
-    Proof.
-      induction mpath; eattac.
-      eauto 15 using lift_flushing_Flushing.
-    Qed.
-
-    Hint Resolve lift_flushing_path_Flushing : LTS.
-
-
-    Lemma lift_flushing_path_irrelevance : forall n mpath (HF HF' : Forall Flushing_act mpath),
-        lift_flushing_path n mpath HF = lift_flushing_path n mpath HF'.
-
-    Proof.
-      induction mpath; attac.
-      f_equal; eauto with LTS.
-    Qed.
-
-    Hint Resolve lift_flushing_path_irrelevance : LTS.
-
-
-    Lemma lift_lower_flushing_path n (mnpath : list MNAct)
-      {HF : Forall Flushing_act (map lower_flushing mnpath)} :
-      Forall (Flushing_NAct n) mnpath ->
-      lift_flushing_path n (map lower_flushing mnpath) HF = mnpath.
-    Proof.
-      induction mnpath; attac.
-      f_equal; eauto using lift_lower_flushing with LTS.
-    Qed.
-
-    Lemma lower_lift_flushing_path n mpath (HF : Forall Flushing_act mpath) :
-      map lower_flushing (lift_flushing_path n mpath HF) = mpath.
-
-    Proof.
-      induction mpath; attac.
-      rewrite lower_lift_flushing.
-      f_equal.
-      attac.
-    Qed.
-
-    Hint Resolve lower_lift_flushing_path lift_lower_flushing_path : LTS.
-
-
-    (** If a node can perform a path of flushing actions, then the network can too. *)
-    Lemma Flushing_path_available : forall [mpath] [MS1] n MN0 (HF : Forall Flushing_act mpath),
-        (NetMod.get n MN0 =[mpath]=> MS1) ->
-        exists MN1, (MN0 =[lift_flushing_path n mpath HF]=> MN1).
-
-    Proof.
-      intros.
-      ltac1:(debug auto with LTS).
-      generalize dependent MN0 MS1.
-      induction mpath; attac.
-
-      destruct MS1 as [MQ2 M2 S2].
-      destruct N1 as [MQ1 M1 S1].
-
-      pose (ma := lift_flushing n a (Forall_inv HF)).
-
-      consider (exists MN1, (MN0 =(ma)=> MN1)) by eauto using Flushing_act_available.
-      consider (NetMod.get n MN1 = mq (MQ1 ++ (lower_flushing_artifact n ma)) M1 S1).
-      {
-        subst ma; hsimpl.
-        eapply Flushing_act_get_eq; eauto using lift_flushing_Flushing with LTS.
-        attac.
-      }
-
-      consider (exists MN2 : NetMod.t MQued, MN1 =[ lift_flushing_path n mpath (Forall_inv_tail HF) ]=> MN2)
-        by (eapply IHmpath; rewrite `(NetMod.get n MN1 = _); eauto using Flushing_cont, Forall_inv_tail).
-
-      exists MN2.
-
-      eapply path_seq1.
-      - erewrite lift_flushing_irrelevance; eauto.
-      - erewrite lift_flushing_path_irrelevance; eauto.
-    Qed.
-
-    Definition lower_flushing_path_artifact n := List.flat_map (lower_flushing_artifact n).
-
-
-    Lemma Flushing_path_get_eq : forall mnpath MN0 MN1 n MQ1 M1 S1,
-        Forall (Flushing_NAct n) mnpath ->
-        (MN0 =[mnpath]=> MN1) ->
-        (NetMod.get n MN0 =[List.map lower_flushing mnpath]=> mq MQ1 M1 S1) ->
-        NetMod.get n MN1 = mq (MQ1 ++ lower_flushing_path_artifact n mnpath) M1 S1.
-
-    Proof.
-      induction mnpath; eattac.
-
-      rename MN1 into MN2.
-      rename N2 into MN1.
-      rename MQ1 into MQ2.
-      rename M1 into M2.
-      rename S1 into S2.
-      destruct N1 as [MQ1 M1 S1].
-
-      assert (NetMod.get n MN1 = mq (MQ1 ++ lower_flushing_artifact n a) M1 S1) by eauto using Flushing_act_get_eq with LTS.
-
-      enough (NetMod.get n MN1 =[ map lower_flushing mnpath ]=> mq (MQ2 ++ lower_flushing_artifact n a) M2 S2
-) by (rewrite app_assoc; eauto).
-
-      rewrite `(NetMod.get n MN1 = _).
-      eapply Flushing_cont; eauto with LTS.
-    Qed.
-
-
-    Lemma Flushing_path_get_neq : forall mnpath MN0 MN1 n n' MQ0 M0 S0,
-        n <> n' ->
-        Forall (Flushing_NAct n) mnpath ->
-        (MN0 =[mnpath]=> MN1) ->
-        (NetMod.get n' MN0 = mq MQ0 M0 S0) ->
-        NetMod.get n' MN1 = mq (MQ0 ++ lower_flushing_path_artifact n' mnpath) M0 S0.
-
-    Proof.
-      induction mnpath; attac.
-
-      rename MN1 into MN2.
-      rename N1 into MN1.
-      assert (NetMod.get n' MN1 = mq (MQ0 ++ lower_flushing_artifact n' a) M0 S0) by eauto using Flushing_act_get_neq with LTS.
-
-      rewrite app_assoc; eauto.
-    Qed.
-
-
-    Lemma Flushing_path_get : forall mnpath MN0 MN1 n n' MQ1 M1 S1 MQ' M' S',
-        Forall (Flushing_NAct n) mnpath ->
-        (MN0 =[mnpath]=> MN1) ->
-        (NetMod.get n MN0 =[List.map lower_flushing mnpath]=> mq MQ1 M1 S1) ->
-        (NetMod.get n' (NetMod.put n (mq MQ1 M1 S1) MN0) = mq MQ' M' S') ->
-        NetMod.get n' MN1 = mq (MQ' ++ lower_flushing_path_artifact n' mnpath) M' S'.
-
-    Proof.
-      intros.
-      smash_eq n n'.
-      - eapply Flushing_path_get_eq; eattac.
-      - eapply Flushing_path_get_neq; eattac.
-    Qed.
-
-
-    Lemma lift_admin_act : forall n a (HF : Flushing_act a),
-        [a] >:~ [] ->
-        MNAct_to_PNAct (lift_flushing n a HF) = None.
-
-    Proof.
-      intros; destruct_ma a; attac.
-    Qed.
-
-    Lemma lift_admin_path : forall n mpath (HF : Forall Flushing_act mpath),
-        mpath >:~ [] ->
-        MNPath_to_PNPath (lift_flushing_path n mpath HF) = [].
-
-    Proof.
-      induction mpath; attac.
-      destruct_ma a; attac.
-
-      absurd (Flushing_act (MActM (Recv (n0, t) v))); eauto using Forall_cons with LTS.
-      eapply Forall_inv; eauto.
-    Qed.
-
-    Hint Resolve lift_admin_act lift_admin_path : LTS.
-
-
-    Lemma lower_flushing_artifact_NoSend : forall n a, NoSends_MQ (lower_flushing_artifact n a).
-
-    Proof.
-      intros.
-      destruct_mna a; attac; smash_eq n n1; attac.
-    Qed.
-
-
-    Lemma lower_flushing_path_artifact_NoSend : forall n mpath, NoSends_MQ (lower_flushing_path_artifact n mpath).
-
-    Proof.
-      intros.
-      induction mpath; attac.
-      split; eauto using lower_flushing_artifact_NoSend.
-    Qed.
-
-
-    Lemma lower_flushing_artifact_MQ_Clear : forall n a,
-        MNAct_to_PNAct a = None -> MQ_Clear (lower_flushing_artifact n a).
-
-    Proof.
-      intros.
-      destruct_mna a; attac; smash_eq n n1; attac.
-    Qed.
-
-
-    Lemma lower_flushing_path_artifact_MQ_Clear : forall n mpath,
-        MNPath_to_PNPath mpath = [] ->
-        MQ_Clear (lower_flushing_path_artifact n mpath).
-
-    Proof.
-      induction mpath; attac.
-      split.
-      - destruct_mna a; attac; smash_eq n n1; attac.
-      - destruct_mna a; attac.
-    Qed.
-
-
-    Hint Resolve lower_flushing_artifact_NoSend lower_flushing_path_artifact_NoSend lower_flushing_artifact_MQ_Clear lower_flushing_path_artifact_MQ_Clear : LTS.
-
-
-    Lemma NV_Transp_completeness_tau : forall (I : mon_assg) {n : Name} {N0 N1 : PNet},
-        (NVTrans n Tau N0 N1) ->
-        (NVTrans n (MActP Tau) (net_instr I N0) (net_instr I N1)).
-
-    Proof.
-      intros.
-      hsimpl in *.
-
-      destruct (&I n) as (MQ & M) eqn:HI.
-      assert (instr MQ M (NetMod.get n N0) =( MActP Tau )=> instr MQ M &S)
-        by eauto using Transp_completeness_tau.
-
-      unfold net_instr, net_instr_n; hsimpl.
-      attac.
-    Qed.
-
-
-    Lemma net_instr_clear : forall I N MQ M S n,
-        NetMod.get n (net_instr I N) = mq MQ M S ->
-        MQ_Clear MQ.
-
-    Proof.
-      intros.
-      unfold net_instr, net_instr_n, instr in *; hsimpl in *.
-      destruct (&I n).
-      attac.
-    Qed.
-
-    Lemma net_instr_ready : forall I N MQ M S n,
-        NetMod.get n (net_instr I N) = mq MQ M S ->
-        ready M.
-
-    Proof.
-      intros.
-      unfold net_instr, net_instr_n, instr in *; hsimpl in *.
-      destruct (&I n).
-      destruct `(Mon_ready).
-      attac.
-    Qed.
-
-    Hint Resolve net_instr_clear net_instr_ready : LTS.
-
-
-    Lemma NV_Transp_completeness_send : forall (Instr0 : mon_assg) {n : Name} {nc : NChan} {v} {N0 N1 : PNet},
-        (N0 ~(n @ @send PAct gen_Act_PAct nc v)~> N1) ->
-        exists MN1 mnpath MN2,
-          (net_instr Instr0 N0 =[NTau n (MActP (Send nc v)) :: mnpath]=> MN1)
-          /\ (MN1 ~(n @ @send MAct gen_Act_MAct nc # v)~> MN2)
-          /\ net_deinstr MN2 = N1
-          /\ Forall (Flushing_NAct n) mnpath
-          /\ MNPath_to_PNPath mnpath = [].
-
-    Proof.
-      intros.
-      hsimpl in *.
-      destruct (&Instr0 n) as ([MQ0 ?] & [M0 ?]) eqn:HI.
-      destruct (NetMod.get n N0) as [I0 P0 O0] eqn:?.
-      destruct S as [I1 P1 O1].
-
-      consider (exists mpath M1,
-                   (### mq MQ0 M0 (pq I0 P0 O0) =[MActP (Send nc v) :: mpath]=> (mq [TrSend nc v] M1 (pq (I1 ++ MQ_r MQ0) P1 O1)))
-                   /\ Forall Flushing_act mpath
-                   /\ ready M1
-               ) by eauto using Transp_completeness_send_prep.
-
-      replace (MQ_r MQ0) with ([] : Que Val) by attac.
-
-      assert (mpath >:~ []) by (re_have hsimpl in *; eauto using Flushing_clear_until).
-
-      pose (MN0' := NetMod.put n (mq (MQ0 ++ [TrSend nc v]) M0 (pq I1 P1 O1) ) (net_instr Instr0 N0)).
-
-      assert (net_instr Instr0 N0 =(NTau n (MActP (Send nc v)))=> MN0')
-        by (subst MN0'; constructor; eattac; unfold net_instr, net_instr_n; eattac).
-
-      pose (mnpath := lift_flushing_path n mpath ltac:(auto)).
-      assert (Forall (Flushing_NAct n) mnpath) by eauto using lift_flushing_path_Flushing.
-
-      consider (exists MN1, MN0' =[ mnpath ]=> MN1).
-      {
-        subst MN0'.
-        eapply Flushing_path_available.
-        unfold net_instr, net_instr_n.
-        re_have compat_hsimpl in *.
-        eauto.
-      }
-
-      assert (NetMod.get n MN1 = mq ([TrSend nc v] ++ lower_flushing_path_artifact n mnpath) {| handle := h; state := MRecv s |}  (pq I1 P1 O1)).
-      {
-        eapply Flushing_path_get_eq; eattac.
-        subst mnpath MN0'.
-        rewrite lower_lift_flushing_path.
-        re_have compat_hsimpl in *.
-        attac.
-      }
-
-      assert (MQ_Clear (lower_flushing_path_artifact n mnpath)) by (subst mnpath; eauto with LTS).
-
-      pose (MN2 := NetMod.put n (mq (lower_flushing_path_artifact n mnpath) {| handle := h; state := h (TrSend nc v) s |}  (pq I1 P1 O1)) MN1).
-
-      exists MN1, mnpath, MN2.
-
-      enough ('' MN2 = NetMod.put n (pq I1 P1 O1) N0) by eattac.
-
-      subst MN2.
-      apply NetMod.extensionality; intros n'.
-
-      unfold net_deinstr, deinstr in *.
-      smash_eq n n'.
-      1: { hsimpl; attac. }.
-
-      destruct (NetMod.get n' MN1) as [MQ1' M1' [I1' P1' O1']] eqn:?.
-      hsimpl.
-      remember (pq (I1' ++ MQ_r MQ1') P1' (MQ_s MQ1' ++ O1')) as S'.
-
-      enough (S' = NetMod.get n' '' (net_instr Instr0 N0)) by attac.
-      enough (S' = NetMod.get n' (net_instr Instr0 N0)) by (unfold net_deinstr; attac).
-
-      assert (NetMod.get n' (net_instr Instr0 N0) = NetMod.get n' MN0') by (eapply act_particip_stay; attac).
-      destruct (NetMod.get n' MN0') as [MQ0' M0' [I0' P0' O0']] eqn:?.
-      assert (MQ_Clear MQ0') by attac.
-      assert (MQ_Clear (lower_flushing_path_artifact n' mnpath)) by attac.
-
-      enough (S' = NetMod.get n' MN0') by attac.
-      enough (S' = mq (MQ0' ++ lower_flushing_path_artifact n' mnpath) M0' (pq I0' P0' O0')) by (rewrite `(NetMod.get n' MN0' = _); attac).
-
-      replace (mq (MQ0' ++ lower_flushing_path_artifact n' mnpath) M0' (pq I0' P0' O0'))
-        with (NetMod.get n' MN1)
-        by (eauto using Flushing_path_get_neq).
-
-      unfold deinstr in *.
-      attac.
-    Qed.
-
-
-    Lemma NV_Transp_completeness_recv : forall {n : Name} {nc : NChan} {v} {N0 N1 : PNet} {MN0},
-        '' MN0 = N0 ->
-        (NVTrans n (@recv PAct gen_Act_PAct nc v) N0 N1) ->
-        exists MN1 mnpath MN2,
-        (NVTrans n (@recv MAct gen_Act_MAct nc # v) MN0 MN1)
-        /\ (MN1 =[mnpath]=> MN2)
-        /\ '' MN2 = N1
-        /\ Forall (Flushing_NAct n) mnpath
-        /\ MNPath_to_PNPath mnpath = [].
-
-    Proof.
-      intros.
-
-      destruct (NetMod.get n MN0) as [MQ0 M0 [I0 P0 O0]] eqn:?.
-
-      assert (NetMod.get n N0 = pq (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0)) by (unfold net_deinstr, deinstr in *; eattac).
-
-      compat_hsimpl in *.
-
-      pose (MN1 := NetMod.put n (mq (MQ0 ++ [TrRecv nc v]) M0 (pq I0 P0 O0)) MN0).
-
-      consider (exists mpath M1,
-                   (### mq (MQ0 ++ [TrRecv nc v]) M0 (pq I0 P0 O0) =[ mpath ]=> mq [TrRecv nc v] M1 (pq (I0 ++ MQ_r MQ0) P0 O0))
-                   /\ Forall Flushing_act mpath
-                   /\ ready M1
-               ) by eauto using flush_exists_until.
-
-      pose (mnpath :=  lift_flushing_path n mpath ltac:(auto with LTS)).
-
-      consider (exists MN2, MN1 =[ mnpath ]=> MN2) by (eapply Flushing_path_available; subst MN1; eattac).
-      assert (Forall (Flushing_NAct n) mnpath ) by attac.
-      assert (MNPath_to_PNPath mnpath = []).
-      enough (mpath >:~ []) by attac.
-      enough (MQ_Clear MQ0).
-      assert (mq MQ0 M0 (pq I0 P0 O0) =[ mpath ]=>
-                mq [] {| handle := h; state := MRecv s |} (pq (I0 ++ MQ_r MQ0) P0 O0)
-             ) by re_have eauto using Flushing_retract.
-      eattac.
-
-      exists MN1, mnpath, MN2.
-      eattac.
-
-      repeat split; attac.
-      eattac 15.
-      constructor.
-
-      assert (Forall (Flushing_NAct n) mnpath ) by attac.
-
-    Lemma Net_Transp_completeness_tau : forall n I0 {N0 N1 : PNet},
-        (N0 =(NTau n Tau)=> N1) ->
-        (net_instr I0 N0 =(NTau n (MActP Tau))=> net_instr I0 N1).
-
-    Proof.
-      intros.
-      consider (_ =(_)=> _).
-      constructor; attac.
-      eauto using NV_Transp_completeness_tau with LTS.
-    Qed.
-
-
-    Lemma Net_Transp_completeness_comm : forall n0 n1 t (v : Val) I0 {N0 N1 : PNet},
-        (N0 =(NComm n0 n1 t (v : @Payload PAct gen_Act_PAct))=> N1) ->
-        exists mnpath0 mnpath1 MN1,
-          (net_instr I0 N0 =[NTau n0 (MActP (Send (n1, t) v)) :: mnpath0 ++ NComm n0 n1 t # v :: mnpath1]=> MN1)
-          /\ '' MN1 = N1
-          /\ Forall (Flushing_NAct n0) mnpath0
-          /\ MNPath_to_PNPath mnpath0 = []
-          /\ Forall (Flushing_NAct n1) mnpath1
-          /\ MNPath_to_PNPath mnpath1 = [].
-
-    Proof.
-      intros.
-      consider (_ =(_)=> _).
-
-      consider (exists MN1 mnpath0 MN2,
-                 (### net_instr I0 N0 =[ NTau n0 (MActP (Send (n1, t) v)) :: mnpath0 ]=> MN1)
-                 /\ (### MN1 ~( n0 @ send (n1, t) # v )~> MN2)
-                 /\ '' MN2 = N0'
-                 /\ Forall (Flushing_NAct n0) mnpath0
-                 /\ MNPath_to_PNPath mnpath0 = []
-             )
-      by eauto using NV_Transp_completeness_send with LTS.
-
-      consider (exists MN3 mnpath1 MN4,
-                   (### NVTrans n1 (@recv MAct gen_Act_MAct (n0, t) # v) MN2 MN3)
-                   /\ (### MN3 =[mnpath1]=> MN4)
-                   /\ '' MN4 = N1
-                   /\ Forall (Flushing_NAct n1) mnpath1
-                   /\ MNPath_to_PNPath mnpath1 = []
-               ) by eauto using NV_Transp_completeness_recv.
-
-      exists mnpath0, mnpath1, MN4.
-      eattac.
-
-      enough (net_instr I0 N0 =[ (NTau n0 (MActP (Send (n1, t) v)) :: mnpath0) ++ NComm n0 n1 t # v :: mnpath1 ]=> MN4) by attac.
-      enough (MN1 =(NComm n0 n1 t # v)=> MN3) by re_have eauto with LTS.
-
-      eattac.
-    Qed.
-
-
-    Lemma Net_Transp_completeness_comm_instr : forall n0 n1 t (v : Val) I0 {N0 N1 : PNet},
-        (N0 =(NComm n0 n1 t (v : @Payload PAct gen_Act_PAct))=> N1) ->
-        exists mnpath0 mnpath1 I1,
-          (net_instr I0 N0 =[NTau n0 (MActP (Send (n1, t) v)) :: mnpath0 ++ NComm n0 n1 t # v :: mnpath1]=> net_instr I1 N1)
-          /\ Forall (Flushing_NAct n0) mnpath0
-          /\ MNPath_to_PNPath mnpath0 = []
-          /\ Forall (Flushing_NAct n1) mnpath1
-          /\ MNPath_to_PNPath mnpath1 = [].
-
-    Proof.
-      intros.
-
-      consider ( exists mnpath0 mnpath1 MN1,
-                   (net_instr I0 N0 =[NTau n0 (MActP (Send (n1, t) v)) :: mnpath0 ++ NComm n0 n1 t # v :: mnpath1]=> MN1)
-                   /\ '' MN1 = N1
-                   /\ Forall (Flushing_NAct n0) mnpath0
-                   /\ MNPath_to_PNPath mnpath0 = []
-                   /\ Forall (Flushing_NAct n1) mnpath1
-                   /\ MNPath_to_PNPath mnpath1 = []
-               )
-        by eauto using Net_Transp_completeness_comm.
-
-      enough (exists mnpath2 I1, (MN1 =[mnpath2]=> net_instr I1 N1) /\ Forall ())
-
-
-
-    (** Network transparency completeness over a single action *)
-    Lemma Net_Transp_completeness1 : forall I0 {a} {N0 N1 : PNet},
-        (N0 =(a)=> N1) ->
-        exists mnpath0 mnpath1 MN1,
-          (net_instr I0 N0 =[mnpath0 ++ PNAct_to_MNAct a :: mnpath1]=> MN1)
-          /\ '' MN1 = N1
-          /\ MNPath_to_PNPath mnpath0 = []
-          /\ MNPath_to_PNPath mnpath1 = [].
-
-    Proof.
-      intros.
-      destruct a.
-      - exists [], [], (net_instr I0 N1).
-        consider (p = Tau) by attac.
-        attac; eauto using Net_Transp_completeness_tau.
-      - rename n0 into n1.
-        rename n into n0.
-        rename p into v.
-
-        consider ( exists mnpath0 mnpath1 MN1,
-                     (net_instr I0 N0 =[NTau n0 (MActP (Send (n1, t) v)) :: mnpath0 ++ NComm n0 n1 t # v :: mnpath1]=> MN1)
-                     /\ '' MN1 = N1
-                     /\ Forall (Flushing_NAct n0) mnpath0
-                     /\ MNPath_to_PNPath mnpath0 = []
-                     /\ Forall (Flushing_NAct n1) mnpath1
-                     /\ MNPath_to_PNPath mnpath1 = []
-                 )
-          by eauto using Net_Transp_completeness_comm.
-
-        exists (NTau n0 (MActP (Send (n1, t) v)) :: mnpath0), mnpath1.
-        eattac.
-    Qed.
-
-
-    (** Network transparency completeness over a single action *)
-    Lemma Net_Transp_completeness_instr_1 : forall I0 {a} {N0 N1 : PNet},
-        (N0 =(a)=> N1) ->
-        exists mnpath0 mnpath1 I1,
-          (net_instr I0 N0 =[mnpath0 ++ PNAct_to_MNAct a :: mnpath1]=> net_instr I1 N1)
-          /\ MNPath_to_PNPath mnpath0 = []
-          /\ MNPath_to_PNPath mnpath1 = [].
-
-    Proof.
-      intros.
-      destruct a.
-      - exists [], [], (net_instr I0 N1).
-        consider (p = Tau) by attac.
-        attac; eauto using Net_Transp_completeness_tau.
-      - rename n0 into n1.
-        rename n into n0.
-        rename p into v.
-
-        consider ( exists mnpath0 mnpath1 MN1,
-                     (net_instr I0 N0 =[NTau n0 (MActP (Send (n1, t) v)) :: mnpath0 ++ NComm n0 n1 t # v :: mnpath1]=> MN1)
-                     /\ '' MN1 = N1
-                     /\ Forall (Flushing_NAct n0) mnpath0
-                     /\ MNPath_to_PNPath mnpath0 = []
-                     /\ Forall (Flushing_NAct n1) mnpath1
-                     /\ MNPath_to_PNPath mnpath1 = []
-                 )
-          by eauto using Net_Transp_completeness_comm.
-
-        exists (NTau n0 (MActP (Send (n1, t) v)) :: mnpath0), mnpath1.
-        eattac.
-    Qed.
-
-
-    (** Network transparency completeness *)
-    Theorem Net_Transp_completeness : forall {ppath} I0 {N0 N1 : PNet},
-        (N0 =[ ppath ]=> N1) ->
-        exists mpath I1,
-          MNPath_to_PNPath mpath = ppath
-          /\ (net_instr I0 N0 =[ mpath ]=> net_instr I1 N1).
-
-    Proof with attac.
-      induction ppath; intros.
-      1: exists [], I0...
-
-      rename N1 into N2.
-      hsimpl in *.
-
-      edestruct (Net_Transp_completeness1) with (I0:=I0)
-        as (mpath0 & ma & mpath1 & I1 & ?); eauto.
-      hsimpl in *.
-
-      consider (exists (mpath2 : list MNAct) (I2 : mon_assg),
-                 MNPath_to_PNPath mpath2 = ppath /\ (net_instr I1 N1 =[ mpath2 ]=> net_instr I2 N2)
-             ).
-
-      exists (mpath0 ++ [ma] ++ mpath1 ++ mpath2), I2...
-
-      hsimpl.
-      rewrite `(MNPath_to_PNPath mpath0 = _).
-      rewrite `(MNPath_to_PNPath mpath1 = _).
-      attac.
-    Qed.
-  End Completeness.
-
-
-  Section Soundness.
-
-  End Soundness.
+  Lemma net_instr_clear : forall I N MQ M S n,
+      NetMod.get n (net_instr I N) = mq MQ M S ->
+      MQ_Clear MQ.
+
+  Proof.
+    intros.
+    unfold net_instr, net_instr_n, instr in *; hsimpl in *.
+    destruct (&I n).
+    attac.
+  Qed.
+
+  Lemma net_instr_ready : forall I N MQ M S n,
+      NetMod.get n (net_instr I N) = mq MQ M S ->
+      ready M.
+
+  Proof.
+    intros.
+    unfold net_instr, net_instr_n, instr in *; hsimpl in *.
+    destruct (&I n).
+    destruct `(Mon_ready).
+    attac.
+  Qed.
+
+  Hint Resolve net_instr_clear net_instr_ready : LTS.
 
 
   Lemma flush_act_available : forall [n : Name] a S [N0 : MNet],
@@ -3303,7 +525,7 @@ Module Type TRANSP(Import Params : MON_NET).
             by (exists (NetMod.put n &S N0); eattac).
 
         destruct (recv_available n0 n t0 (MValP v) N0') as (N0'' & NT0').
-        exists (NComm n n0 t0 v), N0''; attac.
+        exists (NComm n n0 t0 # v), N0''; attac.
 
         all: unfold no_sends_in, NoTrSend, flushed_in, flushed, Flushed, net_deinstr, ready_in in *.
         * hsimpl in *.
@@ -3320,7 +542,7 @@ Module Type TRANSP(Import Params : MON_NET).
         smash_eq n n0.
         1: now (specialize (HNoself t0 (MValM v)); bullshit).
 
-        consider (exists N1 : MNet, N0 =( NComm n n0 t0 v)=> N1)
+        consider (exists N1 : MNet, N0 =( NComm n n0 t0 ^ v)=> N1)
           by (eapply send_comm_available; rewrite `(NetMod.get n N0 = _); eattac).
         eexists _, _.
         split. 1: eauto.
@@ -3457,6 +679,24 @@ Module Type TRANSP(Import Params : MON_NET).
   Qed.
 
 
+  Lemma flush_exists : forall MQ0 M0 I0 P O,
+    exists mpath M1 I1,
+      (mq MQ0 M0 (pq I0 P O) =[ mpath ]=> instr (exist _ [] (Forall_nil _)) M1 (pq (I0 ++ I1) P O))
+      /\ Forall Flushing_act mpath.
+
+  Proof.
+    intros.
+    exists (mk_flush_path MQ0 M0).
+    unfold instr.
+    simpl.
+    unshelve eexists (exist _ (flush_M MQ0 M0) (flush_M_ready _ _)).
+    exists (MQ_r MQ0).
+    simpl.
+    replace (pq (I0 ++ MQ_r MQ0) P &O) with (flush_S MQ0 (pq I0 P &O)) by attac.
+    split; eauto using flush_go, flush_path_Flushing.
+  Qed.
+
+
   Lemma flush_send_one : forall n MN0,
       True ->
       exists nmpath MN1,
@@ -3555,7 +795,7 @@ Module Type TRANSP(Import Params : MON_NET).
         /\ (forall m, (n = m \/ flushed_in m MN0) -> flushed_in m MN1)
         /\ no_sends MN1.
   Proof.
-    intros until MN0. intros HNS0.
+    intros *. intros HNS0.
 
     destruct (NetMod.get n MN0) as [MQ0 M0 [I0 P0 O0]] eqn:Hn.
 
@@ -3680,6 +920,69 @@ Module Type TRANSP(Import Params : MON_NET).
       eattac.
   Qed.
 
+  Lemma ready_exists : forall MQ M0 S,
+    exists mpath M1,
+      (mq MQ M0 S =[mpath]=> mq MQ M1 S)
+      /\ Forall Flushing_act mpath
+      /\ ready M1
+      /\ mpath >:~ [].
+
+  Proof with eattac.
+    intros.
+    generalize dependent MQ.
+    destruct M0.
+    induction state0; intros.
+    - exists [], {|handle:=handle0;state:=MRecv state0|}...
+    - specialize (IHstate0 MQ).
+      edestruct IHstate0 as (mpath & M1 & TM & HF & HR & HC).
+      exists (MActM (Send to msg) :: mpath), M1...
+  Qed.
+
+  #[export] Hint Resolve ready_exists : LTS.
+
+
+  Lemma ready_exists_q : forall MS0,
+    exists mpath MS1,
+      (MS0 =[mpath]=> MS1)
+      /\ Forall Flushing_act mpath
+      /\ ready_q MS1
+      /\ mpath >:~ [].
+
+  Proof with (eauto with LTS).
+    intros MS0.
+    destruct MS0 as [MQ0 M0 S0].
+    destruct (ready_exists MQ0 M0 S0) as (mpath & M1 & TM & HF & HR' & HC)...
+    eexists...
+  Qed.
+
+  Theorem path_corr_split1 : forall ma mpath ppath,
+      (ma :: mpath) >:~ ppath <->
+        exists ppath0 ppath1,
+          ppath = ppath0 ++ ppath1
+          /\ [ma] >:~ ppath0
+          /\ mpath >:~ ppath1.
+
+  Proof.
+    split.
+    - intros * HC.
+      apply path_corr_split.
+      auto.
+    - intros. hsimpl in *.
+      replace (ma::mpath) with ([ma] ++ mpath) by auto.
+      destruct_ma ma; attac.
+  Qed.
+  Theorem path_corr_split_nil1 : forall [ma mpath],
+      (ma :: mpath) >:~ [] ->
+      [ma] >:~ [] /\ mpath >:~ [].
+
+  Proof.
+    intros.
+    apply path_corr_split1 in H as (ppath0 & ppath1 & HEq & HC0 & HC1).
+    apply eq_sym in HEq.
+    apply app_eq_nil in HEq as [HEq0 HEq1].
+    subst.
+    split; auto.
+  Qed.
 
   Lemma flushed_ready_one : forall MNm1 n MN0,
       (net_deinstr MNm1 = net_deinstr MN0 /\ flushed MN0) ->
@@ -3718,17 +1021,16 @@ Module Type TRANSP(Import Params : MON_NET).
     apply path_corr_split_nil1 in HC as [HC_a HC_mpath].
 
     assert ((forall t0 v, a <> send (n, t0) v) \/ exists t0 v, a = send (n, t0) v).
-    destruct a; try (destruct p); simpl; try (left; intros; simpl; destruct v0; discriminate);
-      try (left; intros; simpl; destruct v; discriminate).
-    destruct n0 as [n0 t].
-    destruct (NAME.eq_dec n0 n); subst.
-    (right; exists t, (MValP v); simpl; auto).
-    (left; intros; simpl; destruct v0). discriminate. injection. intros. subst. congruence.
-    destruct a. destruct n0 as [n0 t]. destruct (NAME.eq_dec n0 n); subst.
-    (right; exists t, (MValM v); simpl; auto).
-    (left; intros; simpl; destruct v0). injection. intros. subst. congruence. discriminate.
-    (left; intros; simpl; destruct v0; discriminate).
-    (left; intros; simpl; destruct v; discriminate).
+    {
+      destruct a; try (destruct p); simpl; try (left; intros; simpl; destruct v0; discriminate);
+        try (left; intros; simpl; destruct v; discriminate).
+      destruct a; try (destruct p); simpl; try (left; intros; simpl; destruct v0; discriminate);
+        try (left; intros; simpl; destruct v; discriminate).
+      destruct n0 as [n0 t].
+      destruct (NAME.eq_dec n0 n); subst.
+      (right; exists t, (MValM v); simpl; auto).
+      (left; intros; simpl; destruct v0). bullshit. bullshit.
+    }
 
     destruct H.
     - apply flush_act_available in TM0
@@ -4042,10 +1344,10 @@ Module Type TRANSP(Import Params : MON_NET).
       exists mpath ppath,
         Path_of n mnpath mpath
         /\ (NetMod.get n (net_deinstr MN0) =[ ppath ]=> NetMod.get n (net_deinstr MN1))
-        /\ path_corr mpath ppath.
+        /\ mpath >:~ ppath.
 
   Proof.
-    intros until mnpath.
+    intros *.
     intros TN n.
 
     destruct (path_of_exists n mnpath) as (mpath & HPo).
@@ -4053,13 +1355,17 @@ Module Type TRANSP(Import Params : MON_NET).
 
     unfold net_deinstr.
     do 2 (rewrite NetMod.get_map).
-    apply corr_extraction in TM as (ppath & T & HCorr).
+    assert (deinstr (NetMod.get n MN0) =[ MPath_to_PPath mpath ]=>
+              deinstr (NetMod.get n MN1)
+              ).
+    {
+      destruct (NetMod.get n MN0) as [MQ0 M0 [I0 P0 O0]].
+      destruct (NetMod.get n MN1) as [MQ1 M1 [I1 P1 O1]].
+      eauto using corr_extraction.
+    }
 
-    exists mpath, ppath.
-    repeat split.
-    - apply HPo.
-    - apply T.
-    - apply HCorr.
+    exists mpath, (MPath_to_PPath mpath).
+    repeat split; auto.
   Qed.
 
 
@@ -4068,7 +1374,7 @@ Module Type TRANSP(Import Params : MON_NET).
       net_deinstr MN0 = net_deinstr MN1.
 
   Proof.
-    intros until MN1. intros T.
+    intros *. intros T.
 
     kill T.
     kill H.
@@ -4106,7 +1412,7 @@ Module Type TRANSP(Import Params : MON_NET).
       net_deinstr MN0 = net_deinstr MN1.
 
   Proof.
-    intros until MN1. intros T.
+    intros *. intros T.
 
     kill T.
     kill H.
@@ -4139,7 +1445,7 @@ Module Type TRANSP(Import Params : MON_NET).
       (NVTrans n Tau (net_deinstr MN0) (net_deinstr MN1)).
 
   Proof.
-    intros until MN1. intros T.
+    intros *. intros T.
 
     kill T.
     kill H.
@@ -4161,7 +1467,7 @@ Module Type TRANSP(Import Params : MON_NET).
       (NVTrans n (Send (n', t0) v) (net_deinstr MN0) (net_deinstr MN1)).
 
   Proof.
-    intros until MN1. intro T.
+    intros *. intro T.
     kill T.
     kill H.
 
@@ -4180,7 +1486,7 @@ Module Type TRANSP(Import Params : MON_NET).
       (NVTrans n (Recv (n', t0) v) (net_deinstr MN0) (net_deinstr MN1)).
 
   Proof.
-    intros until MN1. intro T.
+    intros *. intro T.
     kill T.
     kill H.
 
@@ -4270,6 +1576,8 @@ Module Type TRANSP(Import Params : MON_NET).
         * kill H1.
           apply eq_refl.
         * apply H1.
+      + kill H1.
+        kill H.
       + destruct a; kill H0.
         apply Net_Vis_corr_mon in H1.
         rewrite H1.
@@ -4388,7 +1696,7 @@ Module Type TRANSP(Import Params : MON_NET).
         /\ (N0 =[ pnpath ]=> N2).
 
   Proof.
-    intros until MN1.
+    intros *.
     intros NTM0.
 
     assert (forall n, not (In n (path_particip mnpath0)) -> flushed_in n MN1) as HF1.
@@ -4468,7 +1776,7 @@ Module Type TRANSP(Import Params : MON_NET).
       net_deinstr MN0 = net_deinstr MN1.
 
   Proof.
-    intros until MN1. intros TN.
+    intros *. intros TN.
     kill TN.
     now apply Net_Vis_corr_mon in H0.
   Qed.
@@ -4479,7 +1787,7 @@ Module Type TRANSP(Import Params : MON_NET).
       net_deinstr MN0 = net_deinstr MN1.
 
   Proof.
-    intros until MN1. intros TN.
+    intros *. intros TN.
     kill TN.
     apply Net_Vis_corr_mon in H.
     apply Net_Vis_corr_mon in H0.
@@ -4506,7 +1814,7 @@ Module Type TRANSP(Import Params : MON_NET).
   #[export] Hint Resolve net_instr_flushed : LTS.
 
 
-  Lemma net_instr_ready : forall I N, ready_net (net_instr I N).
+  Lemma net_instr_ready_net : forall I N, ready_net (net_instr I N).
 
   Proof.
     intros.
@@ -4554,7 +1862,7 @@ Module Type TRANSP(Import Params : MON_NET).
         /\ MQ_Clear MQ'.
 
   Proof.
-    intros until N0. intros HC HF TM.
+    intros *. intros HC HF TM.
 
     kill TM; kill HC; kill HF; try (destruct n0 as [n0 t0]).
     - unshelve eexists [NComm n n0 t0 _]. apply (MValM msg).
@@ -4565,9 +1873,9 @@ Module Type TRANSP(Import Params : MON_NET).
              ).
       repeat (rewrite NetMod.get_put_eq).
       constructor. assumption.
-      apply NT_Vis in H1.
-      rewrite NetMod.put_put_eq in H1.
-      rename H1 into NT_send.
+      apply NT_Vis in H0.
+      rewrite NetMod.put_put_eq in H0.
+      rename H0 into NT_send.
 
       destruct (NetMod.get n0 (NetMod.put n (mq MQ1 M1 S1) (net_instr I0 N0)))
         as [MQr Mr Sr] eqn:HeqR.
@@ -4579,8 +1887,8 @@ Module Type TRANSP(Import Params : MON_NET).
       rewrite HeqR.
       constructor.
 
-      apply NT_Vis in H1.
-      rename H1 into NT_recv.
+      apply NT_Vis in H0.
+      rename H0 into NT_recv.
 
       destruct (NAME.eq_dec n0 n); subst.
       + rewrite NetMod.put_put_eq in NT_recv.
@@ -4603,14 +1911,14 @@ Module Type TRANSP(Import Params : MON_NET).
         assert (MQ_Clear (MQr ++ [EvRecv (n, t0) msg])) as HMQr.
         {
           specialize (net_instr_flushed I0 N0 n0) as ?.
-          unfold flushed_in in H1.
-          rewrite HeqR in H1.
+          unfold flushed_in in H0.
+          rewrite HeqR in H0.
           apply Forall_app; split; attac.
         }
 
         assert (ready Mr) as HMr.
         {
-          specialize (net_instr_ready I0 N0 n0) as HR.
+          specialize (net_instr_ready_net I0 N0 n0) as HR.
           unfold ready_in in HR.
           rewrite HeqR in HR.
           apply HR...
@@ -4669,8 +1977,8 @@ Module Type TRANSP(Import Params : MON_NET).
           destruct (NAME.eqb n0 n2) eqn:HEq01; auto.
         }
 
-        rewrite H2.
-        apply H1.
+        rewrite H1.
+        auto.
     - exists [NTau n (MActM Tau)].
       exists I0, [].
 
@@ -4688,9 +1996,9 @@ Module Type TRANSP(Import Params : MON_NET).
       repeat (rewrite NetMod.get_put_eq).
       constructor. assumption.
 
-      apply (NT_Vis) in H1.
-      rewrite NetMod.put_put_eq in H1.
-      apply H1.
+      apply (NT_Vis) in H0.
+      rewrite NetMod.put_put_eq in H0.
+      apply H0.
 
     - exists [NTau n (MActM Tau)].
       exists I0, [].
@@ -4709,9 +2017,9 @@ Module Type TRANSP(Import Params : MON_NET).
       repeat (rewrite NetMod.get_put_eq).
       constructor. assumption.
 
-      apply (NT_Vis) in H1.
-      rewrite NetMod.put_put_eq in H1.
-      apply H1.
+      apply (NT_Vis) in H0.
+      rewrite NetMod.put_put_eq in H0.
+      auto.
 
     - exists [NTau n (MActP (Recv (n0, t0) v))].
       exists I0, [].
@@ -4730,9 +2038,9 @@ Module Type TRANSP(Import Params : MON_NET).
       repeat (rewrite NetMod.get_put_eq).
       constructor; assumption.
 
-      apply (NT_Vis) in H1.
-      rewrite NetMod.put_put_eq in H1.
-      apply H1.
+      apply (NT_Vis) in H0.
+      rewrite NetMod.put_put_eq in H0.
+      auto.
   Qed.
 
 
@@ -4751,7 +2059,7 @@ Module Type TRANSP(Import Params : MON_NET).
         /\ MQ_Clear MQ'.
 
   Proof with (eauto with LTS).
-    induction mpath; intros until N0; intros HC HF TM.
+    induction mpath; intros *; intros HC HF TM.
     kill TM. kill HC. kill HF.
 
     exists [], I0, []...
@@ -4795,7 +2103,7 @@ Module Type TRANSP(Import Params : MON_NET).
         /\ MQ_Clear MQ'.
 
   Proof with eattac.
-    intros until MN0. intros HC HF TM HFN0.
+    intros *. intros HC HF TM HFN0.
 
     kill TM; kill HC; kill HF; try (destruct n0 as [n0 t0]).
     - unshelve eexists [NComm n n0 t0 _]. apply (MValM msg).
@@ -4890,6 +2198,23 @@ Module Type TRANSP(Import Params : MON_NET).
   Qed.
 
 
+  Lemma Transp_completeness_send_old : forall [n v] [S0 S1] MQ0 M0,
+      (S0 =( Send n v )=> S1) -> exists mpath M1,
+      (instr MQ0 M0 S0 =[MActP (Send n v) :: mpath ++ [MActT (Send n v)]]=> (mq [] M1 S1))
+      /\ mpath >:~ []
+      /\ Forall Flushing_act mpath.
+
+  Proof.
+    intros.
+    specialize (Transp_completeness_send_instr MQ0 M0 H) as TM.
+    unfold flush_path in *.
+    unfold instr in *.
+    exists (mk_flush_path (proj1_sig MQ0) (proj1_sig M0)).
+    exists (handle_Mr (TrSend n v) (plain flush_Mr MQ0 M0)).
+    eattac.
+  Qed.
+
+
   Lemma prepare_send : forall I0 [N0 : PNet] [n n' v S1],
       (NetMod.get n N0 =(send n' v)=> S1) ->
       exists mnpath I1 MQ1 M1 MN1,
@@ -4899,11 +2224,11 @@ Module Type TRANSP(Import Params : MON_NET).
         /\ MQ_Clear MQ1.
 
   Proof.
-    intros until S1. intros T.
+    intros *. intros T.
 
     destruct (I0 n) as (MQ0_ & M0_) eqn:HI0.
 
-    destruct (Transp_completeness_send MQ0_ M0_ T)
+    destruct (Transp_completeness_send_old MQ0_ M0_ T)
       as (mpath_flush & M1 & TM & HC0 & HF0).
 
     apply path_split1 in TM as (MS_sentp & TM_sendp & TM).
@@ -4949,6 +2274,27 @@ Module Type TRANSP(Import Params : MON_NET).
         hsimpl; attac.
   Qed.
 
+  Lemma Transp_completeness_recv_old : forall [n v] [S0 S1] MQ0 M0,
+      MQ_Clear MQ0 ->
+      (S0 =( Recv n v )=> S1) ->
+      exists mpath M1,
+        (mq MQ0 M0 S0 =[MActT (Recv n v) :: mpath]=> mq [TrRecv n v] M1 S0)
+        /\ mpath >:~ []
+        /\ Forall Flushing_act mpath
+        /\ ready M1.
+
+  Proof.
+    intros.
+    specialize (@Transp_completeness_recv n v S0 S1 MQ0 M0 H H0) as TM.
+    unfold flush_path in *.
+    unfold instr in *.
+    unfold flush_M.
+    exists (mk_flush_path MQ0 M0).
+    destruct M0. attac.
+    exists {| handle := handle0; state := MRecv s|}.
+    attac.
+  Qed.
+
 
   Lemma prepare_recv : forall [MN0 : MNet] [n n' v] [S1],
       (NetMod.get n (net_deinstr MN0) =(recv n' v)=> S1) ->
@@ -4961,7 +2307,7 @@ Module Type TRANSP(Import Params : MON_NET).
         /\ flushed MN1.
 
   Proof.
-    intros until S1. intros T0 HFN0.
+    intros *. intros T0 HFN0.
 
     destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:HEq0.
     unfold net_deinstr in T0.
@@ -4975,7 +2321,7 @@ Module Type TRANSP(Import Params : MON_NET).
       apply HFN0.
     }
 
-    destruct (Transp_completeness_recv MQ0 M0 HMQ0 T0)
+    destruct (Transp_completeness_recv_old MQ0 M0 HMQ0 T0)
       as (mpath & M1 & TM & HC1 & HF1 & HRD1).
 
     unfold instr in TM.
@@ -5060,7 +2406,7 @@ Module Type TRANSP(Import Params : MON_NET).
     {
       unfold ready_net, ready_in.
       intros n0.
-      specialize (net_instr_ready I0 N0 n0) as HR.
+      specialize (net_instr_ready_net I0 N0 n0) as HR.
       smash_eq n n0; attac.
     }
 
@@ -5269,4 +2615,4 @@ Module Type TRANSP(Import Params : MON_NET).
   Qed.
 
 
-End Transp.
+End TRANSP.

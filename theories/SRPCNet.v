@@ -15,6 +15,7 @@ Require Import DlStalk.LTS.
 
 Require Import DlStalk.Network.
 Require Import DlStalk.SRPC.
+Require Import DlStalk.Locks.
 
 Require Import Lia.
 
@@ -33,7 +34,9 @@ Require Import Coq.FSets.FMapFacts.
 Import ListNotations.
 Import BoolNotations.
 
-Module Type SRPC_NET(Import Srpc : SRPC_INST)(Import A : SRPC_NET_PARAMS(Srpc)).
+Module Type SRPC_NET_PARAMS := SRPC_INST <+ NET_LOCKS.
+
+Module Type SRPC_NET(Import Srpc : SRPC_INST)(Import A : SRPC_NET_PARAMS).
 
   Include LOCKS_UNIQ.
 
@@ -1364,7 +1367,6 @@ Module Type SRPC_NET(Import Srpc : SRPC_INST)(Import A : SRPC_NET_PARAMS(Srpc)).
       attac.
     Qed.
 
-
     Theorem net_sane_send_Q_new_lock [N0 N1 : PNet] [n0 n1 v] :
       net_sane N0 ->
       (N0 =(NComm n0 n1 Q v)=> N1) ->
@@ -1388,7 +1390,7 @@ Module Type SRPC_NET(Import Srpc : SRPC_INST)(Import A : SRPC_NET_PARAMS(Srpc)).
 
         consider (pq_lock _ _).
         attac.
-        assert (In (n, R, v0) &I \/ In (n, R, v0) [(n, Q, v)]) as [|] by eattac.
+        assert (In (n, R, v) &I \/ In (n, R, v) [(n, Q, v0)]) as [|] by eattac.
         all: bullshit.
 
       - assert (NetMod.get n0 N0 =(send (n1, Q) v)=> NetMod.get n0 N0')

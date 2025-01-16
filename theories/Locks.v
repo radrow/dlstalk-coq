@@ -77,35 +77,23 @@ Module Tag <: UsualDecidableSet.
   Qed.
 End Tag.
 
+Module Type PROC_DATA_LOCKS := PROC_DATA with
+                                Module TAG := Tag.
 
-Module Type PROC_DATA_LOCKS :=
-  PROC_DATA
-  with Module TAG := Tag.
+Module Type PROC_NET_PARAMS <: NET_PARAMS := PROC_DATA_LOCKS <+ NET_PARAMS_F.
+Module Type PROC_NET := PROC_NET_PARAMS <+ QUE <+ PROC <+ NET_F.
 
-Module Type PROC_FOR_LOCKS := PROC_DATA_LOCKS <+ QUE <+ PROC.
+Module MonNetTactics(M : PROC_NET).
+  Ltac2 destruct_mna_ a :=
+    first
+      [destruct $a as [? [[[? [|]]|[? [|]]|]|[[? ?]|[? ?]|]|[[? ?]|[? ?]|]] | ? ? [|] [?|?]] (* Q/R tags *)
+      |destruct $a as [? [[[? ?]|[? ?]|]|[[? ?]|[? ?]|]|[[? ?]|[? ?]|]] | ? ? ? [?|?]] (* Anon tags *)
+      ]; doubt.
 
+  Ltac2 Notation "destruct_mna" a(constr) := destruct_mna_ a.
+End MonNetTactics.
 
-Module Type LOCKS(Import Proc : PROC_FOR_LOCKS).
-
-(*   Module MD <: MODEL_DATA. *)
-(*     Module NAME := Name. *)
-(*     Module TAG := Tag. *)
-
-(*     Record MProbe : Set := {init : NAME.t'; index : nat}. *)
-
-(*     Record MState' := *)
-(*       { self : NAME.t' *)
-(*       ; lock_id : nat *)
-(*       ; lock : option NAME.t' *)
-(*       ; waitees : list NAME.t' *)
-(*       ; deadlock : bool *)
-(*       }. *)
-
-(*     Definition Val := Val. *)
-(*     Definition MState := MState'. *)
-(*     Definition Msg := MProbe. *)
-(*   End MD. *)
-(* End LOCKS. *)
+Module Type LOCKS(Import Params : PROC_NET).
 
   (** We need to assume that there are _some_ names and values... *)
   Parameter some_name : Name.
@@ -723,7 +711,7 @@ Module Type LOCKS(Import Proc : PROC_FOR_LOCKS).
 End LOCKS.
 
 
-Module Type LOCKS_INST := PROC_FOR_LOCKS <+ LOCKS.
+Module Type LOCKS_INST := PROC_NET <+ LOCKS.
 
 (* Module Type NET_LOCKS_PARAMS. *)
 (*   Declare Module Locks : LOCKS_INST. *)
@@ -731,7 +719,7 @@ Module Type LOCKS_INST := PROC_FOR_LOCKS <+ LOCKS.
 (*   Export Locks. *)
 (* End NET_LOCKS_PARAMS. *)
 
-Module Type NET_LOCKS(Import Locks : LOCKS_INST)(Import Net : NET_WITH(Locks)).
+Module Type NET_LOCKS(Import Locks : LOCKS_INST).
   Notation PNet := (NetMod.t PQued).
 
   (** Network is decisive when all services are *)

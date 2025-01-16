@@ -617,7 +617,7 @@ Module Type QUE(Import ModelData : PROC_DATA).
   Qed.
 
 
-  Lemma in_dec_v [E : Set] {E_eq_dec : forall (v0 v1 : E), {v0=v1}+{v0<>v1}} (n : NChan) Q :
+  Lemma in_dec_v [E : Set] (n : NChan) Q :
     (exists (v : E), List.In (n, v) Q) \/ (forall (v : E), ~ List.In (n, v) Q).
 
   Proof.
