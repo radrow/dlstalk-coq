@@ -874,7 +874,7 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
       attac.
   Qed.
 
-  #[export] Hint Rewrite -> sends_to_mon_last_inv sends_to_mon_many_inv : LTS.
+  #[export] Hint Rewrite -> sends_to_mon_last_inv sends_to_mon_many_inv using eassumption : LTS.
 
 
   Fixpoint no_Q_probe m :=
@@ -885,7 +885,7 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
 
   Definition no_Q_probe_in MN n := no_Q_probe (get_Mc MN n).
 
-Module Import REMOVE_ME.
+
   Inductive KIS (MN : MNet) :=
     KIS_
       (* We are sane *)
@@ -913,7 +913,7 @@ Module Import REMOVE_ME.
       (* No false alarms: if anyone screams, they are indeed deadlocked *)
       (H_alarm_S : forall n, _of deadlock MN n = true -> dep_on '' MN n n)
       : KIS MN.
-End REMOVE_ME.
+
 
   Lemma KIS_sane [MN] : KIS MN -> net_sane '' MN.
   Proof. intros; consider (KIS _). Qed.

@@ -453,7 +453,7 @@ Ltac2 introsmash () :=
     and_True_inv True_and_inv
     True_imp_inv imp_True_inv
     False_imp_inv imp_False_inv
-    using idtac : LTS LTS_concl.
+    using assumption : LTS LTS_concl.
 
 
 Ltac2 debullshit (h : ident) :=
@@ -601,8 +601,8 @@ Ltac2 rec split_hyp (h : ident) : ident list :=
 Notation "n |: p" := (exists n : p, True) (at level 80) : type_scope.
 
 
-#[export] Hint Rewrite <- app_comm_cons app_assoc : LTS_L_prep.
-#[export] Hint Rewrite -> app_comm_cons app_assoc : LTS_R_prep.
+#[export] Hint Rewrite <- app_comm_cons app_assoc using assumption : LTS_L_prep.
+#[export] Hint Rewrite -> app_comm_cons app_assoc using assumption : LTS_R_prep.
 
 
 Lemma Falsify_inv P : False -> P <-> False.
@@ -781,7 +781,7 @@ Ltac2 Notation "hsimpl" cl(opt(clause)) rewriter(opt(seq("with", thunk(tactic)))
 Ltac2 Notation "compat_hsimpl" cl(opt(clause)) :=
   Control.enter (fun () => hsimpl_ cl (Some autorewrite_compat)).
 
-Hint Rewrite -> in_app_iff : LTS LTS_concl.
+Hint Rewrite -> in_app_iff using assumption : LTS LTS_concl.
 
 
 Ltac2 hammer solver :=

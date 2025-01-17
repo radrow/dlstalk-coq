@@ -389,8 +389,8 @@ Module Type QUE(Import ModelData : PROC_DATA).
       exists ((n', e')::Q10), Q11...
   Qed.
 
-  Hint Rewrite app_inv_l : LTS_R.
-  Hint Rewrite app_inv_r : LTS_L.
+  Hint Rewrite app_inv_l using assumption : LTS_R.
+  Hint Rewrite app_inv_r using assumption : LTS_L.
 
 
   Lemma Deq_split_bs [E : Set] [n] [v v' : E] [Q0 Q1] :
