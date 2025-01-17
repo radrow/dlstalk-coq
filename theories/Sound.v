@@ -2094,7 +2094,7 @@ End REMOVE_ME.
 
           exists n0', v.
           split.
-          1: {destruct `(_ \/ _); eauto using eq_sym.}
+          1: { destruct `(_ \/ _); eauto using eq_sym. }
           destruct_mna a; doubt.
           attac.
         - replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
@@ -2247,7 +2247,7 @@ End REMOVE_ME.
 
           exists n0', v.
           split.
-          1: {destruct `(_ \/ _); eauto using eq_sym.}
+          1: { destruct `(_ \/ _); eauto using eq_sym. }
             destruct_mna a; doubt.
           attac.
         - replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
