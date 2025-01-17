@@ -23,7 +23,7 @@ End CHANNEL_CONF.
 
 Module Type CHANNEL_PARAMS := CHANNEL_CONF.
 
-Module Type CHANNEL_F(Import Params : CHANNEL_PARAMS).
+Module Type CHANNEL_F(Import ProcParams : CHANNEL_PARAMS).
   #[global] Definition Name := Name.t.
   #[global] Definition Tag := Tag.t.
 
@@ -77,18 +77,20 @@ Module Type MON_CONF.
   Axiom Msg_eq : forall m0 m1 : Msg, m0 = m1.
 End MON_CONF.
 
-Module Type MON_PARAMS(Conf : MON_CONF).
-  Declare Module Export ProcConf : PROC_CONF.
-  Declare Module Export Proc : PROC(ProcConf).
+
+Module Type MON_PROC_CONF := PROC_CONF <+ MON_CONF.
+
+Module Type MON_PARAMS(Conf : MON_PROC_CONF).
+  Declare Module Export Proc : PROC(Conf).
 End MON_PARAMS.
 
-Module Type MON_F(Import Conf : MON_CONF)(Import Params : MON_PARAMS(Conf)).
+Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf)).
   Inductive Mon := M (m : Msg) (p : Proc).
   Lemma Mon_eq : forall m0 m1 : Mon, m0 = m1.
     intros. destruct m0, m1; f_equal; eauto using Msg_eq, Proc_eq. Qed.
 End MON_F.
 
-Module Type MON(Conf : MON_CONF) := Conf <+ MON_PARAMS <+ MON_F.
+Module Type MON(Conf : MON_PROC_CONF) := Conf <+ MON_PARAMS <+ MON_F.
 
 
 Module Type NET_MOD(Name : Singleton).
@@ -136,11 +138,8 @@ Module Tag_ <: Singleton.
   Lemma one : forall x0 x1 : t, x0 = x1. intros. destruct x0, x1. auto. Qed.
 End Tag_.
 
-Module Type PROC_CONF_WITH_TAG := PROC_CONF with Module Tag := Tag_.
-Module Type PROC_WITH_TAG(Conf : PROC_CONF_WITH_TAG) := PROC(Conf).
 
-
-Module Type LOCKS_CONF := PROC_CONF_WITH_TAG.
+Module Type LOCKS_CONF := PROC_CONF with Module Tag := Tag_.
 
 Module Type LOCKS_PARAMS(Conf : LOCKS_CONF).
   Declare Module Export Proc : PROC(Conf).
@@ -158,12 +157,7 @@ End LOCKS_F.
 Module Type LOCKS(Conf : LOCKS_CONF) := Conf <+ LOCKS_PARAMS <+ LOCKS_F.
 
 
-Module Type NET_CONF_WITH_TAG := NET_CONF with Module Tag := Tag_.
-
-(* Module Type NET_WITH_TAG(Conf : NET_CONF_WITH_TAG) := NET(Conf). *)
-
-
-Module Type NET_LOCKS_CONF := NET_CONF_WITH_TAG.
+Module Type NET_LOCKS_CONF := NET_CONF with Module Tag := Tag_.
 Module Type NET_LOCKS_PARAMS(Conf : NET_LOCKS_CONF).
   Declare Module Export Locks : LOCKS(Conf).
   Declare Module Export Net : NET(Conf).
@@ -218,13 +212,13 @@ Module Type SRPC_NET(Conf : SRPC_NET_CONF) := Conf <+ SRPC_NET_PARAMS <+ SRPC_NE
 
 
 Module Type TRANSP_CONF.
-  Include NET_LOCKS_CONF.
+  Include NET_CONF.
   Include MON_CONF.
 End TRANSP_CONF.
 
 Module Type TRANSP_PARAMS(Conf : TRANSP_CONF).
   Declare Module Export Net : NET(Conf).
-  Declare Module Export Mon : MON(Conf) with Module ProcConf := Conf.
+  Declare Module Export Mon : MON(Conf).
 End TRANSP_PARAMS.
 
 Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Conf)).
@@ -246,8 +240,7 @@ End MonConf.
 
 Module Type DETECT_CONF.
   Include SRPC_NET_CONF.
-  Include MON_CONF
-    with Definition Msg := Tag.t
+  Include MON_CONF with Definition Msg := Tag.t
             with Definition Msg_eq := Tag.one.
 End DETECT_CONF.
 
@@ -262,5 +255,35 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     intros. apply noname.
     destruct x. destruct l0. destruct p. destruct Q0. destruct nc. apply n1. Qed.
   Lemma im_uniq' : forall x : Name, False.
-    intros. apply noname. unfold Name in *. change ProcConf.Name.t with Locks.Proc.Que.Channel.Name in x.
-    destruct x. destruct l0. destruct p. destruct Q0. destruct nc. apply n1. Qed.
+    intros. apply noname.
+    auto.
+  Qed.
+End COMPL_F.
+
+Module Type COMPL(Conf : DETECT_CONF) := Conf <+ DETECT_PARAMS(Conf) <+ COMPL_F.
+
+Module DetConf : DETECT_CONF.
+  Definition Val := nat.
+  Module Name.
+    Definition t := unit.
+    Lemma one : forall n0 n1 : t, n0 = n1. intros. destruct n0, n1. auto. Qed.
+  End Name.
+  Module Tag := Tag_.
+  Module NetMod.
+    Parameter t : Name.t -> Type -> Type.
+
+    Section Node.
+      Context {Node : Type}.
+      Context {n : Name.t}.
+      Parameter Node_eq : forall x0 x1 : t n Node, x0 = x1.
+      Parameter get : t n Node -> Node.
+      Parameter put : Node -> t n Node.
+    End Node.
+  End NetMod.
+  Definition Msg := Tag.t.
+  Definition Msg_eq := Tag.one.
+End DetConf.
+
+Declare Module Import Compl : COMPL(DetConf).
+
+Check Compl.im_uniq.
