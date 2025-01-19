@@ -284,6 +284,11 @@ Module DetConf : DETECT_CONF.
   Definition Msg_eq := Tag.one.
 End DetConf.
 
-Declare Module Import Compl : COMPL(DetConf).
+Declare Module Compl : COMPL(DetConf).
 
 Check Compl.im_uniq.
+
+Require dpdgraph.dpdgraph.
+Set DependGraph File "/tmp/f.dpd".
+
+Print DependGraph Compl.SrpcNet.Srpc.S_eq.

@@ -8,7 +8,7 @@ Module Empty. End Empty. (* `<+` identity *)
 
 
 Module Type UsualDecidableSet.
-  Parameter Inline t' : Set.
+  Parameter t' : Set.
   Include UsualDecidableTypeFull with Definition t := t'.
 End UsualDecidableSet.
 
@@ -32,27 +32,24 @@ Module UsualDecidableSetHints(Import M : UsualDecidableSet).
   Proof. intros. apply eqb_neq_inv. auto.
   Qed.
 
-  #[global] Hint Rewrite -> eqb_eq eqb_neq_inv using spank : LTS.
-  #[global] Hint Rewrite <- eqb_eq eqb_neq_inv using spank : LTS_concl.
+  #[global] Hint Rewrite -> eqb_eq eqb_neq_inv using spank : LTS LTS_concl.
   #[global] Hint Rewrite -> same_eqb_inv neq_neqb_inv using spank : LTS LTS_concl.
 
-  #[global] Hint Resolve eq_dec eqb_eq : LTS.
+  #[global] Hint Resolve eq_dec eqb_eq same_eqb_inv : LTS.
 End UsualDecidableSetHints.
 
 
-Module Type PROC_PARAMS.
-  Parameter Inline Val : Set.
+Module Type CHANNEL_CONF.
+  Parameter Val : Set.
 
   Declare Module NAME : UsualDecidableSet.
   Declare Module TAG : UsualDecidableSet.
-End PROC_PARAMS.
+End CHANNEL_CONF.
 
-Module Type MON_PARAMS.
-  Parameter Inline Msg : Set.
-  Parameter Inline MState : Set.
-End MON_PARAMS.
+Module Type CHANNEL_PARAMS(Conf : CHANNEL_CONF).
+End CHANNEL_PARAMS.
 
-Module Type CHANNEL(Import ProcParams : PROC_PARAMS).
+Module Type CHANNEL_F(Import Conf : CHANNEL_CONF)(Import Params : CHANNEL_PARAMS(Conf)).
   #[global] Definition Name := NAME.t'.
   #[global] Definition Tag := TAG.t'.
 
@@ -119,10 +116,6 @@ Module Type CHANNEL(Import ProcParams : PROC_PARAMS).
 
   Module Export NAME_H := UsualDecidableSetHints(NAME).
   Module Export TAG_H := UsualDecidableSetHints(TAG).
-End CHANNEL.
+End CHANNEL_F.
 
-Module Type PROC_DATA := PROC_PARAMS <+ CHANNEL.
-
-Module Type MODEL_DATA := PROC_DATA <+ MON_PARAMS.
-
-Module Channel(ProcParams : PROC_PARAMS) := Empty <+ CHANNEL(ProcParams).
+Module Type CHANNEL(Conf : CHANNEL_CONF) := Conf <+ CHANNEL_PARAMS <+ CHANNEL_F.

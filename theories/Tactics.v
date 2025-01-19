@@ -137,6 +137,22 @@ Ltac2 kill h :=
 Ltac2 Notation "kill" h(ident) := kill h.
 
 
+Ltac2 split_app c : constr * constr list :=
+  let rec go c acc :=
+    lazy_match! c with
+    | ?f ?a => go f (a::acc)
+    | _ => (c, acc)
+    end in
+  go c [].
+
+Ltac2 rec get_left_app c :=
+  lazy_match! c with
+  | ?f _ => get_left_app f
+  | _ => c
+  end.
+
+Ltac2 is_constructor_app c := Constr.is_constructor (get_left_app c).
+
 
 Inductive HAVE (P : Prop) := HAVE_ : P -> HAVE P.
 Notation "### P" := (HAVE P) (at level 200) : type_scope.
@@ -198,47 +214,77 @@ Ltac2 bullshit_ (on : (constr * (unit -> unit) option) option) :=
   match on with
   | None => ()
   | Some (c, s) =>
-      let s := (match s with
-                | None => fun () => (subst; eauto 4 with LTS bullshit datatypes)
+      let s :=
+        (match s with
+                | None => fun () => subst; eauto with LTS bullshit datatypes
                 | Some s => s
                end)
       in
       assert $c by (s ())
   end;
 
-  (multi_match! goal with
-   | [h : ?p |- _] =>
-       if (Constr.equal (Constr.type p) 'Prop)
-       then try (solve [kill $h]);
-            absurd $p; auto
-       else fail
-   end);
   simpl in *;
   try (ltac1:(autorewrite with bullshit in * ));
-  simpl in *;
-  orelse
-  (fun () => solve
-            [ assumption
-            | simpl in *; lia
-            | congruence
-            | contradiction
-            | eauto with LTS bullshit datatypes
-            ]
-  )
-  (fun _ => Control.zero (Init.Tactic_failure (Some (Message.of_string "Nothing to bullshit about")))).
+  solve
+    [ contradiction
+    | congruence
+    | lia
+    | List.iter (fun (h, _, _) => try (kill $h)) (hyps ())
+    | match! goal with
+      | [h : ?p |- _] =>
+          if (Constr.equal (Constr.type p) 'Prop) then () else fail;
+          let hh := hyp h in
+          lazy_match! p with
+          | not _ =>
+              exfalso;
+              apply $hh;
+              solve [eauto 3 with bullshit LTS datatypes]
+          | _ =>
+              absurd $p > [| exact $hh ];
+              solve [eauto 3 with bullshit LTS datatypes]
+          end
+      end
+    ].
+
+  (* simpl in *; *)
+  (* try (ltac1:(autorewrite with bullshit in * )); *)
+  (* match! goal with *)
+  (*  | [h : ?p |- _] => *)
+  (*      if (Constr.equal (Constr.type p) 'Prop) then () else fail; *)
+  (*      lazy_match! p with *)
+  (*      | not _ => *)
+  (*          exfalso; *)
+  (*          apply $h; *)
+  (*          eauto 3 with LTS *)
+  (*      | _ => *)
+  (*          try (solve [kill $h]); *)
+  (*      solve *)
+  (*        [ assumption *)
+  (*        | simpl in *; lia *)
+  (*        | congruence *)
+  (*        | contradiction *)
+  (*        | eauto with bullshit LTS datatypes *)
+         (* ]. *)
+
+Ltac2 bullshit_or
+  (on : (constr * (unit -> unit) option) option)
+  (or_catch : unit -> unit) :=
+  orelse (fun () => bullshit_ on) (fun _ => or_catch ()).
 
 
 Ltac2 Notation "bullshit"
   on(opt(seq(
-             constr,
+             open_constr,
              opt(seq("by", thunk(tactic)))
   ))) :=
-  Control.enter (fun () => bullshit_ on).
+  Control.enter (fun () => bullshit_or on
+                          (fun () => Control.zero (Init.Tactic_failure (Some (Message.of_string "Nothing to bullshit about"))))
+    ).
 
 
 Ltac2 Notation "doubt"
   on(opt(seq(
-             constr,
+             open_constr,
              opt(seq("by", thunk(tactic)))
   ))) :=
   Control.enter (fun () => Control.once (fun () => try (bullshit_ on))).
@@ -358,23 +404,6 @@ Ltac2 rec strip_exists h :=
 Ltac2 Notation "strip" "exists" h(ident) := let _ := strip_exists h in ().
 
 
-Ltac2 split_app c : constr * constr list :=
-  let rec go c acc :=
-    lazy_match! c with
-    | ?f ?a => go f (a::acc)
-    | _ => (c, acc)
-    end in
-  go c [].
-
-Ltac2 rec get_left_app c :=
-  lazy_match! c with
-  | ?f _ => get_left_app f
-  | _ => c
-  end.
-
-Ltac2 is_constructor_app c := Constr.is_constructor (get_left_app c).
-
-
 Inductive INV (P : Prop) := INV_intro : P -> INV P.
 #[export] Hint Constructors INV : LTS.
 
@@ -459,7 +488,6 @@ Ltac2 introsmash () :=
 Ltac2 debullshit (h : ident) :=
   let hh := hyp h in
   let ht := Constr.type hh in
-  let h' := Fresh.in_goal @NEW in
   let equiv := Fresh.in_goal @EQUIV in
   match! eval cbv in $ht with
   | context c [?a = ?b] =>
@@ -496,7 +524,7 @@ Ltac2 debullshit (h : ident) :=
             clear $equiv
 
           else
-            let ht' := Pattern.instantiate c 'False in
+            let _ := Pattern.instantiate c 'False in
             assert ($a = $b <-> False) as $equiv by (split; intros $equiv; kill $equiv);
             ltac1:(equiv h |- rewrite_strat bottomup progress equiv in h) (Ltac1.of_ident equiv) (Ltac1.of_ident h);
             clear $equiv
@@ -655,6 +683,15 @@ Ltac2 autorewrite_LTS (h : ident option) :=
   end.
 
 
+Ltac2 autorewrite_LTS_lite (h : ident option) :=
+  match h with
+  | Some h =>
+      ltac1:(h |- rewrite_strat choice (hints bullshit) (topdown progress hints LTS) in h) (Ltac1.of_ident h)
+  | None =>
+      ltac1:(rewrite_strat choice (hints bullshit) (topdown progress hints LTS_concl))
+  end.
+
+
 Ltac2 autorewrite_compat (h : ident option) :=
   match h with
   | Some h =>
@@ -785,14 +822,15 @@ Hint Rewrite -> in_app_iff using assumption : LTS LTS_concl.
 
 
 Ltac2 hammer solver :=
-  repeat (first [split | intros ?]);
-  try (solve [repeat split; repeat (intros ?); eauto 5 with datatypes LTS; congruence]);
+  repeat (first [split | progress intros]);
+  try (solve [repeat (first [split | intros ?]); eauto 5 with datatypes LTS; congruence]);
 
   Control.enter (
       fun () =>
         hsimpl in *;
         subst;
         simpl in *;
+        repeat (first [split | progress intros]);
         try (solve
                [ simpl; eauto 5 with datatypes LTS
                | bullshit
@@ -1017,7 +1055,6 @@ Ltac2 blast_cases_ () :=
 
 Ltac2 Notation blast_cases :=
   repeat (Control.enter (fun _ => blast_cases_ ())).
-
 
 
 Inductive MARK (s : string) (P : Prop) := MARK_ (p : P).

@@ -40,55 +40,20 @@ Require Import Coq.FSets.FMapFacts.
 Import ListNotations.
 Import BoolNotations.
 
-Record MProbe' {n : Set} : Set := {init : n; index : nat}.
-
-Record MState' {n : Set} :=
-  { self : n
-  ; lock_id : nat
-  ; lock : option n
-  ; waitees : list n
-  ; deadlock : bool
-  }.
-
-Module Type PROC_DATA_LOCKS :=
-  PROC_DATA
-  with Module TAG := Tag.
-
-Module Type MON_PARAMS_LOCKS_F(ProcData : PROC_DATA_LOCKS) :=
-  MON_PARAMS
-  with Definition Msg := @MProbe' ProcData.Name
-  with Definition MState := @MState' ProcData.Name.
-
-Module Type MODEL_DATA_LOCKS := PROC_DATA_LOCKS <+ MON_PARAMS_LOCKS_F.
-
-Module Type MODEL_NET_PARAMS <: NET_PARAMS := MODEL_DATA_LOCKS <+ NET_PARAMS_F.
-Module Type MODEL_NET <: NET := MODEL_NET_PARAMS <+ QUE <+ PROC <+ MON_F <+ NET_F <+ TRANSP.
-
-Module Type SRPC_MODEL_PARAMS <: SRPC_PARAMS := MODEL_NET <+ LOCKS.
-
-Module Type SRPC_DEFS_WRAP_F(Params : SRPC_MODEL_PARAMS).
-  Module Import SrpcDefs := SRPC_DEFS(Params).
-End SRPC_DEFS_WRAP_F.
-Module Type SRPC_DEFS_WRAP := SRPC_MODEL_PARAMS <+ SRPC_DEFS_WRAP_F.
-
-Module Type SRPC_MODEL(Params : SRPC_MODEL_PARAMS) := SRPC(Params).
-Module Type SRPC_MODEL_INST <: SRPC_INST := SRPC_MODEL_PARAMS <+ SRPC_MODEL.
-
-Module Type SRPC_MODEL_NET_PARAMS := SRPC_MODEL_INST <+ NET_LOCKS.
-
-Module Type SRPC_MODEL_NET_F(Srpc : SRPC_MODEL_INST)(A : SRPC_MODEL_NET_PARAMS) := SRPC_NET(Srpc)(A).
-Module Type SRPC_MODEL_NET := SRPC_MODEL_NET_PARAMS <+ SRPC_NET.
-
 Require Import DlStalk.Compl.
-Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
-  Include COMPL(Srpc).
-  Module Import NT := NetTactics(Srpc).
 
-  Import TD.
+
+Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Conf)).
+  Include COMPL_F(Conf)(Params).
+  Module Import NT := NetTactics(Conf)(Params.NetLocks.Net).
+
+  Import SrpcDefs.
+  Import SrpcNet.
 
   Section Inversions.
     (* These hints should not quadrate with SRPC_pq variants because SRPC_net does not expose
       SRPC_pq_in_net *)
+
 
     Lemma SRPC_M_net_AnySrpc [N S n] :
       net_sane '' N ->
@@ -911,7 +876,7 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
       (* If we received a hot probe of someone whose monitor considers locked, then we depend on them. *)
       (H_recvp_hot_S : forall n0 n1 n2, List.In (hot_ev_of MN n2 n0) (get_MQ MN n1) -> _of lock MN n0 <> None -> dep_on '' MN n1 n0)
       (* No false alarms: if anyone screams, they are indeed deadlocked *)
-      (H_alarm_S : forall n, _of deadlock MN n = true -> dep_on '' MN n n)
+      (H_alarm_S : forall n, _of alarm MN n = true -> dep_on '' MN n n)
       : KIS MN.
 
 
@@ -948,7 +913,7 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
   Lemma KIS_recvp_hot [MN] : KIS MN -> forall n0 n1 n2, List.In (hot_ev_of MN n2 n0) (get_MQ MN n1) -> _of lock MN n0 <> None -> dep_on '' MN n1 n0.
   Proof. intros; consider (KIS _). eauto. Qed.
 
-  Lemma KIS_alarm [MN] : KIS MN -> forall n, _of deadlock MN n = true -> dep_on '' MN n n.
+  Lemma KIS_alarm [MN] : KIS MN -> forall n, _of alarm MN n = true -> dep_on '' MN n n.
   Proof. intros; consider (KIS _). Qed.
 
   #[export] Hint Immediate
@@ -1092,11 +1057,11 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
   Lemma KIS_alarm_get [MN n0] [MQ h s S] :
     KIS MN ->
     NetMod.get n0 MN = mq MQ {|handle:=h; state:=s|} S ->
-    deadlock (next_state s) = true ->
+    alarm (next_state s) = true ->
     dep_on '' MN n0 n0.
 
   Proof. intros.
-         enough (_of deadlock MN n0 = true) by attac.
+         enough (_of alarm MN n0 = true) by attac.
          ltac1:(autounfold with LTS_get in * ); attac.
   Qed.
 
@@ -1592,8 +1557,8 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
   Lemma M_alarm_set [MN0 MN1 a n0] :
     KIS MN0 ->
     (MN0 =(a)=> MN1) ->
-    _of deadlock MN0 n0 = false ->
-    _of deadlock MN1 n0 = true ->
+    _of alarm MN0 n0 = false ->
+    _of alarm MN1 n0 = true ->
     a = NTau n0 (MActM Tau) /\
       exists n1, List.In (EvRecv (n1, R) {|init:=n0; index:=_of lock_id MN0 n0|}) (get_MQ MN0 n0).
 
@@ -1662,6 +1627,27 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
         destruct (NetMod.get n0 MN0) as [MQ0 M0 [I0 P0 O0]] eqn:?.
         destruct (NetMod.get n0 MN1) as [MQ1 M1 [I1 P1 O1]] eqn:?.
 
+        Set Ltac2 In Ltac1 Profiling.
+        Set Ltac Profiling.
+        (multi_match! goal with
+         | [h : ?p |- _] =>
+             if (Constr.equal (Constr.type p) 'Prop)
+             then try (solve [kill $h]);
+                  absurd $p; auto 5 with LTS
+             else fail
+         end);
+        simpl in *;
+        try (ltac1:(autorewrite with bullshit in * ));
+        simpl in *;
+        try (solve
+          [ assumption
+          | simpl in *; lia
+          | congruence
+          | contradiction
+          | eauto 4 with bullshit
+          ]).
+        Show Ltac Profile.
+
         destruct_mna a; hsimpl in *.
         all: Control.enter (fun _ => consider (_ =(_)=> _); compat_hsimpl in * ).
         all: (smash_eq n n0; hsimpl in *; doubt).
@@ -1669,7 +1655,11 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
         all:
           repeat (Control.enter (fun _ => match! goal with [h : context [NetMod.get ?n0 (NetMod.put ?n1 ?s ?net)] |- _] =>
                            if Constr.equal n0 n1 then fail else destruct (NAME.eq_dec $n0 $n1); hsimpl in * end)).
-        all: doubt.
+
+        * Set Ltac2 In Ltac1 Profiling.
+          Set Ltac Profiling.
+          hsimpl in *.
+          Show Ltac Profile.
 
         destruct `(_ \/ _); attac.
         consider (h = Rad.Rad_handle) by eauto with LTS.
@@ -2261,7 +2251,7 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
   Lemma KIS_invariant_alarm [MN0 MN1 a] :
     (MN0 =(a)=> MN1) ->
     KIS MN0 ->
-    forall n, _of deadlock MN1 n = true -> dep_on '' MN1 n n.
+    forall n, _of alarm MN1 n = true -> dep_on '' MN1 n n.
 
   Proof.
     intros.
@@ -2274,7 +2264,7 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
       eauto 3 using deadlocked_M_dep_invariant1 with LTS.
     }
 
-    destruct (_of deadlock MN0 n) eqn:?; eauto 2 with LTS.
+    destruct (_of alarm MN0 n) eqn:?; eauto 2 with LTS.
 
     consider (a = NTau n (MActM Tau) /\
                 exists n1, List.In (EvRecv (n1, R) {|init:=n; index:=_of lock_id MN0 n|}) (get_MQ MN0 n)) by eauto using M_alarm_set.
@@ -2317,7 +2307,7 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
   Theorem detection_soundness [I0 N0 MN1 mpath n] :
     KIS (net_instr I0 N0) ->
     (net_instr I0 N0 =[mpath]=> MN1) ->
-    _of deadlock MN1 n = true ->
+    _of alarm MN1 n = true ->
     deadlocked n '' MN1.
 
   Proof.
@@ -2331,7 +2321,7 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
   Theorem detection_soundness' [I0 N0 I1 N1 mpath n] :
     KIS (net_instr I0 N0) ->
     (net_instr I0 N0 =[mpath]=> net_instr I1 N1) ->
-    _of deadlock (net_instr I1 N1) n = true ->
+    _of alarm (net_instr I1 N1) n = true ->
     deadlocked n N1.
 
   Proof.
@@ -2344,4 +2334,6 @@ Module Type SOUND(Import Srpc : SRPC_MODEL_NET).
     consider (KIS (net_instr I1 N1)).
   Qed.
 
-End SOUND.
+End SOUND_F.
+
+Module Type SOUND(Conf : DETECT_CONF) := Conf <+ DETECT_PARAMS(Conf) <+ SOUND_F.

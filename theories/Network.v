@@ -14,11 +14,12 @@ From Coq Require Import Lists.List.
 Import ListNotations.
 
 
-Require Import DlStalk.LTS.
-Require Import DlStalk.Tactics.
-Require Import DlStalk.Model.
-Require Import DlStalk.ModelData.
-Require Import DlStalk.Que.
+From DlStalk Require Import Tactics.
+From DlStalk Require Import Lemmas.
+From DlStalk Require Import ModelData.
+From DlStalk Require Import LTS.
+From DlStalk Require Import Que.
+From DlStalk Require Import Model.
 
 
 Module Type NET_MOD(Name : UsualDecidableSet).
@@ -98,47 +99,53 @@ Module Type NET_MOD(Name : UsualDecidableSet).
 End NET_MOD.
 
 
-Module Type NET_PARAMS_F(ProcData : PROC_DATA).
-  Declare Module NetMod : NET_MOD(ProcData.NAME).
-End NET_PARAMS_F.
-Module Type NET_PARAMS := PROC_DATA <+ NET_PARAMS_F.
+Module Type NET_CONF_F(Channel : CHANNEL_CONF).
+  Declare Module NetMod : NET_MOD(Channel.NAME).
+End NET_CONF_F.
+Module Type NET_CONF := CHANNEL_CONF <+ NET_CONF_F.
 
+Module Type NET_PARAMS(Conf : NET_CONF).
+  Declare Module Export Channel : CHANNEL(Conf).
+End NET_PARAMS.
 
-Module Type NET_F(Import NetParams : NET_PARAMS).
+Module Type NET_F(Import Conf : NET_CONF)(Import Params : NET_PARAMS(Conf)).
+
   (** Coercion to function *)
   Definition NetGet (A : Set) : NetMod.t A -> Name -> A := fun MN n => @NetMod.get A n MN.
   #[export] Hint Transparent NetGet : LTS typeclass_instances.
   #[global] Coercion NetGet : NetMod.t >-> Funclass.
 
-  Lemma put_put_eq_inv [T] (N : NetMod.t T) n S S' :
-    (NetMod.put n S (NetMod.put n S' N)) = NetMod.put n S N.
-  Proof. apply NetMod.put_put_eq. Qed.
+  Section Inversions.
+    Fact put_put_eq_inv [T] (N : NetMod.t T) n S S' :
+      (NetMod.put n S (NetMod.put n S' N)) = NetMod.put n S N.
+    Proof. apply NetMod.put_put_eq. Qed.
 
-  Lemma get_put_eq_inv [T] (N : NetMod.t T) n S :
-    (NetMod.get n (NetMod.put n S N)) = S.
-  Proof. apply NetMod.get_put_eq. Qed.
+    Fact get_put_eq_inv [T] (N : NetMod.t T) n S :
+      (NetMod.get n (NetMod.put n S N)) = S.
+    Proof. apply NetMod.get_put_eq. Qed.
 
-  Lemma get_put_neq_inv [T] (N : NetMod.t T) n n' S' :
-    n <> n' ->
-    (NetMod.get n (NetMod.put n' S' N)) = NetMod.get n N.
-  Proof. apply NetMod.get_put_neq. Qed.
+    Fact get_put_neq_inv [T] (N : NetMod.t T) n n' S' :
+      n <> n' ->
+      (NetMod.get n (NetMod.put n' S' N)) = NetMod.get n N.
+    Proof. apply NetMod.get_put_neq. Qed.
 
-  Lemma put_get_eq_inv [T] (N : NetMod.t T) n :
-    (NetMod.put n (NetMod.get n N) N) = N.
-  Proof. apply NetMod.put_get_eq. Qed.
+    Fact put_get_eq_inv [T] (N : NetMod.t T) n :
+      (NetMod.put n (NetMod.get n N) N) = N.
+    Proof. apply NetMod.put_get_eq. Qed.
 
-  Lemma get_map_inv [T A] (N : NetMod.t T) (f : Name -> T -> A) n :
-    (NetMod.get n (NetMod.map f N)) = f n (NetMod.get n N).
-  Proof. apply NetMod.get_map. Qed.
+    Fact get_map_inv [T A] (N : NetMod.t T) (f : Name -> T -> A) n :
+      (NetMod.get n (NetMod.map f N)) = f n (NetMod.get n N).
+    Proof. apply NetMod.get_map. Qed.
 
-  Lemma put_map_inv [T A] (N : NetMod.t T) (f : Name -> T -> A) n S :
-    (NetMod.map f (NetMod.put n S N)) = NetMod.put n (f n S) (NetMod.map f N).
-  Proof. apply NetMod.put_map. Qed.
+    Fact put_map_inv [T A] (N : NetMod.t T) (f : Name -> T -> A) n S :
+      (NetMod.map f (NetMod.put n S N)) = NetMod.put n (f n S) (NetMod.map f N).
+    Proof. apply NetMod.put_map. Qed.
 
-  Lemma put_inj [T] n (N : NetMod.t T) S S' : NetMod.put n S N = NetMod.put n S' N <-> S = S'.
-  Proof. split; eattac. erewrite <- NetMod.get_put_eq. rewrite <- H. rewrite NetMod.get_put_eq. auto. Qed.
+    Fact put_eq_inv [T] n (N : NetMod.t T) S S' : NetMod.put n S N = NetMod.put n S' N <-> S = S'.
+    Proof. split; eattac. erewrite <- NetMod.get_put_eq. rewrite <- H. rewrite NetMod.get_put_eq. auto. Qed.
+  End Inversions.
 
-  #[export] Hint Rewrite -> @put_put_eq_inv @get_put_eq_inv @get_put_neq_inv @put_get_eq_inv @get_map_inv @put_map_inv @put_inj using spank : LTS LTS_concl.
+  #[export] Hint Rewrite -> @put_put_eq_inv @get_put_eq_inv @get_put_neq_inv @put_get_eq_inv @get_map_inv @put_map_inv @put_eq_inv using spank : LTS LTS_concl.
 
 
   Section General.
@@ -245,13 +252,26 @@ Module Type NET_F(Import NetParams : NET_PARAMS).
     Qed.
 
 
+    Lemma NComm_neq' [n n' t v N0] [S S'] :
+      n <> n' ->
+      (NetMod.get n N0 =(send (n', t) v)=> S) ->
+      (NetMod.get n' N0 =(recv (n, t) v)=> S') ->
+      N0 =(NComm n n' t v)=> (NetMod.put n S (NetMod.put n' S' N0)).
+
+    Proof.
+      intros.
+      rewrite NetMod.put_put_neq; auto.
+      eauto using NComm_neq.
+    Qed.
+
+
     Lemma NTrans_Comm_neq_inv n n' t v N0 N1 :
       n <> n' ->
       (N0 =(NComm n n' t v)=> N1) <->
         exists S S', (NetMod.get n N0 =(send (n', t) v)=> S) /\ (NetMod.get n' N0 =(recv (n, t) v)=> S')
                      /\ N1 = NetMod.put n' S' (NetMod.put n S N0).
 
-    Proof.
+    Proof using Type.
       split; intros. kill H0; kill H1; kill H2. eattac.
       hsimpl in *. econstructor. eattac. eattac.
     Qed.
@@ -261,7 +281,7 @@ Module Type NET_F(Import NetParams : NET_PARAMS).
         exists S S', (NetMod.get n N0 =(send (n, t) v)=> S) /\ (S =(recv (n, t) v)=> S')
                      /\ N1 = NetMod.put n S' N0.
 
-    Proof.
+    Proof using Type.
       split; intros. kill H; kill H0; kill H1; eattac.
       hsimpl in *. econstructor. eattac.
       replace (NetMod.put n S' N0) with (NetMod.put n S' (NetMod.put n &S N0)) by attac.
@@ -270,7 +290,7 @@ Module Type NET_F(Import NetParams : NET_PARAMS).
 
     Lemma NTrans_Tau_inv n a N0 N1 :
       (N0 =(NTau n a)=> N1) <-> exists S, (NetMod.get n N0 =(a)=> S) /\ N1 = NetMod.put n S N0 /\ ia a.
-    Proof.
+    Proof using Type.
       split; intros. kill H. kill H1. eattac.
       hsimpl in *; constructor; eattac.
     Qed.
@@ -336,26 +356,28 @@ Module Type NET_F(Import NetParams : NET_PARAMS).
     Arguments PO_skip_comm [_ _ _ _ _ _ _] _ _ HPo.
 
 
-    Lemma Path_of_nil_inv n ppath : Path_of n [] ppath <-> ppath = [].
-    Proof. intros; eattac. Qed.
+    Section Inversions.
+      Fact Path_of_nil_inv n ppath : Path_of n [] ppath <-> ppath = [].
+      Proof. intros; eattac. Qed.
 
-    Lemma Path_of_tau_inv n npath ppath a : Path_of n (NTau n a :: npath) ppath <-> exists ppath', (HPo |: Path_of n npath ppath') /\ ppath = a :: ppath'.
-    Proof. eattac. kill H. eattac. Qed.
+      Fact Path_of_tau_inv n npath ppath a : Path_of n (NTau n a :: npath) ppath <-> exists ppath', (HPo |: Path_of n npath ppath') /\ ppath = a :: ppath'.
+      Proof. eattac. kill H. eattac. Qed.
 
-    Lemma Path_of_tau_skip_inv n n' npath ppath a : n <> n' -> Path_of n (NTau n' a :: npath) ppath <-> (HPo |: Path_of n npath ppath).
-    Proof. eattac. Qed.
+      Fact Path_of_tau_skip_inv n n' npath ppath a : n <> n' -> Path_of n (NTau n' a :: npath) ppath <-> (HPo |: Path_of n npath ppath).
+      Proof. eattac. Qed.
 
-    Lemma Path_of_comm_send_inv n m t v npath ppath : n <> m -> Path_of n (NComm n m t v :: npath) ppath <-> exists ppath', (HPo |: Path_of n npath ppath') /\ ppath = (send (m, t) v :: ppath').
-    Proof. eattac. kill H0. eattac. Qed.
+      Fact Path_of_comm_send_inv n m t v npath ppath : n <> m -> Path_of n (NComm n m t v :: npath) ppath <-> exists ppath', (HPo |: Path_of n npath ppath') /\ ppath = (send (m, t) v :: ppath').
+      Proof. eattac. kill H0. eattac. Qed.
 
-    Lemma Path_of_comm_recv_inv n m t v npath ppath : n <> m -> Path_of n (NComm m n t v :: npath) ppath <-> exists ppath', (HPo |: Path_of n npath ppath') /\ ppath = (recv (m, t) v :: ppath').
-    Proof. eattac. kill H0. eattac. Qed.
+      Fact Path_of_comm_recv_inv n m t v npath ppath : n <> m -> Path_of n (NComm m n t v :: npath) ppath <-> exists ppath', (HPo |: Path_of n npath ppath') /\ ppath = (recv (m, t) v :: ppath').
+      Proof. eattac. kill H0. eattac. Qed.
 
-    Lemma Path_of_comm_skip_inv n m0 m1 t v npath ppath : n <> m0 -> n <> m1 -> Path_of n (NComm m0 m1 t v :: npath) ppath <-> (HPo |: Path_of n npath ppath).
-    Proof. eattac. Qed.
+      Fact Path_of_comm_skip_inv n m0 m1 t v npath ppath : n <> m0 -> n <> m1 -> Path_of n (NComm m0 m1 t v :: npath) ppath <-> (HPo |: Path_of n npath ppath).
+      Proof. eattac. Qed.
 
-    Lemma Path_of_comm_self_inv n t v npath ppath : Path_of n (NComm n n t v :: npath) ppath <-> exists ppath', (HPo |: Path_of n npath ppath') /\ ppath = (send (n, t) v :: recv (n, t) v :: ppath').
-    Proof. eattac. kill H. eattac. Qed.
+      Fact Path_of_comm_self_inv n t v npath ppath : Path_of n (NComm n n t v :: npath) ppath <-> exists ppath', (HPo |: Path_of n npath ppath') /\ ppath = (send (n, t) v :: recv (n, t) v :: ppath').
+      Proof. eattac. kill H. eattac. Qed.
+    End Inversions.
 
     Hint Rewrite -> Path_of_nil_inv Path_of_tau_inv Path_of_tau_skip_inv Path_of_comm_send_inv Path_of_comm_recv_inv Path_of_comm_skip_inv Path_of_comm_self_inv using spank : LTS LTS_concl.
 
@@ -505,10 +527,6 @@ Module Type NET_F(Import NetParams : NET_PARAMS).
       specialize (IHpath (NetMod.put n N1 N) &S).
       hsimpl in *.
       specialize IHpath as (npath & NT1 & HPO); eattac.
-      exists (NTau n a :: npath).
-      eattac.
-      eapply path_seq1. constructor; eattac.
-      eattac.
     Qed.
 
 
@@ -645,8 +663,7 @@ Module Type NET_F(Import NetParams : NET_PARAMS).
       specialize (IHchans N0' Ind_in HGlob0') as (npath1 & N1 & TN1 & HLoc1 & HG1).
 
       exists (npath0 ++ npath1), N1.
-      repeat split; auto.
-      apply (path_seq TN0 TN1).
+      attac.
     Qed.
 
 
@@ -754,14 +771,24 @@ Module Type NET_F(Import NetParams : NET_PARAMS).
       eapply act_particip_stay with (a:=NComm n0 n1 &t v); attac.
     Qed.
 
+    Lemma NTau_neq_stay [n m a] [N0 N1] :
+      (N0 =(NTau n a)=> N1) ->
+      n <> m ->
+      NetMod.get m N0 = NetMod.get m N1.
+    Proof.
+      intros.
+      eapply act_particip_stay with (a:=NTau n a); attac.
+    Qed.
+
   End General.
 
-  #[export] Hint Resolve NComm_neq_stay : LTS.
+  #[export] Hint Resolve NComm_neq_stay NTau_neq_stay : LTS.
 
   #[export] Hint Constructors NAct NVTrans NTrans Path_of : LTS.
   #[export] Hint Resolve NComm_eq NComm_neq : LTS.
-  #[export] Hint Resolve path_of_exists : LTS.
-  #[export] Hint Immediate act_particip_stay path_particip_stay : LTS.
+
+  #[export] Hint Immediate act_particip_stay path_particip_stay : LTS_net.
+
   #[export] Hint Unfold trans_net : LTS.
 
   #[export] Hint Resolve trans_preserve_ia_neq : inv LTS.
@@ -770,45 +797,35 @@ Module Type NET_F(Import NetParams : NET_PARAMS).
   #[export] Hint Rewrite -> @NTrans_Comm_eq_inv @NTrans_Comm_neq_inv @NTrans_Tau_inv using spank : LTS.
   #[export] Hint Rewrite -> @Path_of_nil_inv @Path_of_tau_inv @Path_of_tau_skip_inv @Path_of_comm_send_inv @Path_of_comm_recv_inv @Path_of_comm_skip_inv @Path_of_comm_self_inv using spank : LTS LTS_concl.
 
-  #[global] Notation "N0 ~( n @ a )~> N1" := (NVTrans n a N0 N1) (at level 70): type_scope.
+  Notation "N0 ~( n @ a )~> N1" := (NVTrans n a N0 N1) (at level 70): type_scope.
 
 
-    Lemma net_ind_of (n : Name) : forall [Node Act : Set] {gen_Act_Act : gen_Act Act} {LTS_node : LTS Act Node}
-                                         (P : NAct (Act:=Act) -> NetMod.t Node -> NetMod.t Node -> Prop),
+  Lemma net_ind_of (n : Name) : forall [Node Act : Set] {gen_Act_Act : gen_Act Act} {LTS_node : LTS Act Node}
+                                  (P : NAct (Act:=Act) -> NetMod.t Node -> NetMod.t Node -> Prop),
 
-        (forall (N0 N1 : NetMod.t Node) a, ia a -> @trans Act Node LTS_node a (NetMod.get n N0) (NetMod.get n N1) -> P (NTau n a) N0 N1) ->
-        (forall (N0 N1 : NetMod.t Node) a m, m <> n -> ia a -> (NetMod.get n N0 = NetMod.get n N1) -> P (NTau m a) N0 N1) ->
-        (forall (N0 N1 : NetMod.t Node) t v S0, @trans Act Node LTS_node (send (n, t) v) (NetMod.get n N0) S0 -> @trans Act Node LTS_node (recv (n, t) v) S0 (NetMod.get n N1) -> P (NComm n n t v) N0 N1) ->
-        (forall (N0 N1 : NetMod.t Node) t v m, m <> n -> @trans Act Node LTS_node (send (m, t) v) (NetMod.get n N0) (NetMod.get n N1) -> P (NComm n m t v) N0 N1) ->
-        (forall (N0 N1 : NetMod.t Node) t v m, m <> n -> @trans Act Node LTS_node (recv (m, t) v) (NetMod.get n N0) (NetMod.get n N1) -> P (NComm m n t v) N0 N1) ->
-        (forall (N0 N1 : NetMod.t Node) t v m0 m1, m0 <> n -> m1 <> n -> (NetMod.get n N0 = NetMod.get n N1) -> P (NComm m0 m1 t v) N0 N1) ->
-        (forall (a : NAct(Act:=Act)) (N0 N1 : NetMod.t Node), NTrans a N0 N1 -> P a N0 N1).
+      (forall (N0 N1 : NetMod.t Node) a, ia a -> @trans Act Node LTS_node a (NetMod.get n N0) (NetMod.get n N1) -> P (NTau n a) N0 N1) ->
+      (forall (N0 N1 : NetMod.t Node) a m, m <> n -> ia a -> (NetMod.get n N0 = NetMod.get n N1) -> P (NTau m a) N0 N1) ->
+      (forall (N0 N1 : NetMod.t Node) t v S0, @trans Act Node LTS_node (send (n, t) v) (NetMod.get n N0) S0 -> @trans Act Node LTS_node (recv (n, t) v) S0 (NetMod.get n N1) -> P (NComm n n t v) N0 N1) ->
+      (forall (N0 N1 : NetMod.t Node) t v m, m <> n -> @trans Act Node LTS_node (send (m, t) v) (NetMod.get n N0) (NetMod.get n N1) -> P (NComm n m t v) N0 N1) ->
+      (forall (N0 N1 : NetMod.t Node) t v m, m <> n -> @trans Act Node LTS_node (recv (m, t) v) (NetMod.get n N0) (NetMod.get n N1) -> P (NComm m n t v) N0 N1) ->
+      (forall (N0 N1 : NetMod.t Node) t v m0 m1, m0 <> n -> m1 <> n -> (NetMod.get n N0 = NetMod.get n N1) -> P (NComm m0 m1 t v) N0 N1) ->
+      (forall (a : NAct(Act:=Act)) (N0 N1 : NetMod.t Node), NTrans a N0 N1 -> P a N0 N1).
 
-    Proof.
-        intros.
-        repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh N0 N1) end).
+  Proof.
+    intros.
+    repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh N0 N1) end).
 
-        consider (_ =(_)=> _); compat_hsimpl in *.
-        - repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh a0) end).
-          smash_eq n n0.
-          + eapply H; hsimpl; auto.
-          + eapply H0; hsimpl; auto.
-        - repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh &t &v) end).
-          smash_eq n n0; try (smash_eq n n').
-          + eapply H1; compat_hsimpl in *; eauto.
-          + eapply H2; compat_hsimpl; eauto.
-          + eapply H3; compat_hsimpl in *; eauto.
-          + eapply H4; compat_hsimpl; eauto.
-      Qed.
-
-
+    consider (_ =(_)=> _); compat_hsimpl in *.
+    - repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh a0) end).
+      smash_eq n n0; attac.
+    - repeat (match! goal with [h : _ |- _] => let hh := hyp h in specialize ($hh &t &v) end).
+      smash_eq n n0; try (smash_eq n n'); attac.
+  Qed.
 End NET_F.
 
+Module Type NET(Conf : NET_CONF) := Conf <+ NET_PARAMS <+ NET_F.
 
-Module Type NET := NET_PARAMS <+ NET_F.
-
-
-Module NetTactics(Import Net : NET).
+Module NetTactics(Conf : NET_CONF)(Import Net : NET(Conf)).
   Ltac2 hsimpl_net_ (h : ident option) :=
     repeat (Control.enter (fun _ =>
                              match!goal with

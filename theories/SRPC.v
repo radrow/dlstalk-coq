@@ -36,16 +36,13 @@ Import ListNotations.
 Import BoolNotations.
 
 
-Module Type PROC_DATA_LOCKS := PROC_DATA with
-                               Module TAG := Tag.
+Module Type SRPC_CONF := LOCKS_CONF.
 
-Module Type PROC_NET_PARAMS <: NET_PARAMS := PROC_DATA_LOCKS <+ NET_PARAMS_F.
-Module Type PROC_NET := PROC_NET_PARAMS <+ QUE <+ PROC <+ NET_F.
+Module Type SRPC_PARAMS(Conf : SRPC_CONF).
+  Declare Module Export Locks : LOCKS(Conf).
+End SRPC_PARAMS.
 
-Module Type SRPC_PARAMS := PROC_NET <+ LOCKS.
-
-Module SRPC_DEFS(Import Params : SRPC_PARAMS).
-
+Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   (** SRPC process handling a request from the client [c] *)
     Inductive SRPC_Handle_State (c : Name) :=
     | HWork : SRPC_Handle_State c
@@ -136,6 +133,64 @@ Module SRPC_DEFS(Import Params : SRPC_PARAMS).
     Definition AnySRPC P := exists s, SRPC s P.
 
     #[export] Hint Transparent SRPC_pq AnySRPC AnySRPC_pq : LTS.
+
+    (* TODO this :) *)
+    Lemma srpc_inv
+      : forall (srpc : SRPC_State) (P0 : Proc) (P : Prop),
+
+        (forall (h : NChan -> option (Val -> Proc))
+           (hq : Name -> Val -> Proc),
+            (forall c, match h (c, Q) with
+                  | None => False
+                  | Some cont => forall v, cont v = hq c v
+                  end
+            ) ->
+            (forall c v, SRPC (Work c) (hq c v)) ->
+            (forall c, h (c, R) = None) ->
+            P0 = PRecv h ->
+            srpc = Free ->
+            P
+        ) ->
+
+        (forall (P1 : Proc) c,
+            SRPC (Work c) P1 ->
+            PTau P1 = P0 ->
+            srpc = Work c ->
+            P
+        ) ->
+
+        (forall (P1 : Proc) c s v,
+            SRPC (Lock c s) P1 ->
+            P0 = PSend (s, Q) v P1 ->
+            srpc = Work c ->
+            P
+        ) ->
+
+        (forall (P1 : Proc) c v,
+           SRPC Free P1 ->
+           P0 = PSend (c, R) v P1 ->
+           srpc = Work c ->
+           P
+        ) ->
+
+        (forall (c s : Name)
+           (h : NChan -> option (Val -> Proc))
+           (hr : Name -> Val -> Proc),
+            (match h (s, R) with
+             | None => False
+             | Some cont => forall v, cont v = hr s v
+             end
+            ) ->
+            (forall v, SRPC (Work c) (hr s v)) ->
+            (forall n t, n <> s -> h (n, t) = None) ->
+            (forall n, h (n, Q) = None) ->
+            P0 = PRecv h ->
+            srpc = Free ->
+            P
+        ) ->
+
+        SRPC srpc P0 -> P.
+    Abort.
 
 
     Ltac2 rec destruct_SRPC (hs : ident) (htr : ident option) :=
@@ -290,11 +345,8 @@ Module SRPC_DEFS(Import Params : SRPC_PARAMS).
       Control.enter (fun () => destruct_SRPC hs ht).
 End SRPC_DEFS.
 
-
-Module Type SRPC(Import Params : SRPC_PARAMS).
-  Module Import SrpcDefs := SRPC_DEFS(Params).
-  Export SrpcDefs.
-  Export Locks.
+Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
+  Module Import SrpcDefs := SRPC_DEFS(Conf)(Params).
 
   (* This is to prevent stupid unfolding, but preserve inference from SRPC *)
   Lemma SRPC_SRPC_pq : forall [s S I P O], S = pq I P O -> SRPC s P <-> SRPC_pq s S.
@@ -306,970 +358,992 @@ Module Type SRPC(Import Params : SRPC_PARAMS).
   Lemma SRPC_AnySRPC : forall [s P], SRPC s P -> AnySRPC P.
   Proof. unfold AnySRPC. eauto. Qed.
 
-    Lemma SRPC_pq_AnySRPC_pq : forall [s P], SRPC_pq s P -> AnySRPC_pq P.
-    Proof. unfold AnySRPC_pq. eauto. Qed.
+  Lemma SRPC_pq_AnySRPC_pq : forall [s P], SRPC_pq s P -> AnySRPC_pq P.
+  Proof. unfold AnySRPC_pq. eauto. Qed.
 
 
-    #[export] Hint Immediate SRPC_SRPC_pq AnySRPC_AnySRPC_pq : LTS.
-    #[export] Hint Resolve -> SRPC_SRPC_pq AnySRPC_AnySRPC_pq 10 : LTS.
-    #[export] Hint Rewrite <- SRPC_SRPC_pq AnySRPC_AnySRPC_pq using spank : LTS.
+  #[export] Hint Immediate SRPC_SRPC_pq AnySRPC_AnySRPC_pq : LTS.
+  #[export] Hint Resolve -> SRPC_SRPC_pq AnySRPC_AnySRPC_pq 10 : LTS.
+  #[export] Hint Rewrite <- SRPC_SRPC_pq AnySRPC_AnySRPC_pq using spank : LTS.
 
-    #[export] Hint Resolve SRPC_AnySRPC SRPC_pq_AnySRPC_pq : LTS.
+  #[export] Hint Resolve SRPC_AnySRPC SRPC_pq_AnySRPC_pq : LTS.
 
-    (** SRPC is preserved for processes *)
-    Lemma trans_invariant_AnySRPC : trans_invariant AnySRPC always.
+  (** SRPC is preserved for processes *)
+  Lemma trans_invariant_AnySRPC : trans_invariant AnySRPC always.
 
-    Proof with eattac.
-      intros N0 N1 a T Hsrpc _.
-      destruct Hsrpc as [srpc Hsrpc].
-      destruct SRPC Hsrpc T...
-      Qed.
+  Proof with eattac.
+    intros N0 N1 a T Hsrpc _.
+    destruct Hsrpc as [srpc Hsrpc].
+    destruct SRPC Hsrpc T...
+  Qed.
 
-    #[export] Hint Resolve trans_invariant_AnySRPC : inv.
-    #[export] Hint Extern 10 (AnySRPC _) => solve_invariant : LTS.
-
-
-    (** SRPC is preserved for services *)
-    Lemma trans_invariant_AnySRPC_pq : trans_invariant AnySRPC_pq always.
-
-    Proof.
-      intros N0 N1 a T Hsrpc _.
-      kill T; auto.
-      all: destruct SRPC Hsrpc H; eattac.
-    Qed.
-
-    #[export] Hint Resolve trans_invariant_AnySRPC_pq : inv.
-    #[export] Hint Extern 10 (AnySRPC_pq _) => solve_invariant : LTS.
+  #[export] Hint Resolve trans_invariant_AnySRPC : inv.
+  #[export] Hint Extern 10 (AnySRPC _) => solve_invariant : LTS.
 
 
-    Lemma SRPC_recv_Q [P0 P1] [c v] :
-      (P0 =(Recv (c, Q) v)=> P1) ->
-      AnySRPC P0 ->
-      SRPC Free P0 /\ SRPC (Work c) P1.
+  (** SRPC is preserved for services *)
+  Lemma trans_invariant_AnySRPC_pq : trans_invariant AnySRPC_pq always.
 
-    Proof.
-      intros T Hsrpc.
+  Proof.
+    intros N0 N1 a T Hsrpc _.
+    kill T; auto.
+    all: destruct SRPC Hsrpc H; eattac.
+  Qed.
 
-      destruct Hsrpc as [srpc Hsrpc].
-      remember Hsrpc as Hsrpc'.
-      destruct SRPC Hsrpc T; attac.
-    Qed.
-
-
-    Lemma SRPC_recv_R [P0 P1] [s v] :
-      (P0 =(Recv (s, R) v)=> P1) ->
-      AnySRPC P0 ->
-      exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1.
-    Proof.
-      intros T Hsrpc.
-
-      destruct Hsrpc as [srpc Hsrpc].
-      remember Hsrpc as Hsrpc'.
-      destruct SRPC Hsrpc T; eattac.
-    Qed.
+  #[export] Hint Resolve trans_invariant_AnySRPC_pq : inv.
+  #[export] Hint Extern 10 (AnySRPC_pq _) => solve_invariant : LTS.
 
 
-    Lemma SRPC_recv_R' [P0 P1] [c s v] :
-      (P0 =(Recv (s, R) v)=> P1) ->
-      SRPC (Lock c s) P0 -> SRPC (Work c) P1.
-    Proof.
-      intros T Hsrpc.
-      destruct SRPC Hsrpc T; eattac.
-    Qed.
+  Lemma SRPC_recv_Q [P0 P1] [c v] :
+    (P0 =(Recv (c, Q) v)=> P1) ->
+    AnySRPC P0 ->
+    SRPC Free P0 /\ SRPC (Work c) P1.
+
+  Proof.
+    intros T Hsrpc.
+
+    destruct Hsrpc as [srpc Hsrpc].
+    remember Hsrpc as Hsrpc'.
+    destruct SRPC Hsrpc T; attac.
+  Qed.
 
 
-    Lemma SRPC_send_Q [P0 P1] [s v] :
-      (P0 =(Send (s, Q) v)=> P1) ->
-      AnySRPC P0 ->
-      exists c, (SRPC (Work c) P0 /\ SRPC (Lock c s) P1).
+  Lemma SRPC_recv_R [P0 P1] [s v] :
+    (P0 =(Recv (s, R) v)=> P1) ->
+    AnySRPC P0 ->
+    exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1.
+  Proof.
+    intros T Hsrpc.
 
-    Proof.
-      intros T Hsrpc.
-
-      destruct Hsrpc as [srpc Hsrpc].
-      remember Hsrpc as Hsrpc'.
-      destruct SRPC Hsrpc T; attac.
-    Qed.
-
-
-    Lemma SRPC_send_Q' [P0 P1] [c s v] :
-      (P0 =(Send (s, Q) v)=> P1) ->
-      SRPC (Work c) P0 ->
-      SRPC (Lock c s) P1.
-
-    Proof.
-      intros T Hsrpc.
-      destruct SRPC Hsrpc T; eattac.
-    Qed.
+    destruct Hsrpc as [srpc Hsrpc].
+    remember Hsrpc as Hsrpc'.
+    destruct SRPC Hsrpc T; eattac.
+  Qed.
 
 
-    Lemma SRPC_send_R [P0 P1] [c v] :
-      (P0 =(Send (c, R) v)=> P1) ->
-      AnySRPC P0 ->
-      SRPC (Work c) P0 /\ SRPC Free P1.
-
-    Proof.
-      intros T Hsrpc.
-
-      destruct Hsrpc as [srpc Hsrpc].
-      remember Hsrpc as Hsrpc'.
-      destruct SRPC Hsrpc T; doubt.
-      assert (c0 = c) by eauto; subst.
-      eattac.
-    Qed.
+  Lemma SRPC_recv_R' [P0 P1] [c s v] :
+    (P0 =(Recv (s, R) v)=> P1) ->
+    SRPC (Lock c s) P0 -> SRPC (Work c) P1.
+  Proof.
+    intros T Hsrpc.
+    destruct SRPC Hsrpc T; eattac.
+  Qed.
 
 
-    Lemma SRPC_tau [P0 P1] :
-      (P0 =(Tau)=> P1) ->
-      AnySRPC P0 ->
-      exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1.
+  Lemma SRPC_send_Q [P0 P1] [s v] :
+    (P0 =(Send (s, Q) v)=> P1) ->
+    AnySRPC P0 ->
+    exists c, (SRPC (Work c) P0 /\ SRPC (Lock c s) P1).
 
-    Proof.
-      intros T Hsrpc.
+  Proof.
+    intros T Hsrpc.
 
-      destruct Hsrpc as [srpc Hsrpc].
-      remember Hsrpc as Hsrpc'.
-      destruct SRPC Hsrpc T; eattac.
-    Qed.
-
-
-    Lemma SRPC_tau' [P0 P1 c] :
-      (P0 =(Tau)=> P1) ->
-      SRPC (Work c) P0 ->
-      SRPC (Work c) P1.
-
-    Proof.
-      intros T Hsrpc.
-      destruct SRPC Hsrpc T; eattac.
-    Qed.
+    destruct Hsrpc as [srpc Hsrpc].
+    remember Hsrpc as Hsrpc'.
+    destruct SRPC Hsrpc T; attac.
+  Qed.
 
 
-    Lemma AnySRPC_PTau_inv P :
-      AnySRPC (PTau P) <-> exists c, SRPC (Work c) (PTau P).
+  Lemma SRPC_send_Q' [P0 P1] [c s v] :
+    (P0 =(Send (s, Q) v)=> P1) ->
+    SRPC (Work c) P0 ->
+    SRPC (Lock c s) P1.
 
-    Proof.
-      split; intros.
-      - kill H.
-        assert (PTau P =(Tau)=> P ) as T by attac.
-        kill H0.
-        1: apply HQueryOnly in T; eattac.
-        exists c.
-        have (SRPC_Handling srpc (PTau P)).
-        kill HBusy.
-        1: constructor; attac.
-        apply HReplyOnly in T; attac.
-      - eattac.
-    Qed.
+  Proof.
+    intros T Hsrpc.
+    destruct SRPC Hsrpc T; eattac.
+  Qed.
 
 
-    Lemma AnySRPC_PSend_inv n v P :
-      AnySRPC (PSend n v P) <-> exists c, SRPC (Work c) (PSend n v P).
+  Lemma SRPC_send_R [P0 P1] [c v] :
+    (P0 =(Send (c, R) v)=> P1) ->
+    AnySRPC P0 ->
+    SRPC (Work c) P0 /\ SRPC Free P1.
 
-    Proof.
-      split; intros.
-      - kill H.
-        assert (PSend n v P =(Send n v)=> P ) as T by attac.
-        kill H0.
-        1: apply HQueryOnly in T; eattac.
-        exists c.
-        have (SRPC_Handling srpc (PSend n v P)).
-        kill HBusy.
-        1: constructor; attac.
-        apply HReplyOnly in T; attac.
-      - eattac.
-    Qed.
+  Proof.
+    intros T Hsrpc.
+
+    destruct Hsrpc as [srpc Hsrpc].
+    remember Hsrpc as Hsrpc'.
+    destruct SRPC Hsrpc T; doubt.
+    assert (c0 = c) by eauto; subst.
+    eattac.
+  Qed.
 
 
-    Lemma SRPC_Handling_work_act [P0 : Proc] [c] :
-      SRPC_Handling (HWork c) P0 ->
-      exists P1, (exists v, P0 =(Send (c, R) v)=> P1) \/ (P0 =(Tau)=> P1) \/ (exists s v, P0 =(Send (s, Q) v)=> P1).
+  Lemma SRPC_tau [P0 P1] :
+    (P0 =(Tau)=> P1) ->
+    AnySRPC P0 ->
+    exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1.
 
-    Proof.
-      intros Hsrpc.
-      destruct P0; destruct SRPC Hsrpc; ssubst; subst. (* TODO wtf this double subst *)
-      - exists P0.
-        destruct n as [n [|]].
-        + right.
-          right.
-          exists n, v.
-          constructor.
-        + left.
-          exists v.
-          erewrite HSendR.
-          constructor.
-          constructor.
-      - exists P0.
+  Proof.
+    intros T Hsrpc.
+
+    destruct Hsrpc as [srpc Hsrpc].
+    remember Hsrpc as Hsrpc'.
+    destruct SRPC Hsrpc T; eattac.
+  Qed.
+
+
+  Lemma SRPC_tau' [P0 P1 c] :
+    (P0 =(Tau)=> P1) ->
+    SRPC (Work c) P0 ->
+    SRPC (Work c) P1.
+
+  Proof.
+    intros T Hsrpc.
+    destruct SRPC Hsrpc T; eattac.
+  Qed.
+
+
+  Lemma AnySRPC_PTau_inv P :
+    AnySRPC (PTau P) <-> exists c, SRPC (Work c) (PTau P).
+
+  Proof.
+    split; intros.
+    - kill H.
+      assert (PTau P =(Tau)=> P ) as T by attac.
+      kill H0.
+      1: apply HQueryOnly in T; eattac.
+      exists c.
+      have (SRPC_Handling srpc (PTau P)).
+      kill HBusy.
+      1: constructor; attac.
+      apply HReplyOnly in T; attac.
+    - eattac.
+  Qed.
+
+
+  Lemma AnySRPC_PSend_inv n v P :
+    AnySRPC (PSend n v P) <-> exists c, SRPC (Work c) (PSend n v P).
+
+  Proof.
+    split; intros.
+    - kill H.
+      assert (PSend n v P =(Send n v)=> P ) as T by attac.
+      kill H0.
+      1: apply HQueryOnly in T; eattac.
+      exists c.
+      have (SRPC_Handling srpc (PSend n v P)).
+      kill HBusy.
+      1: constructor; attac.
+      apply HReplyOnly in T; attac.
+    - eattac.
+  Qed.
+
+
+  Lemma SRPC_Handling_work_act [P0 : Proc] [c] :
+    SRPC_Handling (HWork c) P0 ->
+    exists P1, (exists v, P0 =(Send (c, R) v)=> P1) \/ (P0 =(Tau)=> P1) \/ (exists s v, P0 =(Send (s, Q) v)=> P1).
+
+  Proof.
+    intros Hsrpc.
+    destruct P0; destruct SRPC Hsrpc; ssubst; subst. (* TODO wtf this double subst *)
+    - exists P0.
+      destruct n as [n [|]].
+      + right.
         right.
-        left.
+        exists n, v.
         constructor.
-    Qed.
+      + left.
+        exists v.
+        erewrite HSendR.
+        constructor.
+        constructor.
+    - exists P0.
+      right.
+      left.
+      constructor.
+  Qed.
 
 
-    Lemma SRPC_busy_reply [P0 P1 P2 path] [c c' v] [s : SRPC_Handle_State c] :
-      SRPC (Busy s) P0 ->
-      (P0 =[path]=> P1) ->
-      (P1 =(Send (c', R) v)=> P2) ->
-      Forall (fun a => match a with
-                    | Send (_, t) _ => t = Q
-                    | _ => True
-                    end
+  Lemma SRPC_busy_reply [P0 P1 P2 path] [c c' v] [s : SRPC_Handle_State c] :
+    SRPC (Busy s) P0 ->
+    (P0 =[path]=> P1) ->
+    (P1 =(Send (c', R) v)=> P2) ->
+    Forall (fun a => match a with
+                     | Send (_, t) _ => t = Q
+                     | _ => True
+                     end
 
-        ) path ->
-      c = c'.
+      ) path ->
+    c = c'.
 
-    Proof.
-      intros Hsrpc T0 T1 HF.
-      generalize dependent P0 c c' v.
-      induction path; intros.
-      {
-        kill T0.
-        destruct SRPC Hsrpc T1; eattac.
-      }
-
+  Proof.
+    intros Hsrpc T0 T1 HF.
+    generalize dependent P0 c c' v.
+    induction path; intros.
+    {
       kill T0.
+      destruct SRPC Hsrpc T1; eattac.
+    }
 
-      destruct SRPC Hsrpc T2; eattac.
-    Qed.
+    kill T0.
+
+    destruct SRPC Hsrpc T2; eattac.
+  Qed.
 
 
-    Lemma SRPC_busy_reply_exists [P0] [c] [s : SRPC_Handle_State c] :
-      SRPC (Busy s) P0 ->
-      exists path P1 P2 v,
+  Lemma SRPC_busy_reply_exists [P0] [c] [s : SRPC_Handle_State c] :
+    SRPC (Busy s) P0 ->
+    exists path P1 P2 v,
       (P0 =[path]=> P1)
       /\ (P1 =(Send (c, R) v)=> P2)
       /\ Forall (fun a => match a with
-                    | Send (_, t) _ => t = Q
-                    | _ => True
-                      end) path.
+                          | Send (_, t) _ => t = Q
+                          | _ => True
+                          end) path.
 
-    Proof with eattac.
-      intros Hsrpc.
-      assert (forall a P', P0 =(a)=> P' -> AnySRPC P') as HPres by eattac.
+  Proof with eattac.
+    intros Hsrpc.
+    assert (forall a P', P0 =(a)=> P' -> AnySRPC P') as HPres by eattac.
 
+    kill Hsrpc.
+    ltac1:(dependent destruction H0).
+
+    ltac1:(dependent induction HBusy); intros.
+    - assert (SRPC_Handling (HWork c) P0) as Hsrpc by (constructor; eattac).
+      specialize (SRPC_Handling_work_act Hsrpc) as [P1 [[v T]|[T|[s [v T]]]]].
+      + exists [], P0, P1, v...
+      + specialize (H0 P1 T).
+        specialize (HTau0 _ T).
+        specialize (HTau _ T).
+        kill HTau0.
+        destruct H0  as (path & P2 & P3 & v & T1 & T2 & HF); eauto with LTS.
+        exists (Tau :: path), P2, P3, v; eauto with LTS.
+      + specialize (H s v P1 T).
+        specialize (HQuery _ _ _ T).
+        specialize (HQuery0 _ _ _ T).
+        kill HQuery0.
+        destruct H as (path & P2 & P3 & v' & T1 & T2 & HF); eauto with LTS.
+        exists (Send (s, Q) v :: path), P2, P3, v'.
+        eattac.
+
+    - specialize (HReplyAll some_val) as [P1 T].
+      have (AnySRPC P1).
+      specialize (H _ _ T).
+      specialize (HRecvR _ _ T).
+      kill HRecvR.
+      specialize (HPres _ _ T).
+      destruct HPres as [srpc Hsrpc].
+      specialize (HRecv _ _ _ T).
       kill Hsrpc.
+      {
+        enough (exists a P2, P1 =(a)=> P2) as (a & P2 & T').
+        {
+          specialize (HQueryOnly _ _ T') as (c' & v' & HEq & _).
+          kill HRecv.
+          kill HBusy.
+          - kill T'.
+          - specialize (HReplyOnly0 _ _ T') as (v'' & HEq).
+            kill HEq.
+        }
+
+        kill T.
+        unshelve attac.
+        apply some_val.
+      }
+
+      kill HRecv.
+      destruct H as (path & P2 & P3 & v & T1 & T2 & HF); intros; eauto 10 with LTS.
+      attac.
+  Qed.
+
+
+  Lemma SRPC_work_inv [P : Proc] [c0 c1] [s0 : SRPC_Handle_State c0] [s1 : SRPC_Handle_State c1] :
+    SRPC (Busy s0) P ->
+    SRPC (Busy s1) P ->
+    c0 = c1.
+
+  Proof.
+    intros Hsrpc0 Hsrpc1.
+    specialize (SRPC_busy_reply_exists Hsrpc0) as (path & P2 & P3 & v & T1 & T2 & HF).
+    specialize (SRPC_busy_reply Hsrpc1 T1 T2 HF) as HEq'.
+    eauto.
+  Qed.
+
+  #[export] Hint Immediate SRPC_work_inv : LTS.
+
+
+  Lemma SRPC_pq_work_inv [S : PQued] [c0 c1] [s0 : SRPC_Handle_State c0] [s1 : SRPC_Handle_State c1] :
+    SRPC_pq (Busy s0) S ->
+    SRPC_pq (Busy s1) S ->
+    c0 = c1.
+  Proof. destruct S; attac. Qed.
+
+  #[export] Hint Immediate SRPC_pq_work_inv : LTS.
+
+
+  Lemma SRPC_inv [P srpc0 srpc1] :
+    SRPC srpc0 P ->
+    SRPC srpc1 P ->
+    srpc0 = srpc1.
+
+  Proof.
+    intros Hsrpc0 Hsrpc1.
+    kill Hsrpc0.
+    - specialize (HQueryAll some_name some_val) as [P1 T].
+      kill Hsrpc1; auto.
+      kill HBusy.
+      + kill T.
+      + specialize (HReplyOnly _ _ T) as [v HEq].
+        bullshit.
+    - kill Hsrpc1.
+      + specialize (HQueryAll some_name some_val) as [P1 T].
+        kill HBusy.
+        1: kill T.
+        apply HReplyOnly in T.
+        destruct T.
+        bullshit.
+
+      + assert (c = c0).
+        {
+          eapply SRPC_work_inv; constructor; eattac.
+        }
+        subst.
+        enough (srpc = srpc0) by (subst; auto).
+        kill HBusy; kill HBusy0; eauto.
+        * specialize (HReplyAll some_val) as [P1 T].
+          kill T.
+        * specialize (HReplyAll some_val) as [P1 T].
+          kill T.
+        * specialize (HReplyAll some_val) as [P1 T].
+          apply HReplyOnly0 in T as [v E].
+          kill E.
+  Qed.
+
+  #[export] Hint Immediate SRPC_inv : LTS.
+
+
+  Lemma SRPC_pq_inv [S srpc0 srpc1] :
+    SRPC_pq srpc0 S ->
+    SRPC_pq srpc1 S ->
+    srpc0 = srpc1.
+
+  Proof. destruct S; attac. Qed.
+
+  #[export] Hint Immediate SRPC_pq_inv : LTS.
+
+
+  Lemma SRPC_inv_tau_l [P0 P1] :
+    AnySRPC P0 ->
+    (P0 =(Tau)=> P1) ->
+    exists c, SRPC (Work c) P0.
+  Proof.
+    intros.
+    consider (exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1) by (eapply SRPC_tau; eattac).
+    attac.
+  Qed.
+
+  Lemma SRPC_inv_tau_r [P0 P1] :
+    AnySRPC P0 ->
+    (P0 =(Tau)=> P1) ->
+    exists c, SRPC (Work c) P1.
+  Proof.
+    intros.
+    consider (exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1) by (eapply SRPC_tau; eattac).
+    attac.
+  Qed.
+
+  Lemma SRPC_inv_send_R_l [P0 c v P1] :
+    AnySRPC P0 ->
+    (P0 =(Send (c, R) v)=> P1) ->
+    SRPC (Work c) P0.
+  Proof. intros. assert (SRPC (Work c) P0 /\ SRPC Free P1) by eauto using SRPC_send_R. attac. Qed.
+
+  Lemma SRPC_inv_send_R_r [P0 c v P1] :
+    AnySRPC P0 ->
+    (P0 =(Send (c, R) v)=> P1) ->
+    SRPC Free P1.
+  Proof. intros. assert (SRPC (Work c) P0 /\ SRPC Free P1) by eauto using SRPC_send_R. attac. Qed.
+
+  Lemma SRPC_inv_send_Q_l [P0 s v P1] :
+    AnySRPC P0 ->
+    (P0 =(Send (s, Q) v)=> P1) ->
+    exists c, SRPC (Work c) P0.
+  Proof. intros. consider (exists c, SRPC (Work c) P0 /\ SRPC (Lock c s) P1) by eauto using SRPC_send_Q. attac. Qed.
+
+  Lemma SRPC_inv_send_Q_r [P0 s v P1] :
+    AnySRPC P0 ->
+    (P0 =(Send (s, Q) v)=> P1) ->
+    exists c, SRPC (Lock c s) P1.
+  Proof. intros. consider (exists c, SRPC (Work c) P0 /\ SRPC (Lock c s) P1) by eauto using SRPC_send_Q. attac. Qed.
+
+  Lemma SRPC_inv_recv_Q_l [P0 P1] [c v] :
+    (P0 =(Recv (c, Q) v)=> P1) ->
+    AnySRPC P0 ->
+    SRPC Free P0.
+  Proof. intros. assert (SRPC Free P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_Q. attac. Qed.
+
+  Lemma SRPC_inv_recv_Q_r [P0 P1] [c v] :
+    (P0 =(Recv (c, Q) v)=> P1) ->
+    AnySRPC P0 ->
+    SRPC (Work c) P1.
+  Proof. intros. assert (SRPC Free P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_Q. attac. Qed.
+
+  Lemma SRPC_inv_recv_R_l [P0 P1] [s v] :
+    (P0 =(Recv (s, R) v)=> P1) ->
+    AnySRPC P0 ->
+    exists c, SRPC (Lock c s) P0.
+  Proof. intros. consider (exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_R. attac. Qed.
+
+  Lemma SRPC_inv_recv_R_r [P0 P1] [s v] :
+    (P0 =(Recv (s, R) v)=> P1) ->
+    AnySRPC P0 ->
+    exists c, SRPC (Work c) P1.
+  Proof. intros. consider (exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_R. attac. Qed.
+
+  #[export] Hint Resolve
+    SRPC_inv_tau_l
+    SRPC_inv_tau_r
+    SRPC_inv_send_R_l
+    SRPC_inv_send_R_r
+    SRPC_inv_send_Q_l
+    SRPC_inv_send_Q_r
+    SRPC_inv_recv_Q_l
+    SRPC_inv_recv_Q_r
+    SRPC_inv_recv_R_l
+    SRPC_inv_recv_R_r
+    : LTS.
+
+  Lemma SRPC_Free_recv_t_inv [P0 P1] [c t v] :
+    (P0 =(Recv (c, t) v)=> P1) ->
+    SRPC Free P0 ->
+    t = Q.
+  Proof. intros. consider (SRPC _ _). specialize (HQueryOnly (Recv (c, &t) v) P1) as [? ?]; eattac. Qed.
+  Lemma SRPC_Lock_recv_t_inv [P0 P1] [c s s' t v] :
+    (P0 =(Recv (s, t) v)=> P1) ->
+    SRPC (Lock c s') P0 ->
+    t = R.
+  Proof. intros. consider (SRPC _ _). kill HBusy. attac. specialize (HReplyOnly (Recv (s, &t) v) P1) as [? ?]; eattac. Qed.
+
+  #[export] Hint Rewrite -> SRPC_Free_recv_t_inv SRPC_Lock_recv_t_inv using spank : LTS.
+
+
+  Lemma SRPC_recv_Q_c_inv [P0 P1] [c c' t v] :
+    (P0 =(Recv (c, t) v)=> P1) ->
+    SRPC Free P0 ->
+    SRPC (Work c') P1 ->
+    c' = c.
+  Proof. intros. assert (AnySRPC P0) by eauto with LTS.
+         hsimpl in *; assert (SRPC (Work c) (cont v)); eattac.
+  Qed.
+  Lemma SRPC_recv_R_s_inv [P0 P1] [c s' s t' v] :
+    (P0 =(Recv (s', t') v)=> P1) ->
+    SRPC (Lock c s) P0 ->
+    s' = s.
+  Proof. intros. hsimpl in *.
+         enough (exists v', Recv (s', R) v = Recv (s, R) v') by eattac.
+         kill H0. kill HBusy. eattac. hsimpl in H2. eapply HReplyOnly. eattac.
+  Qed.
+  Lemma SRPC_recv_R_c_inv [P0 P1] [c c' s' s t v] :
+    (P0 =(Recv (s', t) v)=> P1) ->
+    SRPC (Lock c s) P0 ->
+    SRPC (Work c') P1 ->
+    c' = c.
+  Proof.
+    intros. enough (SRPC (Work c) P1) by eattac.
+    hsimpl in *. consider (SRPC _ (PRecv _)); eattac.
+  Qed.
+
+  #[export] Hint Rewrite -> SRPC_recv_Q_c_inv SRPC_recv_R_s_inv SRPC_recv_R_c_inv using spank : LTS.
+
+
+  Lemma SRPC_Work_PRecv_bs h c :
+    SRPC (Work c) (PRecv h) <-> False.
+  Proof. split; intros. consider (SRPC _ _). consider (SRPC_Handling _ _). bullshit.  contradiction. Qed.
+
+  Lemma SRPC_Free_PSend_bs n v P1 :
+    SRPC Free (PSend n v P1) <-> False.
+  Proof. split; intros. consider (SRPC _ _). destruct n. specialize (HQueryAll n v). eattac. contradiction. Qed.
+
+  Lemma SRPC_Free_PTau_bs P1 :
+    SRPC Free (PTau P1) <-> False.
+  Proof. split; intros. consider (SRPC _ _). specialize (HQueryAll some_name some_val). eattac. contradiction. Qed.
+
+  Lemma SRPC_Lock_PSend_bs n v P1 c s :
+    SRPC (Lock c s) (PSend n v P1) <-> False.
+  Proof. split; intros. consider (SRPC _ _). destruct n.  consider (SRPC_Handling _ _); doubt. specialize (HReplyAll v); attac. contradiction. Qed.
+
+  Lemma SRPC_Lock_PTau_bs P1 c s :
+    SRPC (Lock c s) (PTau P1) <-> False.
+  Proof. split; intros. consider (SRPC _ _). consider (SRPC_Handling _ _); doubt. specialize (HReplyAll some_val); attac. contradiction. Qed.
+
+  #[export] Hint Rewrite ->
+    SRPC_Work_PRecv_bs
+    SRPC_Free_PSend_bs
+    SRPC_Free_PTau_bs
+    SRPC_Lock_PSend_bs
+    SRPC_Lock_PTau_bs
+    using spank
+    : bullshit.
+
+  Lemma SRPC_Work_recv_bs P0 P1 n v c :
+    (P0 =(Recv n v)=> P1) ->
+    SRPC (Work c) P0 <->
+    False.
+  Proof. attac. Qed.
+
+  Lemma SRPC_Free_send_bs n v P1 :
+    SRPC Free (PSend n v P1) <-> False.
+  Proof. split; intros. consider (SRPC _ _). eattac. Qed.
+  Lemma SRPC_Free_tau_bs P1 :
+    SRPC Free (PTau P1) <-> False.
+  Proof. split; intros. consider (SRPC _ _). attac. Qed.
+  Lemma SRPC_Free_recv_R_None_bs h n :
+    h (n, R) <> None -> SRPC Free (PRecv h) <-> False.
+  Proof. split; intros. consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; doubt; specialize (HQueryOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. contradiction. Qed.
+  Lemma SRPC_Free_recv_R_Some_bs h n cont :
+    h (n, R) = Some cont -> SRPC Free (PRecv h) <-> False.
+  Proof. split; intros. consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; doubt; specialize (HQueryOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. contradiction. Qed.
+
+  Lemma SRPC_Lock_send_bs n v c s P1 :
+    SRPC (Lock c s) (PSend n v P1) <-> False.
+  Proof. split; intros. consider (SRPC _ _). destruct n. kill HBusy. specialize (HReply0 n v). eattac. destruct (HReplyAll v). attac. contradiction. Qed.
+  Lemma SRPC_Lock_tau_bs c s P1 :
+    SRPC (Lock c s) (PTau P1) <-> False.
+  Proof. split; intros. consider (SRPC _ _). kill HBusy. specialize (HReply0 some_name some_val). eattac. destruct (HReplyAll some_val). attac. contradiction. Qed.
+  Lemma SRPC_Lock_recv_Q_None_bs h n c s :
+    h (n, Q) <> None -> SRPC (Lock c s) (PRecv h) <-> False.
+  Proof. split; intros. consider (SRPC _ _). destruct (h (n, Q)) eqn:P1v; doubt; kill HBusy; doubt; specialize (HReplyOnly (Recv (n, Q) some_val) (p some_val)) as [? ?]; eattac. contradiction. Qed.
+  Lemma SRPC_Lock_recv_Q_Some_bs h n c s cont :
+    h (n, Q) = Some cont -> SRPC (Lock c s) (PRecv h) <-> False.
+  Proof. split; intros. consider (SRPC _ _). destruct (h (n, Q)) eqn:P1v; doubt; kill HBusy; doubt; specialize (HReplyOnly (Recv (n, Q) some_val) (p some_val)) as [? ?]; eattac. contradiction. Qed.
+  Lemma SRPC_Lock_recv_other_None_bs h n c s t :
+    h (n, t) <> None -> n <> s -> SRPC (Lock c s) (PRecv h) <-> False.
+  Proof. split; intros. destruct t. eapply SRPC_Lock_recv_Q_None_bs; eauto. apply H.
+         consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; doubt.
+         kill HBusy; doubt. specialize (HReplyOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. contradiction.
+  Qed.
+  Lemma SRPC_Lock_recv_other_Some_bs h n c s t cont :
+    h (n, t) = Some cont -> n <> s -> SRPC (Lock c s) (PRecv h) <-> False.
+  Proof. split; intros. destruct t. eapply SRPC_Lock_recv_Q_Some_bs; eauto.
+         destruct (h (n, R)) eqn:?;
+         consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; doubt.
+         kill HBusy; doubt. specialize (HReplyOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. hsimpl in *.
+         Set Printing All.
+         change Tag with Tag_ in *. (* TODO THIS SHOULD NOT BE *)
+         bullshit. bullshit.
+  Qed.
+
+  #[export] Hint Rewrite ->
+    SRPC_Work_recv_bs
+    SRPC_Free_send_bs
+    SRPC_Free_tau_bs
+    SRPC_Free_recv_R_None_bs
+    SRPC_Free_recv_R_Some_bs
+    SRPC_Lock_send_bs
+    SRPC_Lock_tau_bs
+    SRPC_Lock_recv_Q_None_bs
+    SRPC_Lock_recv_Q_Some_bs
+    SRPC_Lock_recv_other_None_bs
+    SRPC_Lock_recv_other_Some_bs
+    using spank
+    : bullshit.
+
+
+  (** SRPC process can be locked only on one thing *)
+  Lemma SRPC_one_lock [P : Proc] [L] :
+    AnySRPC P ->
+    proc_lock L P ->
+    length (nodup NAME.eq_dec L) = 1%nat.
+
+  Proof.
+    intros Hsrpc HL.
+
+    destruct SRPC Hsrpc.
+    - destruct P0; doubt.
+
+      specialize (HL some_name) as [[HNoQ HNoIn] HYesR].
+      specialize (HQueryAll some_name some_val) as [P1 T].
+      bullshit.
+
+    - destruct P; bullshit.
+    - destruct P; try (kill HL).
+
+      enough (Forall (eq s) L) as HAll.
+      {
+        eapply all_same_nodup_one in HAll as [HEq | HEq]; rewrite HEq in *; auto.
+
+        specialize (HL s) as [[_ HYesR] _].
+        hsimpl in *.
+        exfalso.
+        apply HYesR.
+        bullshit.
+      }
+
+      apply (Forall_forall (eq s) L).
+      intros.
+
+      destruct (handle (x, R)) eqn:Hx.
+      + specialize (HReplyOnly (Recv (x, R) some_val) (p some_val)) as [v' HEq]; ssubst; attac.
+      + specialize (HL x) as [[HL _] _].
+        bullshit.
+  Qed.
+
+
+  (** SRPC service can be locked only on one thing *)
+  Lemma SRPC_pq_one_lock [S : PQued] [L] :
+    AnySRPC_pq S ->
+    pq_lock L S ->
+    length (nodup NAME.eq_dec L) = 1%nat.
+
+  Proof.
+    intros Hsrpc HL.
+
+    destruct Hsrpc as [srpc Hsrpc].
+    destruct S as [I P O].
+    apply (@SRPC_one_lock P); eauto with LTS.
+  Qed.
+
+
+  (** If SRPC process is locked, then it is known on who *)
+  Lemma SRPC_get_lock [P : Proc] [L] :
+    AnySRPC P ->
+    proc_lock L P ->
+    exists n, proc_lock [n] P.
+
+  Proof.
+    intros Hsrpc HL.
+
+    pose (SRPC_one_lock Hsrpc HL) as Hlen.
+    pose (NoDup_nodup NAME.eq_dec L) as HNodup.
+
+    consider (exists n : Name, nodup NAME.eq_dec L = [n]) by eauto using nodup_one.
+    exists n.
+    rewrite <- `(_ = [n]).
+
+    apply (proc_lock_equiv_inv HL).
+    - apply nodup_incl; auto with datatypes.
+    - unfold incl.
+      intros.
+      apply (nodup_In NAME.eq_dec); auto.
+  Qed.
+
+
+  (** If SRPC service is locked, then it is known on who *)
+  Lemma SRPC_pq_get_lock [S : PQued] [L] :
+    AnySRPC_pq S ->
+    pq_lock L S ->
+    exists n, pq_lock [n] S.
+
+  Proof.
+    intros Hsrpc HL.
+    destruct HL.
+    consider (exists n, proc_lock [n] P) by eauto using SRPC_get_lock.
+    exists n.
+
+    enough (In n L) by attac.
+    enough (incl [n] L) by attac.
+    eauto using proc_lock_incl.
+  Qed.
+
+
+  (** SRPC-locked state is correct for processes *)
+  Lemma SRPC_Lock_lock [P : Proc] [s c] :
+    SRPC (Lock c s) P -> proc_lock [s] P.
+
+  Proof.
+    intros Hsrpc.
+    unfold proc_lock.
+
+    destruct SRPC Hsrpc; doubt.
+
+    destruct P; try (now kill T).
+
+    intros.
+    repeat split; intros.
+    - kill H; cbv in *; doubt.
+    - left.
+      destruct (NAME.eq_dec n s); subst; auto.
+      destruct (handle (n, R)) eqn:HEq; doubt.
+      assert (PRecv handle =(Recv (n, R) some_val)=> p some_val) as T'.
+      constructor; auto.
+
+      apply HReplyOnly in T' as [v HEq'].
+      kill HEq'; auto.
+
+    - destruct (handle (n, Q)) eqn:HEq; auto.
+      assert (PRecv handle =(Recv (n, Q) some_val)=> p some_val) as T'.
+      constructor; auto.
+
+      apply HReplyOnly in T' as [v HEq'].
+      kill HEq'.
+  Qed.
+
+  #[export] Hint Immediate SRPC_Lock_lock : LTS.
+
+
+  (** SRPC-lock state is complete for all SRPC processes *)
+  Lemma lock_SRPC_Lock [P : Proc] [s] :
+    AnySRPC P ->
+    proc_lock [s] P -> (exists c, SRPC (Lock c s) P).
+
+  Proof.
+    intros Hsrpc HL.
+    unfold proc_lock in HL.
+
+    destruct SRPC Hsrpc.
+    - destruct P0; doubt.
+      destruct (handle (s, R)) eqn:HEq; doubt.
+      edestruct (HQueryOnly (Recv (s, R) some_val)) as (P1 & v & HEq' & Hsrpc).
+      constructor.
+      eapply HEq.
+      kill HEq'.
+      rewrite <- HEq in HL.
+      specialize (HL s).
+      kill HL.
+      assert (List.In s [s]) by attac.
+      apply H in H1.
+      bullshit.
+    - destruct P; doubt.
+    - exists c.
+      destruct P; doubt.
+      destruct (NAME.eq_dec s0 s); subst.
+      {
+        constructor; eauto with LTS.
+        constructor; eauto.
+      }
+
+      kill T.
+
+      destruct (handle (s, R)) eqn:HEq; doubt.
+      edestruct (HReplyOnly (Recv (s, R) some_val)) as [P1' HEq'].
+      constructor. apply HEq.
+
+      kill HEq'.
+
+      specialize (HL s).
+      attac.
+  Qed.
+
+
+  (** You can't judge locks of a service based on its SRPC-state, because the code may be in a *)
+  (*   locked state, but there are messages to be sent *)
+  Example SRPC_Lock_pq_lock [S : PQued] [s c] :
+    SRPC_pq (Lock c s) S -> pq_lock [s] S.
+  Abort.
+
+
+  (** SRPC-lock state is complete for all SRPC services *)
+  Lemma lock_SRPC_Lock_pq [S : PQued] [s] :
+    AnySRPC_pq S ->
+    pq_lock [s] S -> (exists c, SRPC_pq (Lock c s) S).
+
+  Proof.
+    intros Hsrpc HL.
+
+    destruct HL as [I P HD HL Ho].
+
+    destruct (lock_SRPC_Lock Hsrpc HL) as [c Hsrpc_L].
+    exists c; eauto with LTS.
+  Qed.
+
+
+  (** You need at least a tau to change the lock *)
+  Lemma SRPC_no_relock [P0 P1 a n0 n1] :
+    AnySRPC P0 ->
+    proc_lock [n0] P0 ->
+    proc_lock [n1] P1 ->
+    (P0 =(a)=> P1) ->
+    n0 = n1.
+
+  Proof.
+    intros.
+    destruct SRPC H H2.
+    - absurd (exists c', SRPC (Lock c' n1) P1).
+      + intros Hx; hsimpl in Hx.
+        bullshit (Lock c' n1 = Work c) by attac.
+      + eapply lock_SRPC_Lock; eattac.
+    - absurd (exists c', SRPC (Lock c' n1) P1).
+      + intros Hx; hsimpl in Hx.
+        bullshit (Lock c' n1 = Work c) by attac.
+      + eapply lock_SRPC_Lock; eattac.
+  Qed.
+
+
+  (** You need at least a tau to change the lock *)
+  Lemma SRPC_pq_no_relock [S0 S1 a n0 n1] :
+    AnySRPC_pq S0 ->
+    pq_lock [n0] S0 ->
+    pq_lock [n1] S1 ->
+    (S0 =(a)=> S1) ->
+    n0 = n1.
+
+  Proof.
+    intros.
+    consider (exists c0, SRPC_pq (Lock c0 n0) S0) by eauto using lock_SRPC_Lock_pq with LTS.
+    consider (exists c1, SRPC_pq (Lock c1 n1) S1) by eauto using lock_SRPC_Lock_pq with LTS.
+    destruct S0, S1; simpl in *.
+    consider (_ =(a)=> _);
+      try (consider (Lock c0 n0 = Lock c1 n1) by eattac).
+    eauto using SRPC_no_relock with LTS.
+  Qed.
+
+
+  (** The last thing an SRPC process does before locking is to send a query  *)
+  Lemma SRPC_send_lock [L a P0 P1] :
+    AnySRPC P0 ->
+    proc_lock L P1 ->
+    (P0 =(a)=> P1) ->
+    match a with Send (_, t) _ => t = Q | _ => False end.
+
+  Proof with (eauto with LTS).
+    intros Hsrpc0 HL1 T.
+
+    assert (AnySRPC P1) as Hsrpc1 by attac.
+
+    specialize (SRPC_get_lock Hsrpc1 HL1) as [s HL1s].
+
+    apply (lock_SRPC_Lock Hsrpc1) in HL1s as [c Hsrpc1_L].
+
+    destruct Hsrpc0 as [srpc0 Hsrpc0].
+    clear Hsrpc1.
+
+    kill Hsrpc0 > [|kill HBusy ].
+    - (* It was Free and became locked --- can't be locked and busy at once *)
+      apply HQueryOnly in T as (c' & v & HEq & Hsrpc1_B). subst.
+      kill Hsrpc1_L.
+      kill Hsrpc1_B.
       ltac1:(dependent destruction H0).
+      ltac1:(dependent destruction H1).
+      kill HBusy.
+      kill HBusy0.
 
-      ltac1:(dependent induction HBusy); intros.
-      - assert (SRPC_Handling (HWork c) P0) as Hsrpc by (constructor; eattac).
-        specialize (SRPC_Handling_work_act Hsrpc) as [P1 [[v T]|[T|[s [v T]]]]].
-        + exists [], P0, P1, v...
-        + specialize (H0 P1 T).
-          specialize (HTau0 _ T).
-          specialize (HTau _ T).
-          kill HTau0.
-          destruct H0  as (path & P2 & P3 & v & T1 & T2 & HF); eauto with LTS.
-          exists (Tau :: path), P2, P3, v; eauto with LTS.
-        + specialize (H s v P1 T).
-          specialize (HQuery _ _ _ T).
-          specialize (HQuery0 _ _ _ T).
-          kill HQuery0.
-          destruct H as (path & P2 & P3 & v' & T1 & T2 & HF); eauto with LTS.
-          exists (Send (s, Q) v :: path), P2, P3, v'.
-          eattac.
+      specialize (HReplyAll v) as [P2 T].
+      kill T.
 
-      - specialize (HReplyAll some_val) as [P1 T].
-        have (AnySRPC P1).
-        specialize (H _ _ T).
-        specialize (HRecvR _ _ T).
-        kill HRecvR.
-        specialize (HPres _ _ T).
-        destruct HPres as [srpc Hsrpc].
-        specialize (HRecv _ _ _ T).
+    - (* It was busy. So far so good. *)
+      kill T.
+      + (* Sent. *)
+        destruct n as [n t].
+
+        destruct t; auto.
+
+        (* ...a reply! *)
+        erewrite (HReply0 n) in *...
+
+        assert (SRPC Free P1) as Hsrpc by eattac.
+
+        kill Hsrpc1_L.
+        ltac1:(dependent destruction H0).
+        kill HBusy.
+
         kill Hsrpc.
-        {
-          enough (exists a P2, P1 =(a)=> P2) as (a & P2 & T').
-          {
-            specialize (HQueryOnly _ _ T') as (c' & v' & HEq & _).
-            kill HRecv.
-            kill HBusy.
-            - kill T'.
-            - specialize (HReplyOnly0 _ _ T') as (v'' & HEq).
-              kill HEq.
-          }
-
-          kill T.
-          unshelve attac.
-          apply some_val.
-        }
-
-        kill HRecv.
-        destruct H as (path & P2 & P3 & v & T1 & T2 & HF); intros; eauto 10 with LTS.
-        attac.
-    Qed.
-
-
-    Lemma SRPC_work_inv [P : Proc] [c0 c1] [s0 : SRPC_Handle_State c0] [s1 : SRPC_Handle_State c1] :
-      SRPC (Busy s0) P ->
-      SRPC (Busy s1) P ->
-      c0 = c1.
-
-    Proof.
-      intros Hsrpc0 Hsrpc1.
-      specialize (SRPC_busy_reply_exists Hsrpc0) as (path & P2 & P3 & v & T1 & T2 & HF).
-      specialize (SRPC_busy_reply Hsrpc1 T1 T2 HF) as HEq'.
-      eauto.
-    Qed.
-
-    #[export] Hint Immediate SRPC_work_inv : LTS.
-
-
-    Lemma SRPC_pq_work_inv [S : PQued] [c0 c1] [s0 : SRPC_Handle_State c0] [s1 : SRPC_Handle_State c1] :
-      SRPC_pq (Busy s0) S ->
-      SRPC_pq (Busy s1) S ->
-      c0 = c1.
-    Proof. destruct S; attac. Qed.
-
-    #[export] Hint Immediate SRPC_pq_work_inv : LTS.
-
-
-    Lemma SRPC_inv [P srpc0 srpc1] :
-      SRPC srpc0 P ->
-      SRPC srpc1 P ->
-      srpc0 = srpc1.
-
-    Proof.
-      intros Hsrpc0 Hsrpc1.
-      kill Hsrpc0.
-      - specialize (HQueryAll some_name some_val) as [P1 T].
-        kill Hsrpc1; auto.
-        kill HBusy.
-        + kill T.
-        + specialize (HReplyOnly _ _ T) as [v HEq].
-          bullshit.
-      - kill Hsrpc1.
-        + specialize (HQueryAll some_name some_val) as [P1 T].
-          kill HBusy.
-          1: kill T.
-          apply HReplyOnly in T.
-          destruct T.
-          bullshit.
-
-        + assert (c = c0).
-          {
-            eapply SRPC_work_inv; constructor; eattac.
-          }
-          subst.
-          enough (srpc = srpc0) by (subst; auto).
-          kill HBusy; kill HBusy0; eauto.
-          * specialize (HReplyAll some_val) as [P1 T].
-            kill T.
-          * specialize (HReplyAll some_val) as [P1 T].
-            kill T.
-          * specialize (HReplyAll some_val) as [P1 T].
-            apply HReplyOnly0 in T as [v E].
-            kill E.
-    Qed.
-
-    #[export] Hint Immediate SRPC_inv : LTS.
-
-
-    Lemma SRPC_pq_inv [S srpc0 srpc1] :
-      SRPC_pq srpc0 S ->
-      SRPC_pq srpc1 S ->
-      srpc0 = srpc1.
-
-    Proof. destruct S; attac. Qed.
-
-    #[export] Hint Immediate SRPC_pq_inv : LTS.
-
-
-    Lemma SRPC_inv_tau_l [P0 P1] :
-      AnySRPC P0 ->
-      (P0 =(Tau)=> P1) ->
-      exists c, SRPC (Work c) P0.
-    Proof.
-      intros.
-      consider (exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1) by (eapply SRPC_tau; eattac).
-      attac.
-    Qed.
-
-    Lemma SRPC_inv_tau_r [P0 P1] :
-      AnySRPC P0 ->
-      (P0 =(Tau)=> P1) ->
-      exists c, SRPC (Work c) P1.
-    Proof.
-      intros.
-      consider (exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1) by (eapply SRPC_tau; eattac).
-      attac.
-    Qed.
-
-    Lemma SRPC_inv_send_R_l [P0 c v P1] :
-      AnySRPC P0 ->
-      (P0 =(Send (c, R) v)=> P1) ->
-      SRPC (Work c) P0.
-    Proof. intros. assert (SRPC (Work c) P0 /\ SRPC Free P1) by eauto using SRPC_send_R. attac. Qed.
-
-    Lemma SRPC_inv_send_R_r [P0 c v P1] :
-      AnySRPC P0 ->
-      (P0 =(Send (c, R) v)=> P1) ->
-      SRPC Free P1.
-    Proof. intros. assert (SRPC (Work c) P0 /\ SRPC Free P1) by eauto using SRPC_send_R. attac. Qed.
-
-    Lemma SRPC_inv_send_Q_l [P0 s v P1] :
-      AnySRPC P0 ->
-      (P0 =(Send (s, Q) v)=> P1) ->
-      exists c, SRPC (Work c) P0.
-    Proof. intros. consider (exists c, SRPC (Work c) P0 /\ SRPC (Lock c s) P1) by eauto using SRPC_send_Q. attac. Qed.
-
-    Lemma SRPC_inv_send_Q_r [P0 s v P1] :
-      AnySRPC P0 ->
-      (P0 =(Send (s, Q) v)=> P1) ->
-      exists c, SRPC (Lock c s) P1.
-    Proof. intros. consider (exists c, SRPC (Work c) P0 /\ SRPC (Lock c s) P1) by eauto using SRPC_send_Q. attac. Qed.
-
-    Lemma SRPC_inv_recv_Q_l [P0 P1] [c v] :
-      (P0 =(Recv (c, Q) v)=> P1) ->
-      AnySRPC P0 ->
-      SRPC Free P0.
-    Proof. intros. assert (SRPC Free P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_Q. attac. Qed.
-
-    Lemma SRPC_inv_recv_Q_r [P0 P1] [c v] :
-      (P0 =(Recv (c, Q) v)=> P1) ->
-      AnySRPC P0 ->
-      SRPC (Work c) P1.
-    Proof. intros. assert (SRPC Free P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_Q. attac. Qed.
-
-    Lemma SRPC_inv_recv_R_l [P0 P1] [s v] :
-      (P0 =(Recv (s, R) v)=> P1) ->
-      AnySRPC P0 ->
-      exists c, SRPC (Lock c s) P0.
-    Proof. intros. consider (exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_R. attac. Qed.
-
-    Lemma SRPC_inv_recv_R_r [P0 P1] [s v] :
-      (P0 =(Recv (s, R) v)=> P1) ->
-      AnySRPC P0 ->
-      exists c, SRPC (Work c) P1.
-    Proof. intros. consider (exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_R. attac. Qed.
-
-    #[export] Hint Resolve
-      SRPC_inv_tau_l
-      SRPC_inv_tau_r
-      SRPC_inv_send_R_l
-      SRPC_inv_send_R_r
-      SRPC_inv_send_Q_l
-      SRPC_inv_send_Q_r
-      SRPC_inv_recv_Q_l
-      SRPC_inv_recv_Q_r
-      SRPC_inv_recv_R_l
-      SRPC_inv_recv_R_r
-      : LTS.
-
-    Lemma SRPC_Free_recv_t_inv [P0 P1] [c t v] :
-      (P0 =(Recv (c, t) v)=> P1) ->
-      SRPC Free P0 ->
-      t = Q.
-    Proof. intros. consider (SRPC _ _). specialize (HQueryOnly (Recv (c, &t) v) P1) as [? ?]; eattac. Qed.
-    Lemma SRPC_Lock_recv_t_inv [P0 P1] [c s s' t v] :
-      (P0 =(Recv (s, t) v)=> P1) ->
-      SRPC (Lock c s') P0 ->
-      t = R.
-    Proof. intros. consider (SRPC _ _). kill HBusy. attac. specialize (HReplyOnly (Recv (s, &t) v) P1) as [? ?]; eattac. Qed.
-
-    #[export] Hint Rewrite -> SRPC_Free_recv_t_inv SRPC_Lock_recv_t_inv using spank : LTS.
-
-
-    Lemma SRPC_recv_Q_c_inv [P0 P1] [c c' t v] :
-      (P0 =(Recv (c, t) v)=> P1) ->
-      SRPC Free P0 ->
-      SRPC (Work c') P1 ->
-      c' = c.
-    Proof. intros. assert (AnySRPC P0) by eauto with LTS.
-           hsimpl in *; assert (SRPC (Work c) (cont v)); eattac.
-    Qed.
-    Lemma SRPC_recv_R_s_inv [P0 P1] [c s' s t' v] :
-      (P0 =(Recv (s', t') v)=> P1) ->
-      SRPC (Lock c s) P0 ->
-      s' = s.
-    Proof. intros. hsimpl in *.
-           enough (exists v', Recv (s', R) v = Recv (s, R) v') by eattac.
-           kill H0. kill HBusy. eattac. hsimpl in H2. eapply HReplyOnly. eattac.
-    Qed.
-    Lemma SRPC_recv_R_c_inv [P0 P1] [c c' s' s t v] :
-      (P0 =(Recv (s', t) v)=> P1) ->
-      SRPC (Lock c s) P0 ->
-      SRPC (Work c') P1 ->
-      c' = c.
-    Proof.
-      intros. enough (SRPC (Work c) P1) by eattac.
-      hsimpl in *. consider (SRPC _ (PRecv _)); eattac.
-    Qed.
-
-    #[export] Hint Rewrite -> SRPC_recv_Q_c_inv SRPC_recv_R_s_inv SRPC_recv_R_c_inv using spank : LTS.
-
-
-    Lemma SRPC_Work_PRecv_bs [h c] :
-      SRPC (Work c) (PRecv h) -> False.
-    Proof. intros. consider (SRPC _ _). consider (SRPC_Handling _ _). bullshit. Qed.
-
-    Lemma SRPC_Free_PSend_bs [n v P1] :
-      SRPC Free (PSend n v P1) -> False.
-    Proof. intros. consider (SRPC _ _). destruct n. specialize (HQueryAll n v). eattac. Qed.
-
-    Lemma SRPC_Free_PTau_bs [P1] :
-      SRPC Free (PTau P1) -> False.
-    Proof. intros. consider (SRPC _ _). specialize (HQueryAll some_name some_val). eattac. Qed.
-
-    Lemma SRPC_Lock_PSend_bs [n v P1 c s] :
-      SRPC (Lock c s) (PSend n v P1) -> False.
-    Proof. intros. consider (SRPC _ _). destruct n.  consider (SRPC_Handling _ _); doubt. specialize (HReplyAll v); attac. Qed.
-
-    Lemma SRPC_Lock_PTau_bs [P1 c s] :
-      SRPC (Lock c s) (PTau P1) -> False.
-    Proof. intros. consider (SRPC _ _). consider (SRPC_Handling _ _); doubt. specialize (HReplyAll some_val); attac. Qed.
-
-    #[export] Hint Resolve
-      SRPC_Work_PRecv_bs
-      SRPC_Free_PSend_bs
-      SRPC_Free_PTau_bs
-      SRPC_Lock_PSend_bs
-      SRPC_Lock_PTau_bs
-      : bullshit.
-
-    Lemma SRPC_Work_recv_bs [P0 P1 n v c] :
-      (P0 =(Recv n v)=> P1) ->
-      SRPC (Work c) P0 ->
-      False.
-    Proof. attac. Qed.
-
-    Lemma SRPC_Free_send_bs [n v P1] :
-      SRPC Free (PSend n v P1) -> False.
-    Proof. intros. consider (SRPC _ _). destruct n. specialize (HQueryAll n v). eattac. Qed.
-    Lemma SRPC_Free_tau_bs [P1] :
-      SRPC Free (PTau P1) -> False.
-    Proof. intros. consider (SRPC _ _). specialize (HQueryAll some_name some_val). eattac. Qed.
-    Lemma SRPC_Free_recv_R_bs [h n] :
-      SRPC Free (PRecv h) -> h (n, R) <> None -> False.
-    Proof. intros. consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; doubt; specialize (HQueryOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. Qed.
-
-    Lemma SRPC_Lock_send_bs [n v c s P1] :
-      SRPC (Lock c s) (PSend n v P1) -> False.
-    Proof. intros. consider (SRPC _ _). destruct n. kill HBusy. specialize (HReply0 n v). eattac. destruct (HReplyAll v). attac. Qed.
-    Lemma SRPC_Lock_tau_bs [c s P1] :
-      SRPC (Lock c s) (PTau P1) -> False.
-    Proof. intros. consider (SRPC _ _). kill HBusy. specialize (HReply0 some_name some_val). eattac. destruct (HReplyAll some_val). attac. Qed.
-    Lemma SRPC_Lock_recv_Q_bs [h n c s] :
-      SRPC (Lock c s) (PRecv h) -> h (n, Q) <> None -> False.
-    Proof. intros. consider (SRPC _ _). destruct (h (n, Q)) eqn:P1v; doubt; kill HBusy; doubt; specialize (HReplyOnly (Recv (n, Q) some_val) (p some_val)) as [? ?]; eattac. Qed.
-    Lemma SRPC_Lock_recv_other_bs [h n c s t] :
-      SRPC (Lock c s) (PRecv h) ->  h (n, t) <> None -> n <> s -> False.
-    Proof. intros. destruct t. eapply SRPC_Lock_recv_Q_bs; eauto. apply H.
-           consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; doubt.
-           kill HBusy; doubt. specialize (HReplyOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac.
-    Qed.
-
-    #[export] Hint Resolve
-      SRPC_Work_recv_bs
-      SRPC_Free_send_bs
-      SRPC_Free_tau_bs
-      SRPC_Free_recv_R_bs
-      SRPC_Lock_send_bs
-      SRPC_Lock_tau_bs
-      SRPC_Lock_recv_Q_bs
-      SRPC_Lock_recv_other_bs
-      : bullshit.
-
-
-    (** SRPC process can be locked only on one thing *)
-    Lemma SRPC_one_lock [P : Proc] [L] :
-      AnySRPC P ->
-      proc_lock L P ->
-      length (nodup NAME.eq_dec L) = 1%nat.
-
-    Proof.
-      intros Hsrpc HL.
-
-      destruct SRPC Hsrpc.
-      - destruct P0; doubt.
-
-        specialize (HL some_name) as [[HNoQ HNoIn] HYesR].
-        specialize (HQueryAll some_name some_val) as [P1 T].
+        specialize (HQueryAll c v) as [P' T].
+        eapply HReplyOnly in T as [v' E].
         bullshit.
 
-      - destruct P; bullshit.
-      - destruct P; try (kill HL).
+      + (* Tau *)
+        specialize (HTau0 _ (ltac:(constructor))) as Hsrpc1_B.
 
-        enough (Forall (eq s) L) as HAll.
-        {
-          eapply all_same_nodup_one in HAll as [HEq | HEq]; rewrite HEq in *; auto.
-
-          specialize (HL s) as [[_ HYesR] _].
-          hsimpl in *.
-          exfalso.
-          apply HYesR.
-          bullshit.
-        }
-
-        apply (Forall_forall (eq s) L).
-        intros.
-
-        destruct (handle (x, R)) eqn:Hx.
-        + specialize (HReplyOnly (Recv (x, R) some_val) (p some_val)) as [v' HEq]; ssubst; attac.
-        + specialize (HL x) as [[HL _] _].
-          bullshit.
-    Qed.
-
-
-    (** SRPC service can be locked only on one thing *)
-    Lemma SRPC_pq_one_lock [S : PQued] [L] :
-      AnySRPC_pq S ->
-      pq_lock L S ->
-      length (nodup NAME.eq_dec L) = 1%nat.
-
-    Proof.
-      intros Hsrpc HL.
-
-      destruct Hsrpc as [srpc Hsrpc].
-      destruct S as [I P O].
-      apply (@SRPC_one_lock P); eauto with LTS.
-    Qed.
-
-
-    (** If SRPC process is locked, then it is known on who *)
-    Lemma SRPC_get_lock [P : Proc] [L] :
-      AnySRPC P ->
-      proc_lock L P ->
-      exists n, proc_lock [n] P.
-
-    Proof.
-      intros Hsrpc HL.
-
-      pose (SRPC_one_lock Hsrpc HL) as Hlen.
-      pose (NoDup_nodup NAME.eq_dec L) as HNodup.
-
-      consider (exists n : Name, nodup NAME.eq_dec L = [n]) by eauto using nodup_one.
-      exists n.
-      rewrite <- `(_ = [n]).
-
-      apply (proc_lock_equiv_inv HL).
-      - apply nodup_incl; auto with datatypes.
-      - unfold incl.
-        intros.
-        apply (nodup_In NAME.eq_dec); auto.
-    Qed.
-
-
-    (** If SRPC service is locked, then it is known on who *)
-    Lemma SRPC_pq_get_lock [S : PQued] [L] :
-      AnySRPC_pq S ->
-      pq_lock L S ->
-      exists n, pq_lock [n] S.
-
-    Proof.
-      intros Hsrpc HL.
-      destruct HL.
-      consider (exists n, proc_lock [n] P) by eauto using SRPC_get_lock.
-      exists n.
-
-      enough (In n L) by attac.
-      enough (incl [n] L) by attac.
-      eauto using proc_lock_incl.
-    Qed.
-
-
-    (** SRPC-locked state is correct for processes *)
-    Lemma SRPC_Lock_lock [P : Proc] [s c] :
-      SRPC (Lock c s) P -> proc_lock [s] P.
-
-    Proof.
-      intros Hsrpc.
-      unfold proc_lock.
-
-      destruct SRPC Hsrpc; doubt.
-
-      destruct P; try (now kill T).
-
-      intros.
-      repeat split; intros.
-      - kill H; cbv in *; doubt.
-      - left.
-        destruct (NAME.eq_dec n s); subst; auto.
-        destruct (handle (n, R)) eqn:HEq; doubt.
-        assert (PRecv handle =(Recv (n, R) some_val)=> p some_val) as T'.
-        constructor; auto.
-
-        apply HReplyOnly in T' as [v HEq'].
-        kill HEq'; auto.
-
-      - destruct (handle (n, Q)) eqn:HEq; auto.
-        assert (PRecv handle =(Recv (n, Q) some_val)=> p some_val) as T'.
-        constructor; auto.
-
-        apply HReplyOnly in T' as [v HEq'].
-        kill HEq'.
-    Qed.
-
-    #[export] Hint Immediate SRPC_Lock_lock : LTS.
-
-
-    (** SRPC-lock state is complete for all SRPC processes *)
-    Lemma lock_SRPC_Lock [P : Proc] [s] :
-      AnySRPC P ->
-      proc_lock [s] P -> (exists c, SRPC (Lock c s) P).
-
-    Proof.
-      intros Hsrpc HL.
-      unfold proc_lock in HL.
-
-      destruct SRPC Hsrpc.
-      - destruct P0; doubt.
-        destruct (handle (s, R)) eqn:HEq; doubt.
-        edestruct (HQueryOnly (Recv (s, R) some_val)) as (P1 & v & HEq' & Hsrpc).
-        constructor.
-        eapply HEq.
-        kill HEq'.
-        rewrite <- HEq in HL.
-        specialize (HL s).
-        kill HL.
-        assert (List.In s [s]) by attac.
-        apply H in H1.
-        bullshit.
-      - destruct P; doubt.
-      - exists c.
-        destruct P; doubt.
-        destruct (NAME.eq_dec s0 s); subst.
-        {
-          constructor; eauto with LTS.
-          constructor; eauto.
-        }
-
-        kill T.
-
-        destruct (handle (s, R)) eqn:HEq; doubt.
-        edestruct (HReplyOnly (Recv (s, R) some_val)) as [P1' HEq'].
-        constructor. apply HEq.
-
-        kill HEq'.
-
-        specialize (HL s).
-        attac.
-    Qed.
-
-
-    (** You can't judge locks of a service based on its SRPC-state, because the code may be in a
-    locked state, but there are messages to be sent *)
-    Example SRPC_Lock_pq_lock [S : PQued] [s c] :
-      SRPC_pq (Lock c s) S -> pq_lock [s] S.
-    Abort.
-
-
-    (** SRPC-lock state is complete for all SRPC services *)
-    Lemma lock_SRPC_Lock_pq [S : PQued] [s] :
-      AnySRPC_pq S ->
-      pq_lock [s] S -> (exists c, SRPC_pq (Lock c s) S).
-
-    Proof.
-      intros Hsrpc HL.
-
-      destruct HL as [I P HD HL Ho].
-
-      destruct (lock_SRPC_Lock Hsrpc HL) as [c Hsrpc_L].
-      exists c; eauto with LTS.
-    Qed.
-
-
-    (** You need at least a tau to change the lock *)
-    Lemma SRPC_no_relock [P0 P1 a n0 n1] :
-      AnySRPC P0 ->
-      proc_lock [n0] P0 ->
-      proc_lock [n1] P1 ->
-      (P0 =(a)=> P1) ->
-      n0 = n1.
-
-    Proof.
-      intros.
-      destruct SRPC H H2.
-      - absurd (exists c', SRPC (Lock c' n1) P1).
-        + intros Hx; hsimpl in Hx.
-          bullshit (Lock c' n1 = Work c) by attac.
-        + eapply lock_SRPC_Lock; eattac.
-      - absurd (exists c', SRPC (Lock c' n1) P1).
-        + intros Hx; hsimpl in Hx.
-          bullshit (Lock c' n1 = Work c) by attac.
-        + eapply lock_SRPC_Lock; eattac.
-    Qed.
-
-
-    (** You need at least a tau to change the lock *)
-    Lemma SRPC_pq_no_relock [S0 S1 a n0 n1] :
-      AnySRPC_pq S0 ->
-      pq_lock [n0] S0 ->
-      pq_lock [n1] S1 ->
-      (S0 =(a)=> S1) ->
-      n0 = n1.
-
-    Proof.
-      intros.
-      consider (exists c0, SRPC_pq (Lock c0 n0) S0) by eauto using lock_SRPC_Lock_pq with LTS.
-      consider (exists c1, SRPC_pq (Lock c1 n1) S1) by eauto using lock_SRPC_Lock_pq with LTS.
-      destruct S0, S1; simpl in *.
-      consider (_ =(a)=> _);
-        try (consider (Lock c0 n0 = Lock c1 n1) by eattac).
-      eauto using SRPC_no_relock with LTS.
-    Qed.
-
-
-    (** The last thing an SRPC process does before locking is to send a query  *)
-    Lemma SRPC_send_lock [L a P0 P1] :
-      AnySRPC P0 ->
-      proc_lock L P1 ->
-      (P0 =(a)=> P1) ->
-      match a with Send (_, t) _ => t = Q | _ => False end.
-
-    Proof with (eauto with LTS).
-      intros Hsrpc0 HL1 T.
-
-      assert (AnySRPC P1) as Hsrpc1 by attac.
-
-      specialize (SRPC_get_lock Hsrpc1 HL1) as [s HL1s].
-
-      apply (lock_SRPC_Lock Hsrpc1) in HL1s as [c Hsrpc1_L].
-
-      destruct Hsrpc0 as [srpc0 Hsrpc0].
-      clear Hsrpc1.
-
-      kill Hsrpc0 > [|kill HBusy ].
-      - (* It was Free and became locked --- can't be locked and busy at once *)
-        apply HQueryOnly in T as (c' & v & HEq & Hsrpc1_B). subst.
-        kill Hsrpc1_L.
-        kill Hsrpc1_B.
-        ltac1:(dependent destruction H0).
-        ltac1:(dependent destruction H1).
-        kill HBusy.
-        kill HBusy0.
-
-        specialize (HReplyAll v) as [P2 T].
-        kill T.
-
-      - (* It was busy. So far so good. *)
-        kill T.
-        + (* Sent. *)
-          destruct n as [n t].
-
-          destruct t; auto.
-
-          (* ...a reply! *)
-          erewrite (HReply0 n) in *...
-
-          assert (SRPC Free P1) as Hsrpc by eattac.
-
-          kill Hsrpc1_L.
-          ltac1:(dependent destruction H0).
-          kill HBusy.
-
-          kill Hsrpc.
-          specialize (HQueryAll c v) as [P' T].
-          eapply HReplyOnly in T as [v' E].
-          bullshit.
-
-        + (* Tau *)
-          specialize (HTau0 _ (ltac:(constructor))) as Hsrpc1_B.
-
-          kill Hsrpc1_L.
-          kill Hsrpc1_B.
-          ltac1:(dependent destruction H0).
-          kill HBusy.
-
-          specialize (HReplyAll some_val) as [P2 T].
-          kill T.
-
-      - (* It was locked and did an action which didn't unlock it *)
-        specialize (HReplyOnly _ _ T) as (v & HEq). clear H0. subst.
-        specialize (HRecvR _ _ T) as Hsrpc1_B.
         kill Hsrpc1_L.
         kill Hsrpc1_B.
         ltac1:(dependent destruction H0).
         kill HBusy.
 
-        specialize (HReplyAll0 v) as [P2 T'].
-        kill T'.
-    Qed.
+        specialize (HReplyAll some_val) as [P2 T].
+        kill T.
+
+    - (* It was locked and did an action which didn't unlock it *)
+      specialize (HReplyOnly _ _ T) as (v & HEq). clear H0. subst.
+      specialize (HRecvR _ _ T) as Hsrpc1_B.
+      kill Hsrpc1_L.
+      kill Hsrpc1_B.
+      ltac1:(dependent destruction H0).
+      kill HBusy.
+
+      specialize (HReplyAll0 v) as [P2 T'].
+      kill T'.
+  Qed.
 
 
-    Lemma SRPC_Decisive [P] :
-      AnySRPC P ->
-      Decisive P.
+  Lemma SRPC_Decisive [P] :
+    AnySRPC P ->
+    Decisive P.
 
-    Proof.
-      generalize dependent P.
-      ltac1:(cofix C).
-      intros P Hsrpc_p.
+  Proof.
+    generalize dependent P.
+    ltac1:(cofix C).
+    intros P Hsrpc_p.
 
-      destruct P.
-      - destruct Hsrpc_p as [srpc Hsrpc_p];
-          ltac1:(dependent destruction Hsrpc_p) >
-                  [|ltac1:(dependent destruction HBusy)].
-        + specialize (HQueryAll some_name some_val) as [P1 T].
-          kill T.
-        + bullshit.
-        + specialize (HReplyAll some_val) as [P1 T].
-          kill T.
-      - constructor; eattac.
+    destruct P.
+    - destruct Hsrpc_p as [srpc Hsrpc_p];
+        ltac1:(dependent destruction Hsrpc_p) >
+                [|ltac1:(dependent destruction HBusy)].
+      + specialize (HQueryAll some_name some_val) as [P1 T].
+        kill T.
+      + bullshit.
+      + specialize (HReplyAll some_val) as [P1 T].
+        kill T.
+    - constructor; eattac.
 
-      - constructor; intros;
-          destruct Hsrpc_p as [srpc Hsrpc_p];
-          ltac1:(dependent destruction Hsrpc_p) >
-                  [|ltac1:(dependent destruction HBusy)].
-        + split; intros.
-          * destruct (handle (m, R)) eqn:HH; auto.
-            assert (PRecv handle =(Recv (m, R) some_val)=> p some_val) as T by attac.
-            apply HQueryOnly in T as (c & v & HEq & _).
-            bullshit.
-          * assert (PRecv handle =(Recv (n, Q) v)=> P v) as T by attac.
-            apply HQueryOnly in T as (c & _ & _ & Hsrpc_n).
-            apply C; eattac.
-        + assert (PRecv handle =(Recv (n, Q) some_val)=> P some_val) as T by attac.
-          kill T.
-        + assert (PRecv handle =(Recv (n, Q) some_val)=> P some_val) as T by attac.
-          apply HReplyOnly in T as (v & HEq).
-          bullshit.
-        + assert (PRecv handle =(Recv (n, R) some_val)=> P some_val) as T by attac.
+    - constructor; intros;
+        destruct Hsrpc_p as [srpc Hsrpc_p];
+        ltac1:(dependent destruction Hsrpc_p) >
+                [|ltac1:(dependent destruction HBusy)].
+      + split; intros.
+        * destruct (handle (m, R)) eqn:HH; auto.
+          assert (PRecv handle =(Recv (m, R) some_val)=> p some_val) as T by attac.
           apply HQueryOnly in T as (c & v & HEq & _).
           bullshit.
-        + assert (PRecv handle =(Recv (n, R) some_val)=> P some_val) as T by attac.
-          kill T.
-        + split; intros.
-          * destruct (handle (m, Q)) eqn:HH; auto.
-            assert (PRecv handle =(Recv (m, Q) some_val)=> p some_val) as T by attac.
-            apply HReplyOnly in T as (v & HEq).
-            bullshit.
-          * assert (PRecv handle =(Recv (n, R) v)=> P v) as T by attac.
-            apply HRecv in T as Hsrpc_n.
-            apply C; eattac.
-      - constructor.
-        assert (PTau P =(Tau)=> P) as T by attac.
-        assert (AnySRPC P) by eattac.
-        attac.
-    Qed.
+        * assert (PRecv handle =(Recv (n, Q) v)=> P v) as T by attac.
+          apply HQueryOnly in T as (c & _ & _ & Hsrpc_n).
+          apply C; eattac.
+      + assert (PRecv handle =(Recv (n, Q) some_val)=> P some_val) as T by attac.
+        kill T.
+      + assert (PRecv handle =(Recv (n, Q) some_val)=> P some_val) as T by attac.
+        apply HReplyOnly in T as (v & HEq).
+        bullshit.
+      + assert (PRecv handle =(Recv (n, R) some_val)=> P some_val) as T by attac.
+        apply HQueryOnly in T as (c & v & HEq & _).
+        bullshit.
+      + assert (PRecv handle =(Recv (n, R) some_val)=> P some_val) as T by attac.
+        kill T.
+      + split; intros.
+        * destruct (handle (m, Q)) eqn:HH; auto.
+          assert (PRecv handle =(Recv (m, Q) some_val)=> p some_val) as T by attac.
+          apply HReplyOnly in T as (v & HEq).
+          bullshit.
+        * assert (PRecv handle =(Recv (n, R) v)=> P v) as T by attac.
+          apply HRecv in T as Hsrpc_n.
+          apply C; eattac.
+    - constructor.
+      assert (PTau P =(Tau)=> P) as T by attac.
+      assert (AnySRPC P) by eattac.
+      attac.
+  Qed.
 
-    #[export] Hint Resolve SRPC_Decisive : LTS.
+  #[export] Hint Resolve SRPC_Decisive : LTS.
 
 
-    Lemma SRPC_Decisive_q [S] :
-      AnySRPC_pq S ->
-      Decisive_q S.
-    Proof. intros. destruct S; eattac. Qed.
+  Lemma SRPC_Decisive_q [S] :
+    AnySRPC_pq S ->
+    Decisive_q S.
+  Proof. intros. destruct S; eattac. Qed.
 
-    #[export] Hint Resolve SRPC_Decisive_q : LTS.
+  #[export] Hint Resolve SRPC_Decisive_q : LTS.
 
 
-    Lemma SRPC_tau_no_lock_r [S0 S1 L] :
-      AnySRPC_pq S0 ->
-      (S0 =(Tau)=> S1) ->
-      ~ pq_lock L S1.
+  Lemma SRPC_tau_no_lock_r [S0 S1 L] :
+    AnySRPC_pq S0 ->
+    (S0 =(Tau)=> S1) ->
+    ~ pq_lock L S1.
 
-    Proof.
-      intros; intros ?.
-      consider (exists s, pq_lock [s] S1) by eauto using SRPC_pq_get_lock with LTS.
-      consider (exists c, SRPC_pq (Lock c s) S1) by eauto using lock_SRPC_Lock_pq with LTS.
-      consider (_ =(_)=> _); consider (pq_lock _ _); doubt; simpl in *.
-      - destruct n as [n [|]].
-        + assert (SRPC (Work n) P1) by eauto using SRPC_inv_recv_Q_r.
-          bullshit (Work n = Lock c s) by attac.
-        + consider (exists c', SRPC (Work c') P1) by eauto using SRPC_inv_recv_R_r.
-          bullshit (Work c' = Lock c s) by attac.
-      - consider (exists c', SRPC (Work c') P1) by eauto using SRPC_inv_tau_r.
+  Proof.
+    intros; intros ?.
+    consider (exists s, pq_lock [s] S1) by eauto using SRPC_pq_get_lock with LTS.
+    consider (exists c, SRPC_pq (Lock c s) S1) by eauto using lock_SRPC_Lock_pq with LTS.
+    consider (_ =(_)=> _); consider (pq_lock _ _); doubt; simpl in *.
+    - destruct n as [n [|]].
+      + assert (SRPC (Work n) P1) by eauto using SRPC_inv_recv_Q_r.
+        bullshit (Work n = Lock c s) by attac.
+      + consider (exists c', SRPC (Work c') P1) by eauto using SRPC_inv_recv_R_r.
         bullshit (Work c' = Lock c s) by attac.
-    Qed.
-End SRPC.
+    - consider (exists c', SRPC (Work c') P1) by eauto using SRPC_inv_tau_r.
+      bullshit (Work c' = Lock c s) by attac.
+  Qed.
 
-Module Type SRPC_INST := SRPC_PARAMS <+ SRPC.
+End SRPC_F.
+
+Module Type SRPC(Conf : SRPC_CONF) := Conf <+ SRPC_PARAMS <+ SRPC_F.

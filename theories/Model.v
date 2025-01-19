@@ -18,15 +18,22 @@ Import Ltac2.Notations.
 Import ListNotations.
 Import BoolNotations.
 
-Require Import DlStalk.LTS.
-Require Import DlStalk.Tactics.
-Require Import DlStalk.ModelData.
-Require Import DlStalk.Que.
+From DlStalk Require Import Tactics.
+From DlStalk Require Import Lemmas.
+From DlStalk Require Import ModelData.
+From DlStalk Require Import LTS.
+From DlStalk Require Import Que.
 
-Module Type QUE_MOD := PROC_DATA <+ QUE.
 
-Module Type PROC(Import Que : QUE_MOD).
+Module Type PROC_CONF.
+  Include QUE_CONF.
+End PROC_CONF.
 
+Module Type PROC_PARAMS(Conf : PROC_CONF).
+  Declare Module Export Que : QUE(Conf).
+End PROC_PARAMS.
+
+Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
   Inductive Act {Payload : Set} : Set :=
   | Send (n : NChan) (v : Payload) : Act
   | Recv (n : NChan) (v : Payload) : Act
@@ -111,46 +118,45 @@ Module Type PROC(Import Que : QUE_MOD).
   #[export] Hint Transparent trans_proc : LTS.
 
 
-  Lemma ProcTrans_Recv_inv n v P0 P1 :
-    (P0 =(Recv n v)=> P1) <->
-      exists h cont, P0 = PRecv h
-                /\ h n = Some cont
-                /\ P1 = cont v.
-  Proof.
-    repeat split; eattac.
-    kill H; eattac.
-  Qed.
-
-  Lemma ProcTrans_Send_inv n v P0 P1 :
-    (P0 =(Send n v)=> P1) <->
-      P0 = PSend n v P1.
-  Proof. eattac; kill H; attac. Qed.
-
-  Lemma ProcTrans_Tau_inv P0 P1 :
-    (P0 =(Tau)=> P1) <->
-      P0 = PTau P1.
-  Proof. eattac; kill H; attac. Qed.
-
-  #[export] Hint Rewrite -> @ProcTrans_Recv_inv @ProcTrans_Send_inv @ProcTrans_Tau_inv using assumption : LTS.
-
-
-  Lemma ProcTrans_PRecv_inv handle a P1 :
-    (PRecv handle =(a)=> P1) <->
-      exists n v cont, a = Recv n v
-                  /\ handle n = Some cont
+  Section Inversions.
+    Lemma ProcTrans_Recv_inv n v P0 P1 :
+      (P0 =(Recv n v)=> P1) <->
+        exists h cont, P0 = PRecv h
+                  /\ h n = Some cont
                   /\ P1 = cont v.
-  Proof. eattac; kill H; eattac. Qed.
+    Proof.
+      repeat split; eattac.
+      kill H; eattac.
+    Qed.
 
-  Lemma ProcTrans_PSend_inv n v a P0 P1 :
-    (PSend n v P0 =(a)=> P1) <->
-      a = Send n v /\ P0 = P1.
-  Proof. eattac; kill H; eattac. Qed.
+    Lemma ProcTrans_Send_inv n v P0 P1 :
+      (P0 =(Send n v)=> P1) <->
+        P0 = PSend n v P1.
+    Proof. eattac; kill H; attac. Qed.
 
-  Lemma ProcTrans_PTau_inv a P0 P1 :
-    (PTau P0 =(a)=> P1) <->
-      a = Tau /\ P0 = P1.
-  Proof. attac; kill H; attac. Qed.
+    Lemma ProcTrans_Tau_inv P0 P1 :
+      (P0 =(Tau)=> P1) <->
+        P0 = PTau P1.
+    Proof. eattac; kill H; attac. Qed.
 
+    Lemma ProcTrans_PRecv_inv handle a P1 :
+      (PRecv handle =(a)=> P1) <->
+        exists n v cont, a = Recv n v
+                    /\ handle n = Some cont
+                    /\ P1 = cont v.
+    Proof. eattac; kill H; eattac. Qed.
+
+    Lemma ProcTrans_PSend_inv n v a P0 P1 :
+      (PSend n v P0 =(a)=> P1) <->
+        a = Send n v /\ P0 = P1.
+    Proof. eattac; kill H; eattac. Qed.
+
+    Lemma ProcTrans_PTau_inv a P0 P1 :
+      (PTau P0 =(a)=> P1) <->
+        a = Tau /\ P0 = P1.
+    Proof. attac; kill H; attac. Qed.
+  End Inversions.
+  #[export] Hint Rewrite -> @ProcTrans_Recv_inv @ProcTrans_Send_inv @ProcTrans_Tau_inv using assumption : LTS.
   #[export] Hint Rewrite -> @ProcTrans_PRecv_inv @ProcTrans_PSend_inv @ProcTrans_PTau_inv using assumption : LTS.
 
 
@@ -162,6 +168,19 @@ Module Type PROC(Import Que : QUE_MOD).
   Definition pq_O S := match S with pq _ _ O' => O' end.
 
   #[export] Hint Transparent pq_I pq_P pq_O : LTS.
+
+  Section Inversions.
+    Fact pq_I_inv : forall S I P O, S = pq I P O -> pq_I S = I.
+    Proof. intros. subst. auto. Qed.
+
+    Fact pq_P_inv : forall S I P O, S = pq I P O -> pq_P S = P.
+    Proof. intros. subst. auto. Qed.
+
+    Fact pq_O_inv : forall S I P O, S = pq I P O -> pq_O S = O.
+    Proof. intros. subst. auto. Qed.
+  End Inversions.
+
+  #[export] Hint Rewrite -> pq_I_inv pq_P_inv pq_O_inv using spank : LTS LTS_concl.
 
 
   Inductive PTrans : PAct -> PQued -> PQued -> Prop :=
@@ -184,7 +203,7 @@ Module Type PROC(Import Que : QUE_MOD).
 
   | PTTau {I P0 P1 O}
     : P0 =(Tau)=> P1 ->
-                  PTrans Tau (pq I P0 O) (pq I P1 O)
+                 PTrans Tau (pq I P0 O) (pq I P1 O)
   .
 
 
@@ -201,386 +220,395 @@ Module Type PROC(Import Que : QUE_MOD).
   #[export] Hint Transparent trans_pqued : LTS.
 
 
-  Lemma PTrans_Recv_inv n v S0 S1 :
-    (S0 =(Recv n v)=> S1) <-> exists I0 P0 O0, pq I0 P0 O0 = S0 /\ pq (I0 ++ [(n, v)]) P0 O0 = S1.
-  Proof. eattac; kill H; eattac. Qed.
+  Section Inversions.
+    Lemma PTrans_Recv_inv n v S0 S1 :
+      (S0 =(Recv n v)=> S1) <-> exists I0 P0 O0, pq I0 P0 O0 = S0 /\ pq (I0 ++ [(n, v)]) P0 O0 = S1.
+    Proof. eattac; kill H; eattac. Qed.
 
-  Lemma PTrans_Send_inv n v S0 S1 :
-    (S0 =(Send n v)=> S1) <->
-      exists I0 P0 O1, pq I0 P0 ((n, v)::O1) = S0 /\ pq I0 P0 O1 = S1.
-  Proof. eattac; kill H; eattac. Qed.
+    Lemma PTrans_Send_inv n v S0 S1 :
+      (S0 =(Send n v)=> S1) <->
+        exists I0 P0 O1, pq I0 P0 ((n, v)::O1) = S0 /\ pq I0 P0 O1 = S1.
+    Proof. eattac; kill H; eattac. Qed.
 
-  Lemma PTrans_Tau_Recv_inv I0 O0 S1 handle :
-    (pq I0 (PRecv handle) O0 =(Tau)=> S1) <->
-      exists n v I1 P1, (PRecv handle =(Recv n v)=> P1) /\ Deq n v I0 I1 /\ S1 = pq I1 P1 O0.
-  Proof.
-    split; intros.
-    - kill H; kill H0; eattac.
-    - eattac.
-  Qed.
+    Lemma PTrans_Tau_Recv_inv I0 O0 S1 handle :
+      (pq I0 (PRecv handle) O0 =(Tau)=> S1) <->
+        exists n v I1 P1, (PRecv handle =(Recv n v)=> P1) /\ Deq n v I0 I1 /\ S1 = pq I1 P1 O0.
+    Proof.
+      split; intros.
+      - kill H; kill H0; eattac.
+      - eattac.
+    Qed.
 
-  Lemma PTrans_Tau_Send_inv n v I0 P0 O0 S1 :
-    (pq I0 (PSend n v P0) O0 =(Tau)=> S1) <->
-      exists P1, (PSend n v P0 =(Send n v)=> P1) /\ S1 = pq I0 P0 (O0 ++ [(n, v)]).
-  Proof.
-    split; intros.
-    - kill H; kill H0; subst. eattac.
-    - eattac; kill H.
-  Qed.
+    Lemma PTrans_Tau_Send_inv n v I0 P0 O0 S1 :
+      (pq I0 (PSend n v P0) O0 =(Tau)=> S1) <->
+        exists P1, (PSend n v P0 =(Send n v)=> P1) /\ S1 = pq I0 P0 (O0 ++ [(n, v)]).
+    Proof.
+      split; intros.
+      - kill H; kill H0; subst. eattac.
+      - eattac; kill H.
+    Qed.
 
-  Lemma PTrans_Tau_Tau_inv  I0 P0 O0 S1 :
-    (pq I0 (PTau P0) O0 =(Tau)=> S1) <->
-      exists P1, (PTau P0 =(Tau)=> P1) /\ S1 = pq I0 P1 O0.
-  Proof.
-    split; intros.
-    - kill H; eattac.
-    - eattac.
-  Qed.
+    Lemma PTrans_Tau_Tau_inv  I0 P0 O0 S1 :
+      (pq I0 (PTau P0) O0 =(Tau)=> S1) <->
+        exists P1, (PTau P0 =(Tau)=> P1) /\ S1 = pq I0 P1 O0.
+    Proof.
+      split; intros.
+      - kill H; eattac.
+      - eattac.
+    Qed.
 
+    Lemma PTrans_Recv_t_inv a I0 P0 O0 I1 P1 O1 :
+      (length I1 > length I0)%nat ->
+      (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
+        exists n v, I1 = I0 ++ [(n, v)] /\ P1 = P0 /\ O1 = O0 /\ a = Recv n v.
+    Proof.
+      split; intros.
+      - kill H0; try ltac1:(lia).
+        + attac. subst. exists n, v. attac.
+        + kill H1.
+          apply Deq_length in HDeq.
+          ltac1:(lia).
+      - eattac.
+    Qed.
+
+    Lemma PTrans_Pick_t_inv a I0 P0 O0 I1 P1 O1 :
+      (length I1 < length I0)%nat ->
+      (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
+        exists n v, Deq n v I0 I1 /\ (P0 =(Recv n v)=> P1) /\ O1 = O0 /\ a = Tau.
+    Proof.
+      split; intros.
+      - kill H0; try ltac1:(lia); eattac.
+      - eattac.
+    Qed.
+
+    Lemma PTrans_Tau_t_inv a I0 P0 O0 I1 P1 O1 :
+      length I0 = length I1 -> length O0 = length O1 ->
+      (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
+        I1 = I0 /\ O1 = O0 /\ a = Tau /\ (P0 =(Tau)=> P1).
+    Proof.
+      split; intros; subst.
+      - kill H1; attac; absurd (length I1 = length I0); attac.
+      - eattac.
+    Qed.
+
+    Lemma PTrans_Send_t_inv a I0 P0 O0 I1 P1 O1 :
+      (length O1 > length O0)%nat ->
+      (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
+        exists n v, O1 = O0 ++ [(n, v)] /\ (P0 =(Send n v)=> P1) /\ I1 = I0 /\ a = Tau.
+    Proof.
+      split; intros.
+      - kill H0; try ltac1:(lia).
+        + attac. subst. exists n, v. attac.
+        + simpl in *.
+          ltac1:(lia).
+      - eattac.
+    Qed.
+
+    Lemma PTrans_Push_t_inv a I0 P0 O0 I1 P1 O1 :
+      (length O1 < length O0)%nat ->
+      (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
+        exists n v, I0 = I1 /\ P0 = P1 /\ O0 = ((n,v)::O1) /\ a = (Send n v).
+    Proof.
+      split; intros.
+      - kill H0; eattac.
+      - eattac.
+    Qed.
+  End Inversions.
   #[export] Hint Rewrite
   -> @PTrans_Recv_inv @PTrans_Send_inv @PTrans_Tau_Recv_inv @PTrans_Tau_Send_inv @PTrans_Tau_Tau_inv
       using (first [assumption | lia]) : LTS.
 
-
-  Lemma PTrans_Recv_t_inv a I0 P0 O0 I1 P1 O1 :
-    (length I1 > length I0)%nat ->
-    (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
-      exists n v, I1 = I0 ++ [(n, v)] /\ P1 = P0 /\ O1 = O0 /\ a = Recv n v.
-  Proof.
-    split; intros.
-    - kill H0; try ltac1:(lia).
-      + attac. subst. exists n, v. attac.
-      + kill H1.
-        apply Deq_length in HDeq.
-        ltac1:(lia).
-    - eattac.
-  Qed.
-
-
-  Lemma PTrans_Pick_t_inv a I0 P0 O0 I1 P1 O1 :
-    (length I1 < length I0)%nat ->
-    (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
-      exists n v, Deq n v I0 I1 /\ (P0 =(Recv n v)=> P1) /\ O1 = O0 /\ a = Tau.
-  Proof.
-    split; intros.
-    - kill H0; try ltac1:(lia); eattac.
-    - eattac.
-  Qed.
-
-  Lemma PTrans_Tau_t_inv a I0 P0 O0 I1 P1 O1 :
-    length I0 = length I1 -> length O0 = length O1 ->
-    (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
-      I1 = I0 /\ O1 = O0 /\ a = Tau /\ (P0 =(Tau)=> P1).
-  Proof.
-    split; intros; subst.
-    - kill H1; attac; absurd (length I1 = length I0); attac.
-    - eattac.
-  Qed.
-
-  Lemma PTrans_Send_t_inv a I0 P0 O0 I1 P1 O1 :
-    (length O1 > length O0)%nat ->
-    (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
-      exists n v, O1 = O0 ++ [(n, v)] /\ (P0 =(Send n v)=> P1) /\ I1 = I0 /\ a = Tau.
-  Proof.
-    split; intros.
-    - kill H0; try ltac1:(lia).
-      + attac. subst. exists n, v. attac.
-      + simpl in *.
-        ltac1:(lia).
-    - eattac.
-  Qed.
-
-  Lemma PTrans_Push_t_inv a I0 P0 O0 I1 P1 O1 :
-    (length O1 < length O0)%nat ->
-    (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
-      exists n v, I0 = I1 /\ P0 = P1 /\ O0 = ((n,v)::O1) /\ a = (Send n v).
-  Proof.
-    split; intros.
-    - kill H0; eattac.
-    - eattac.
-  Qed.
-
-
   #[export] Hint Rewrite
   -> @PTrans_Recv_t_inv @PTrans_Pick_t_inv @PTrans_Tau_t_inv @PTrans_Send_t_inv @PTrans_Push_t_inv using (solve [eauto with LTS datatypes; lia]) : LTS.
 
-End PROC.
+End PROC_F.
 
+Module Type PROC(Conf : PROC_CONF) := Conf <+ PROC_PARAMS <+ PROC_F.
 
-Module Type MON_PARAMS := MODEL_DATA <+ QUE <+ PROC.
 
 Ltac2 destruct_ma a :=
   destruct $a as [[[? ?]|[? ?]|]|[[? ?]|[? ?]|]|[[? ?]|[? ?]|]].
 
 Ltac2 Notation "destruct_ma" c(constr) := destruct_ma c.
 
-  Ltac2 evar t :=
-    let u := open_constr:(_:$t) in
-    match Constr.Unsafe.kind u with
-    | Constr.Unsafe.Cast v _ _ => v
-    | _ => Control.throw Init.Assertion_failure
-    end.
+Ltac2 evar t :=
+  let u := open_constr:(_:$t) in
+  match Constr.Unsafe.kind u with
+  | Constr.Unsafe.Cast v _ _ => v
+  | _ => Control.throw Init.Assertion_failure
+  end.
 
 
-  Ltac2 rec special_destruct (h : ident) :=
-    let hh := hyp h in
-    match! (Constr.type hh) with
-    | ex ?x =>
-        match (Constr.Unsafe.kind x) with
-        | Constr.Unsafe.Lambda arg _val =>
-            let arg_n := match Constr.Binder.name arg with
-                         | None => Fresh.in_goal @x
-                         | Some n => Fresh.in_goal n
-                         end in
-            destruct $hh as [$arg_n $h];
-            special_destruct h
-        | _ => Control.throw Init.Assertion_failure
-        end
-    | _ /\ _ =>
-        let h' := Fresh.in_goal h in
-        destruct $hh as [$h $h'];
-        Control.enter (fun () => special_destruct h);
-        Control.enter (fun () => special_destruct h')
-    | _ => ()
-    end.
+Ltac2 rec special_destruct (h : ident) :=
+  let hh := hyp h in
+  match! (Constr.type hh) with
+  | ex ?x =>
+      match (Constr.Unsafe.kind x) with
+      | Constr.Unsafe.Lambda arg _val =>
+          let arg_n := match Constr.Binder.name arg with
+                       | None => Fresh.in_goal @x
+                       | Some n => Fresh.in_goal n
+                       end in
+          destruct $hh as [$arg_n $h];
+          special_destruct h
+      | _ => Control.throw Init.Assertion_failure
+      end
+  | _ /\ _ =>
+      let h' := Fresh.in_goal h in
+      destruct $hh as [$h $h'];
+      Control.enter (fun () => special_destruct h);
+      Control.enter (fun () => special_destruct h')
+  | _ => ()
+  end.
 
 
-  Ltac2 sd t :=
-    match! goal with
-    | [h : _ |- _] =>
-        let h_hyp := hyp h in
-        let h' := Fresh.in_goal h in
-        assert $t as $h' by (eapply $h_hyp; eauto with LTS);
-        clear $h;
-        rename $h' into $h;
-        special_destruct h
-    end.
+Ltac2 sd t :=
+  match! goal with
+  | [h : _ |- _] =>
+      let h_hyp := hyp h in
+      let h' := Fresh.in_goal h in
+      assert $t as $h' by (eapply $h_hyp; eauto with LTS);
+      clear $h;
+      rename $h' into $h;
+      special_destruct h
+  end.
 
 
 
-  Ltac2 rec pose_matches (l : (ident * constr) list) :=
-    match l with
-    | [] => ()
-    | (i, x)::rest =>
-        match Constr.Unsafe.kind x with
-        | Constr.Unsafe.Var x' =>
-            if Ident.equal x' i then () else pose $x as $i
-        | _ => pose $x as $i
-        end;
+Ltac2 rec pose_matches (l : (ident * constr) list) :=
+  match l with
+  | [] => ()
+  | (i, x)::rest =>
+      match Constr.Unsafe.kind x with
+      | Constr.Unsafe.Var x' =>
+          if Ident.equal x' i then () else pose $x as $i
+      | _ => pose $x as $i
+      end;
 
-        pose_matches rest
-    end.
+      pose_matches rest
+  end.
 
-  Ltac2 rec print_list (l : (ident * constr) list) :=
-    match l with
-    | [] => ()
-    | (i, x)::rest =>
-        printf "%I --> %t" i x;
-        print_list rest
-    end.
-
-
-  Ltac2 rec rebind (l : (ident * constr) list) :=
-    match l with
-    | [] => ()
-    | (v, _t)::rest =>
-        let v_h := hyp v in
-        match! (eval cbv in $v_h) with
-        | ?x =>
-            if Constr.is_var x
-            then ltac1:(x a |- replace x with a in * by auto) (Ltac1.of_constr x) (Ltac1.of_ident v)
-            else ()
-        end;
-        rebind rest
-    end.
-
-  Ltac2 obtain (h : ident) (p : pattern) :=
-    let body := strip_exists h in
-    let m := Pattern.matches p body in
-    pose_matches m;
-    unshelve (rebind m).
-
-  Ltac2 Notation "obtain" h(ident) p(pattern) := unshelve (obtain h p); try assumption.
+Ltac2 rec print_list (l : (ident * constr) list) :=
+  match l with
+  | [] => ()
+  | (i, x)::rest =>
+      printf "%I --> %t" i x;
+      print_list rest
+  end.
 
 
-  Ltac2 rec tr(t : constr) :=
-    match (Constr.Unsafe.kind t) with
-    | Constr.Unsafe.Prod prem concl =>
-        match (Constr.Binder.name prem) with
-        | None => t
-        | Some _n =>
-            Constr.Unsafe.make (Constr.Unsafe.Prod prem (tr concl))
-        end
-    | _ => t
-    end.
+Ltac2 rec rebind (l : (ident * constr) list) :=
+  match l with
+  | [] => ()
+  | (v, _t)::rest =>
+      let v_h := hyp v in
+      match! (eval cbv in $v_h) with
+      | ?x =>
+          if Constr.is_var x
+          then ltac1:(x a |- replace x with a in * by auto) (Ltac1.of_constr x) (Ltac1.of_ident v)
+          else ()
+      end;
+      rebind rest
+  end.
+
+Ltac2 obtain (h : ident) (p : pattern) :=
+  let body := strip_exists h in
+  let m := Pattern.matches p body in
+  pose_matches m;
+  unshelve (rebind m).
+
+Ltac2 Notation "obtain" h(ident) p(pattern) := unshelve (obtain h p); try assumption.
 
 
-  Ltac2 rec build_impl prems concl :=
-    match prems with
-    | [] => concl
-    | prem::rest =>
-        let concl := Constr.Unsafe.make (Constr.Unsafe.Prod prem concl) in
-        build_impl rest concl
-    end.
+Ltac2 rec tr(t : constr) :=
+  match (Constr.Unsafe.kind t) with
+  | Constr.Unsafe.Prod prem concl =>
+      match (Constr.Binder.name prem) with
+      | None => t
+      | Some _n =>
+          Constr.Unsafe.make (Constr.Unsafe.Prod prem (tr concl))
+      end
+  | _ => t
+  end.
 
-  Ltac2 rec move_rels rels (idx : int) t :=
-    match rels with
-    | [] => t
-    | _shift::rest =>
-        move_rels rest (Int.add 1 idx) t
-    end.
 
-  Ltac2 rec normalize_forall' (acc : binder list) (t : constr) :=
-    match (Constr.Unsafe.kind t) with
-    | Constr.Unsafe.Prod prem concl =>
-        match (Constr.Binder.name prem) with
-        | None =>
-            normalize_forall' (prem::acc) concl
-        | Some _n =>
-            (*
+Ltac2 rec build_impl prems concl :=
+  match prems with
+  | [] => concl
+  | prem::rest =>
+      let concl := Constr.Unsafe.make (Constr.Unsafe.Prod prem concl) in
+      build_impl rest concl
+  end.
+
+Ltac2 rec move_rels rels (idx : int) t :=
+  match rels with
+  | [] => t
+  | _shift::rest =>
+      move_rels rest (Int.add 1 idx) t
+  end.
+
+Ltac2 rec normalize_forall' (acc : binder list) (t : constr) :=
+  match (Constr.Unsafe.kind t) with
+  | Constr.Unsafe.Prod prem concl =>
+      match (Constr.Binder.name prem) with
+      | None =>
+          normalize_forall' (prem::acc) concl
+      | Some _n =>
+          (*
           - lift acc by 1
           - get future
           - incr 0 by len acc
           - construct forall
 
-             *)
+           *)
 
-            let acc := List.map (
-                           fun prem =>
-                             let n := Constr.Binder.name prem in
-                             let t := Constr.Binder.type prem in
-                             let t := Constr.Unsafe.liftn 1 1 t in
-                             Constr.Binder.unsafe_make n (Constr.Binder.Relevant) t
-                         ) acc
-            in
+          let acc := List.map (
+                         fun prem =>
+                           let n := Constr.Binder.name prem in
+                           let t := Constr.Binder.type prem in
+                           let t := Constr.Unsafe.liftn 1 1 t in
+                           Constr.Binder.unsafe_make n (Constr.Binder.Relevant) t
+                       ) acc
+          in
 
-            let concl := normalize_forall' acc concl in
+          let concl := normalize_forall' acc concl in
 
-            let concl := Constr.Unsafe.liftn (List.length acc) 1 concl in
+          let concl := Constr.Unsafe.liftn (List.length acc) 1 concl in
 
-            let kind := Constr.Unsafe.Prod prem concl in
-            let t := Constr.Unsafe.make kind in
-            t
-        end
-    | _ =>
-        let t := build_impl acc t in
-        t
-    end.
-
-
-  Ltac2 rec ignores_rel1 t :=
-    if Constr.Unsafe.closedn 2 t
-    then
-      let t := Constr.Unsafe.substnl ['(False)] 1 t in
-      Constr.Unsafe.closedn 0 t
-    else ignores_rel1 (Constr.Unsafe.liftn (-1) 3 t).
+          let kind := Constr.Unsafe.Prod prem concl in
+          let t := Constr.Unsafe.make kind in
+          t
+      end
+  | _ =>
+      let t := build_impl acc t in
+      t
+  end.
 
 
-  Ltac2 judge_prod t : (ident option * constr * constr) option :=
-    match Constr.Unsafe.kind t with
-    | Constr.Unsafe.Prod prem concl =>
-        let prem_t := Constr.Binder.type prem in
-        match Constr.Binder.name prem with
-        | Some n =>
-            if ignores_rel1 concl
-            then
-              Some (None, prem_t, concl)
-            else
-              Some (Some n, prem_t, concl)
-        | None =>
+Ltac2 rec ignores_rel1 t :=
+  if Constr.Unsafe.closedn 2 t
+  then
+    let t := Constr.Unsafe.substnl ['(False)] 1 t in
+    Constr.Unsafe.closedn 0 t
+  else ignores_rel1 (Constr.Unsafe.liftn (-1) 3 t).
+
+
+Ltac2 judge_prod t : (ident option * constr * constr) option :=
+  match Constr.Unsafe.kind t with
+  | Constr.Unsafe.Prod prem concl =>
+      let prem_t := Constr.Binder.type prem in
+      match Constr.Binder.name prem with
+      | Some n =>
+          if ignores_rel1 concl
+          then
             Some (None, prem_t, concl)
-        end
-    | _ =>
-        None
-    end.
+          else
+            Some (Some n, prem_t, concl)
+      | None =>
+          Some (None, prem_t, concl)
+      end
+  | _ =>
+      None
+  end.
 
 
-  Ltac2 rec normalize_forall_step (t : constr) :=
-    match judge_prod t with
-    | Some (None, iprem_t, iconcl) =>
+Ltac2 rec normalize_forall_step (t : constr) :=
+  match judge_prod t with
+  | Some (None, iprem_t, iconcl) =>
 
-        match judge_prod iconcl with
-        | Some (Some fprem_i, fprem_t, fconcl) =>
+      match judge_prod iconcl with
+      | Some (Some fprem_i, fprem_t, fconcl) =>
 
-            let iprem_t := Constr.Unsafe.liftn 1 1 iprem_t in
-            let fconcl := Constr.Unsafe.liftn 1 1 fconcl in
-            let fconcl := Constr.Unsafe.liftn (-1) 3 fconcl in
-            let fprem_t := Constr.Unsafe.liftn (-1) 1 fprem_t in
+          let iprem_t := Constr.Unsafe.liftn 1 1 iprem_t in
+          let fconcl := Constr.Unsafe.liftn 1 1 fconcl in
+          let fconcl := Constr.Unsafe.liftn (-1) 3 fconcl in
+          let fprem_t := Constr.Unsafe.liftn (-1) 1 fprem_t in
 
-            let iprem := Constr.Binder.unsafe_make None (Constr.Binder.Relevant) iprem_t in
-            let ikind := Constr.Unsafe.Prod iprem fconcl in
-            let fprem := Constr.Binder.unsafe_make (Some fprem_i) (Constr.Binder.Relevant) fprem_t in
-            let fkind := Constr.Unsafe.Prod fprem (Constr.Unsafe.make ikind) in
+          let iprem := Constr.Binder.unsafe_make None (Constr.Binder.Relevant) iprem_t in
+          let ikind := Constr.Unsafe.Prod iprem fconcl in
+          let fprem := Constr.Binder.unsafe_make (Some fprem_i) (Constr.Binder.Relevant) fprem_t in
+          let fkind := Constr.Unsafe.Prod fprem (Constr.Unsafe.make ikind) in
 
-            let t := Constr.Unsafe.make fkind in
+          let t := Constr.Unsafe.make fkind in
 
-            t
-        | _ =>
+          t
+      | _ =>
 
-            let iprem := Constr.Binder.unsafe_make None (Constr.Binder.Relevant) iprem_t in
-            let iconcl := normalize_forall_step iconcl in
-            let ikind := Constr.Unsafe.Prod iprem iconcl in
-            let t := Constr.Unsafe.make ikind in
-            t
-        end
-    | Some (Some iprem_i, iprem_t, iconcl) =>
+          let iprem := Constr.Binder.unsafe_make None (Constr.Binder.Relevant) iprem_t in
+          let iconcl := normalize_forall_step iconcl in
+          let ikind := Constr.Unsafe.Prod iprem iconcl in
+          let t := Constr.Unsafe.make ikind in
+          t
+      end
+  | Some (Some iprem_i, iprem_t, iconcl) =>
 
-        let iprem := Constr.Binder.unsafe_make (Some iprem_i) (Constr.Binder.Relevant) iprem_t in
-        let iconcl := normalize_forall_step iconcl in
-        let ikind := Constr.Unsafe.Prod iprem iconcl in
-        let t := Constr.Unsafe.make ikind in
-        t
-    | _ =>
-        t
-    end.
+      let iprem := Constr.Binder.unsafe_make (Some iprem_i) (Constr.Binder.Relevant) iprem_t in
+      let iconcl := normalize_forall_step iconcl in
+      let ikind := Constr.Unsafe.Prod iprem iconcl in
+      let t := Constr.Unsafe.make ikind in
+      t
+  | _ =>
+      t
+  end.
 
-  Ltac2 rec normalize_forall t :=
-    let t' := normalize_forall_step t in
-    if Constr.equal t t'
-    then t
-    else normalize_forall (Constr.Unsafe.liftn -1 1 t').
+Ltac2 rec normalize_forall t :=
+  let t' := normalize_forall_step t in
+  if Constr.equal t t'
+  then t
+  else normalize_forall (Constr.Unsafe.liftn -1 1 t').
 
-  Ltac2 normalize_hyp h :=
-    let h_hyp := hyp h in
-    let t := normalize_forall (Constr.type h_hyp) in
-    let v := Fresh.in_goal @H in
-    assert $t as $v by (intros; eapply $h_hyp; eauto);
-    clear $h;
-    rename $v into $h.
+Ltac2 normalize_hyp h :=
+  let h_hyp := hyp h in
+  let t := normalize_forall (Constr.type h_hyp) in
+  let v := Fresh.in_goal @H in
+  assert $t as $v by (intros; eapply $h_hyp; eauto);
+  clear $h;
+  rename $v into $h.
 
-  Ltac2 Notation "normalize" h(ident) := normalize_hyp h.
-
-
-  Ltac2 rec split_forall t :=
-    match (Constr.Unsafe.kind t) with
-    | Constr.Unsafe.Prod prem concl =>
-        match (Constr.Binder.name prem) with
-        | None =>
-            split_forall concl
-        | Some n =>
-            let t := Constr.Binder.type prem in
-            let e := evar t in
-            let concl := Constr.Unsafe.substnl [e] 0 concl in
-            let (args, targs, tail) := split_forall concl in
-            (n::args, t::targs, tail)
-        end
-    | _ =>
-        ([], [], t)
-    end.
+Ltac2 Notation "normalize" h(ident) := normalize_hyp h.
 
 
-  Import Ltac2.Constr.Unsafe.
+Ltac2 rec split_forall t :=
+  match (Constr.Unsafe.kind t) with
+  | Constr.Unsafe.Prod prem concl =>
+      match (Constr.Binder.name prem) with
+      | None =>
+          split_forall concl
+      | Some n =>
+          let t := Constr.Binder.type prem in
+          let e := evar t in
+          let concl := Constr.Unsafe.substnl [e] 0 concl in
+          let (args, targs, tail) := split_forall concl in
+          (n::args, t::targs, tail)
+      end
+  | _ =>
+      ([], [], t)
+  end.
 
-  Ltac2 evar_to_ident t :=
-    let s := Message.to_string (Message.of_constr t) in
-    String.set s 0 (Char.of_int 118);
-    match Ident.of_string s with
-    | Some i => i
-    | None => Fresh.in_goal @e
-    end.
+
+Import Ltac2.Constr.Unsafe.
+
+Ltac2 evar_to_ident t :=
+  let s := Message.to_string (Message.of_constr t) in
+  String.set s 0 (Char.of_int 118);
+  match Ident.of_string s with
+  | Some i => i
+  | None => Fresh.in_goal @e
+  end.
 
 
-Module Type MON_F(Import MonInput : MON_PARAMS).
+Module Type MON_CONF.
+  Parameter Inline Msg : Set.
+  Parameter Inline MState : Set.
+End MON_CONF.
+
+Module Type MON_PROC_CONF := PROC_CONF <+ MON_CONF.
+
+Module Type MON_PARAMS(Conf : MON_PROC_CONF).
+  Declare Module Export Proc : PROC(Conf).
+End MON_PARAMS.
+
+Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf)).
   Inductive Event :=
   | TrSend : NChan -> Val -> Event
   | TrRecv : NChan -> Val -> Event
@@ -603,8 +631,7 @@ Module Type MON_F(Import MonInput : MON_PARAMS).
   .
   #[export] Hint Constructors MAct : LTS.
 
-  (* #[global] Coercion MValM : Msg >-> MVal. *)
-  (* #[global] Coercion MValP : Val >-> MVal. *)
+
   Notation "# v" := (MValP v) (at level 1).
   Notation "^ v" := (MValM v) (at level 1).
 
@@ -711,27 +738,30 @@ Module Type MON_F(Import MonInput : MON_PARAMS).
   #[export] Hint Transparent trans_mon : LTS.
 
 
-  Lemma MonTrans_Recv_inv (M0 M1 : Mon) e :
-    (M0 =(MonRecv e)=> M1) <->
-      exists h s, M0 = {|handle:=h;state:=MRecv s|} /\ M1 = {|handle:=h; state:=h e s|}.
+  Section Inversions.
+    Fact MonTrans_Recv_inv (M0 M1 : Mon) e :
+      (M0 =(MonRecv e)=> M1) <->
+        exists h s, M0 = {|handle:=h;state:=MRecv s|} /\ M1 = {|handle:=h; state:=h e s|}.
 
-  Proof.
-    split; intros.
-    - kill H. exists handle0, s. attac.
-    - destruct M0, M1. eattac.
-  Qed.
+    Proof.
+      split; intros.
+      - kill H. exists handle0, s. attac.
+      - destruct M0, M1. eattac.
+    Qed.
 
-  Lemma MonTrans_Send_inv (M0 M1 : Mon) n e :
-    (M0 =(MonSend n e)=> M1) <->
-      M0 = {|handle:=handle M1; state:=MSend n e (state M1)|}.
+    Fact MonTrans_Send_inv (M0 M1 : Mon) n e :
+      (M0 =(MonSend n e)=> M1) <->
+        M0 = {|handle:=handle M1; state:=MSend n e (state M1)|}.
 
-  Proof.
-    destruct M0, M1; eattac.
-  Qed.
+    Proof.
+      destruct M0, M1; eattac.
+    Qed.
 
-  Lemma MonTrans_Tau_inv (M0 M1 : Mon) :
-    (M0 =(MonTau)=> M1) <-> False.
-  Proof. eattac. Qed.
+    Fact MonTrans_Tau_inv (M0 M1 : Mon) :
+      (M0 =(MonTau)=> M1) <-> False.
+    Proof. eattac. Qed.
+
+  End Inversions.
 
   #[export] Hint Rewrite -> @MonTrans_Recv_inv @MonTrans_Send_inv @MonTrans_Tau_inv using assumption : LTS LTS_concl.
 
@@ -888,90 +918,81 @@ Module Type MON_F(Import MonInput : MON_PARAMS).
   #[export] Hint Transparent trans_mqued : LTS.
 
 
-  Lemma MTrans_SendM_inv n msg MS0 MS1 :
-    (MS0 =(MActM (Send n msg))=> MS1) <-> exists MQ M0 P M1,
-        MS0 = mq MQ M0 P /\ MS1 = mq MQ M1 P /\ (M0 =(MonSend n msg)=> M1).
-  Proof.
-    split; intros.
-    - destruct MS0, MS1; kill H. eexists _,_,_,_. eattac.
-    - hsimpl in *. constructor. destruct M1. eattac.
-  Qed.
+  Section Inversions.
+    Fact MTrans_SendM_inv n msg MS0 MS1 :
+      (MS0 =(MActM (Send n msg))=> MS1) <-> exists MQ M0 P M1,
+          MS0 = mq MQ M0 P /\ MS1 = mq MQ M1 P /\ (M0 =(MonSend n msg)=> M1).
+    Proof.
+      split; intros.
+      - destruct MS0, MS1; kill H. eexists _,_,_,_. eattac.
+      - hsimpl in *. constructor. destruct M1. eattac.
+    Qed.
 
-  Lemma MTrans_RecvM_inv n v MS0 MS1 :
-    (MS0 =(MActM (Recv n v))=> MS1) <-> exists MQ M P,
-        MS0 = mq MQ M P /\ MS1 = mq (MQ ++ [EvRecv n v]) M P.
-  Proof.
-    split; intros.
-    - destruct MS0, MS1; kill H. eexists _,_,_. eattac.
-    - attac.
-  Qed.
+    Fact MTrans_RecvM_inv n v MS0 MS1 :
+      (MS0 =(MActM (Recv n v))=> MS1) <-> exists MQ M P,
+          MS0 = mq MQ M P /\ MS1 = mq (MQ ++ [EvRecv n v]) M P.
+    Proof.
+      split; intros.
+      - destruct MS0, MS1; kill H. eexists _,_,_. eattac.
+      - attac.
+    Qed.
 
-  Lemma MTrans_PickM_inv MS0 MS1 :
-    (MS0 =(MActM Tau)=> MS1) <-> exists n msg MQ P M0 M1,
-        MS0 = mq (EvRecv n msg :: MQ) M0 P /\ MS1 = mq MQ M1 P /\ (M0 =(MonRecv (EvRecv n msg))=> M1).
-  Proof.
-    split; intros.
-    - kill H; kill H0. eexists _,_. eattac.
-    - hsimpl in *. constructor. eattac.
-  Qed.
+    Fact MTrans_PickM_inv MS0 MS1 :
+      (MS0 =(MActM Tau)=> MS1) <-> exists n msg MQ P M0 M1,
+          MS0 = mq (EvRecv n msg :: MQ) M0 P /\ MS1 = mq MQ M1 P /\ (M0 =(MonRecv (EvRecv n msg))=> M1).
+    Proof.
+      split; intros.
+      - kill H; kill H0. eexists _,_. eattac.
+      - hsimpl in *. constructor. eattac.
+    Qed.
 
-  Lemma MTrans_RecvT_inv n v MS0 MS1 :
-    (MS0 =(MActT (Recv n v))=> MS1) <-> exists MQ M P,
-        MS0 = mq MQ M P /\ MS1 = mq (MQ ++ [TrRecv n v]) M P.
-  Proof.
-    split; intros.
-    - destruct MS0, MS1; kill H. eexists _,_,_. eattac.
-    - attac.
-  Qed.
+    Fact MTrans_RecvT_inv n v MS0 MS1 :
+      (MS0 =(MActT (Recv n v))=> MS1) <-> exists MQ M P,
+          MS0 = mq MQ M P /\ MS1 = mq (MQ ++ [TrRecv n v]) M P.
+    Proof.
+      split; intros.
+      - destruct MS0, MS1; kill H. eexists _,_,_. eattac.
+      - attac.
+    Qed.
 
-  Lemma MTrans_SendT_inv n v MS0 MS1 :
-    (MS0 =(MActT (Send n v))=> MS1) <-> exists MQ P M0 M1,
-        MS0 = mq (TrSend n v :: MQ) M0 P /\ MS1 = mq MQ M1 P /\ (M0 =(MonRecv (TrSend n v))=> M1).
-  Proof.
-    split; intros.
-    - kill H; kill H0. eattac.
-    - hsimpl in *. constructor. eattac.
-  Qed.
+    Fact MTrans_SendT_inv n v MS0 MS1 :
+      (MS0 =(MActT (Send n v))=> MS1) <-> exists MQ P M0 M1,
+          MS0 = mq (TrSend n v :: MQ) M0 P /\ MS1 = mq MQ M1 P /\ (M0 =(MonRecv (TrSend n v))=> M1).
+    Proof.
+      split; intros.
+      - kill H; kill H0. eattac.
+      - hsimpl in *. constructor. eattac.
+    Qed.
 
-  Lemma MTrans_RecvP_inv n v MS0 MS1 :
-    (MS0 =(MActP (Recv n v))=> MS1) <-> exists MQ P0 M0 M1 P1,
-        MS0 = mq (TrRecv n v :: MQ) M0 P0 /\ MS1 = mq MQ M1 P1 /\ (M0 =(MonRecv (TrRecv n v))=> M1)
-        /\ (P0 =(Recv n v)=> P1).
-  Proof.
-    split; intros.
-    - kill H; kill H0. eexists _,_; eattac.
-    - hsimpl in *. constructor; eattac.
-  Qed.
+    Fact MTrans_RecvP_inv n v MS0 MS1 :
+      (MS0 =(MActP (Recv n v))=> MS1) <-> exists MQ P0 M0 M1 P1,
+          MS0 = mq (TrRecv n v :: MQ) M0 P0 /\ MS1 = mq MQ M1 P1 /\ (M0 =(MonRecv (TrRecv n v))=> M1)
+          /\ (P0 =(Recv n v)=> P1).
+    Proof.
+      split; intros.
+      - kill H; kill H0. eexists _,_; eattac.
+      - hsimpl in *. constructor; eattac.
+    Qed.
 
-  Lemma MTrans_SendP_inv n v MS0 MS1 :
-    (MS0 =(MActP (Send n v))=> MS1) <-> exists MQ M P0 P1,
-        MS0 = mq MQ M P0 /\ MS1 = mq (MQ ++ [TrSend n v]) M P1 /\ (P0 =(Send n v)=> P1).
-  Proof.
-    split; intros.
-    - destruct MS0, MS1; kill H. eexists _,_,_. eattac.
-    - attac.
-  Qed.
+    Fact MTrans_SendP_inv n v MS0 MS1 :
+      (MS0 =(MActP (Send n v))=> MS1) <-> exists MQ M P0 P1,
+          MS0 = mq MQ M P0 /\ MS1 = mq (MQ ++ [TrSend n v]) M P1 /\ (P0 =(Send n v)=> P1).
+    Proof.
+      split; intros.
+      - destruct MS0, MS1; kill H. eexists _,_,_. eattac.
+      - attac.
+    Qed.
 
-  Lemma MTrans_TauP_inv MS0 MS1 :
-    (MS0 =(MActP Tau)=> MS1) <-> exists MQ M P0 P1,
-        MS0 = mq MQ M P0 /\ MS1 = mq MQ M P1 /\ (P0 =(Tau)=> P1).
-  Proof. eattac; kill H; eattac. Qed.
+    Fact MTrans_TauP_inv MS0 MS1 :
+      (MS0 =(MActP Tau)=> MS1) <-> exists MQ M P0 P1,
+          MS0 = mq MQ M P0 /\ MS1 = mq MQ M P1 /\ (P0 =(Tau)=> P1).
+    Proof. eattac; kill H; eattac. Qed.
+  End Inversions.
 
   #[export] Hint Rewrite -> @MTrans_RecvM_inv @MTrans_SendM_inv @MTrans_PickM_inv @MTrans_SendT_inv @MTrans_RecvT_inv @MTrans_SendP_inv @MTrans_RecvP_inv @MTrans_TauP_inv using assumption : LTS.
 
 
   Notation NoSends_MQ := (Forall (fun e => match e with TrSend _ _ => False | _ => True end)).
-
-
-  Lemma bs_append : forall [A] [l] [a : A] [l'], l <> l ++ (a :: l').
-  Proof.
-    intros. induction l; simpl in *.
-    - discriminate.
-    - intros H.
-      inversion H. contradiction.
-  Qed.
-
-  #[export] Hint Resolve bs_append : bullshit.
 
 
   Lemma mq_preserve_handle1 [a MQ0 M0 S0 MQ1 M1 S1] :
@@ -1900,9 +1921,6 @@ Module Type MON_F(Import MonInput : MON_PARAMS).
     | MSend nc e _ => Some (MActM (Send nc e))
     end.
 
-
-  From Coq Require Import Program.
-
   Fixpoint mcode_measure (M : MCode) : (nat * MState) :=
     match M with
     | MRecv s => (O, s)
@@ -2203,7 +2221,7 @@ Module Type MON_F(Import MonInput : MON_PARAMS).
     destruct N1 as [MQ0' M0' [I0' P0' O0']].
     rewrite MPath_to_PPath_cons.
 
-    eapply path_seq with (P2:= pq (I0' ++ MQ_r MQ0') P0' (MQ_s MQ0' ++ O0'));
+    eapply path_seq with (middle := pq (I0' ++ MQ_r MQ0') P0' (MQ_s MQ0' ++ O0'));
       eauto using corr_extraction1.
   Qed.
 
@@ -2607,4 +2625,4 @@ Module Type MON_F(Import MonInput : MON_PARAMS).
 
 End MON_F.
 
-Module MON := MON_PARAMS <+ MON_F.
+Module Type MON(Conf : MON_PROC_CONF) := Conf <+ MON_PARAMS <+ MON_F.

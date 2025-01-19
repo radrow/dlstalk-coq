@@ -14,41 +14,32 @@ Close Scope nat.
 From Coq Require Import Lists.List.
 Import ListNotations.
 
-Require Import DlStalk.LTS.
-Require Import DlStalk.Tactics.
-Require Import DlStalk.Model.
-Require Import DlStalk.ModelData.
-Require Import DlStalk.Que.
-Require Import DlStalk.Network.
 
-Module Type MON_NET_PARAMS <: NET_PARAMS := MODEL_DATA <+ NET_PARAMS_F.
-Module Type MON_NET := MON_NET_PARAMS <+ QUE <+ PROC <+ MON_F <+ NET_F.
+From DlStalk Require Import Tactics.
+From DlStalk Require Import Lemmas.
+From DlStalk Require Import ModelData.
+From DlStalk Require Import LTS.
+From DlStalk Require Import Que.
+From DlStalk Require Import Model.
+From DlStalk Require Import Network.
 
-Module MonNetTactics(M : MON_NET).
-  Ltac2 destruct_mna_ a :=
-    first
-      [destruct $a as [? [[[? [|]]|[? [|]]|]|[[? ?]|[? ?]|]|[[? ?]|[? ?]|]] | ? ? [|] [?|?]] (* Q/R tags *)
-      |destruct $a as [? [[[? ?]|[? ?]|]|[[? ?]|[? ?]|]|[[? ?]|[? ?]|]] | ? ? ? [?|?]] (* Anon tags *)
-      ]; doubt.
 
-  Ltac2 Notation "destruct_mna" a(constr) := destruct_mna_ a.
-End MonNetTactics.
+Module Type TRANSP_CONF.
+  Include MON_CONF.
+  Include NET_CONF.
+End TRANSP_CONF.
 
-Module TranspDefs(Import Params : MON_NET).
+Module Type TRANSP_PARAMS(Conf : TRANSP_CONF).
+  Declare Module Export Mon : MON(Conf).
+  Declare Module Export Net : NET(Conf) with Module Channel := Channel.
+End TRANSP_PARAMS.
+
+Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Conf)).
+
   (** Not-monitored network *)
-  Definition PNet := NetMod.t PQued.
+  Notation PNet := (NetMod.t PQued).
   (** Monitored network *)
-  Definition MNet := NetMod.t MQued.
-End TranspDefs.
-
-Module Type TRANSP(Import Params : MON_NET).
-
-  Module Import TD := TranspDefs(Params).
-
-  Module Import Tactics := MonNetTactics(Params).
-
-  #[export] Hint Transparent PNet MNet : LTS typeclass_instances.
-
+  Notation MNet := (NetMod.t MQued).
 
   Lemma pq_I_net_inv' : forall I P O n [N : PNet], (* TODO prime' is due to a name clash in SRPCNet.v *)
       NetMod.get n N = pq I P O ->
@@ -477,7 +468,6 @@ Module Type TRANSP(Import Params : MON_NET).
 
   Hint Resolve net_instr_clear net_instr_ready : LTS.
 
-
   Lemma flush_act_available : forall [n : Name] a S [N0 : MNet],
       (NetMod.get n N0 =(a)=> S) ->
       Flushing_act a ->
@@ -511,7 +501,7 @@ Module Type TRANSP(Import Params : MON_NET).
       + destruct p; doubt.
         specialize (H n).
         hsimpl in *.
-        absurd (MQ_Clear (TrRecv n0 v :: MQ)); attac.
+        bullshit (MQ_Clear (TrRecv n0 v :: MQ)) by attac.
 
     - destruct p; attac.
       + destruct n0 as [n0 t0].
@@ -542,7 +532,7 @@ Module Type TRANSP(Import Params : MON_NET).
         smash_eq n n0.
         1: now (specialize (HNoself t0 (MValM v)); bullshit).
 
-        consider (exists N1 : MNet, N0 =( NComm n n0 t0 ^ v)=> N1)
+        assert (exists N1 : MNet, N0 =( NComm n n0 t0 ^ v)=> N1) as [N1 na]
           by (eapply send_comm_available; rewrite `(NetMod.get n N0 = _); eattac).
         eexists _, _.
         split. 1: eauto.
@@ -552,6 +542,7 @@ Module Type TRANSP(Import Params : MON_NET).
         consider (M2 = M1) by (destruct M1, M2; eattac).
 
         all: unfold no_sends_in, NoTrSend, flushed_in, flushed, Flushed, net_deinstr, ready_in, ready_q in *.
+
         all: hsimpl in *; attac.
 
         1,2,3: smash_eq n n0 m; hsimpl in *; attac.
@@ -1331,10 +1322,9 @@ Module Type TRANSP(Import Params : MON_NET).
 
     exists (mnpath0 ++ mnpath1 ++ mnpath2).
     exists &I, (net_deinstr MN3).
-    apply (path_seq T0).
-    apply (path_seq T1).
-    rewrite &Eq in T2.
-    apply T2.
+
+    hrewrite MN3 in * |- .
+    eauto with LTS.
   Qed.
 
 
@@ -1684,7 +1674,7 @@ Module Type TRANSP(Import Params : MON_NET).
     apply (IHmnpath) in TNM1 as (pnpath1 & TN1).
 
     exists (pnpath0 ++ pnpath1).
-    apply (path_seq TN0 TN1).
+    eauto with LTS.
   Qed.
 
 
@@ -1736,17 +1726,14 @@ Module Type TRANSP(Import Params : MON_NET).
     specialize (path_particip_stay) as ?.
     destruct (Net_flush_exists MN1 HF1 HRd1) as (mnpath1 & I1 & N2 & NTM1).
 
-    specialize (path_seq NTM0 NTM1) as NTM.
+    assert (net_instr I0 N0 =[ mnpath0 ++ mnpath1 ]=> net_instr I1 N2) as NTM by attac.
 
-    destruct (Net_path_corr NTM) as (pnpath & TN).
-    do 2 (rewrite net_deinstr_instr in TN).
+    consider (exists pnpath, '' (net_instr I0 N0) =[ pnpath ]=> '' (net_instr I1 N2)) by eauto using Net_path_corr.
 
     exists mnpath1, pnpath, I1, N2.
-
-    split.
-    - apply NTM1.
-    - apply TN.
+    attac.
   Qed.
+
 
   (** Completeness over NV: tau case. *)
   Lemma Net_Vis_Transp_completeness_tau : forall (I : mon_assg) {n : Name} {N0 N1 : PNet},
@@ -2072,17 +2059,14 @@ Module Type TRANSP(Import Params : MON_NET).
     destruct (admin_path_available1' n I0 N0 HC0 HF0 TM0)
       as (nmpath0 & I0' & MQ'0' & TNM0 & HCMQ').
 
-    apply (Flushing_cont MQ'0') in TM1.
+    assert (mq (MQ0' ++ MQ'0') M0' S0' =[ mpath ]=> mq (MQ1 ++ MQ'0') M1 S1) by eauto using Flushing_cont.
 
-    specialize (IHmpath _ _ _ _ _ _ n I0' N0 HC1 HF1 TM1)
-      as (nmpath1 & I1 & MQ1' & TNM1 & HMQ1).
+    specialize IHmpath with (MQ0 := MQ0' ++ MQ'0')(n := n)(I0:=I0')(N0:=N0).
+    edestruct IHmpath as (nmpath1 & I1 & MQ1' & TNM1 & HMQ1); eauto.
 
     exists (nmpath0 ++ nmpath1), I1, (MQ'0' ++ MQ1').
-    split.
-    - rewrite app_assoc.
-      apply (path_seq TNM0 TNM1).
-    - apply Forall_app; auto.
-    - auto.
+    rewrite app_assoc.
+    attac.
   Qed.
 
 
@@ -2373,8 +2357,8 @@ Module Type TRANSP(Import Params : MON_NET).
     repeat split; eauto with LTS.
     - rewrite HEq0 in *.
       attac.
-    - apply (path_seq TNM1).
-      apply path_seq0.
+    - apply path_seq1' with (middle := NetMod.put n (mq ([TrRecv n' v] ++ MQ2) M1 S0) MN2).
+      1: attac.
 
       replace (mq ([TrRecv n' v] ++ MQ2) M1 S0)
         with (NetMod.get n (NetMod.put n (mq ([TrRecv n' v] ++ MQ2) M1 S0)  MN2))
@@ -2385,6 +2369,7 @@ Module Type TRANSP(Import Params : MON_NET).
       rewrite NetMod.put_put_eq in TM2.
       attac.
   Qed.
+
 
   Lemma put_instr : forall I0 N0 n [MQ M S],
       MQ_Clear MQ ->
@@ -2534,14 +2519,14 @@ Module Type TRANSP(Import Params : MON_NET).
       unshelve eexists (mnpath0 ++ [NComm n m t _] ++ mnpath1 ++ mnpath2). apply (MValP v).
       exists &I.
 
-      subst.
-      apply (path_seq TN0).
-      apply (path_seq TN1).
-      apply (path_seq TN2).
+      apply path_seq with (middle := MN1); auto.
+      apply path_seq with (middle := MN2); auto.
+      apply path_seq with (middle := MN3); auto.
 
       rewrite <- HND4 in *.
       rewrite &Eq in TN3.
       unfold net_deinstr in TN3.
+      subst.
       rewrite NetMod.put_map in TN3.
       unfold net_deinstr in HND2.
       rewrite <- HND2 in TN3.
@@ -2615,4 +2600,6 @@ Module Type TRANSP(Import Params : MON_NET).
   Qed.
 
 
-End TRANSP.
+End TRANSP_F.
+
+Module Type TRANSP(Conf : TRANSP_CONF) := Conf <+ TRANSP_PARAMS <+ TRANSP_F.

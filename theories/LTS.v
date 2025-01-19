@@ -119,13 +119,15 @@ Section PathFacts.
   Context `{lts : LTS Label Node}.
 
 
-  Lemma path_nil : forall {N0 N1}, N0 =[]=> N1 <-> N0 = N1.
-    split; intros.
-    - inversion_clear H.
-      reflexivity.
-    - subst.
-      constructor.
+  Lemma path_nil : forall {N0 N1}, N0 =[]=> N1 -> N0 = N1.
+
+  Proof.
+    intros.
+    inversion_clear H.
+    reflexivity.
   Qed.
+
+  #[global] Arguments path_nil source target : rename.
 
 
   Lemma path_seq0 : forall [a] [N0 N1],
@@ -136,6 +138,8 @@ Section PathFacts.
     apply (PTcons H).
     apply PTnil.
   Qed.
+
+  #[global] Arguments path_seq0 act source target : rename.
 
 
   Lemma path_seq1 : forall [a path N0 N1 N'],
@@ -149,8 +153,10 @@ Section PathFacts.
     assumption.
   Qed.
 
+  #[global] Arguments path_seq1 act path source middle target : rename.
 
-  Lemma path_seq : forall [path1 path2 P1 P2 P3],
+
+  Lemma path_seq : forall [path1 path2] [P1] P2 [P3],
       (P1 =[ path1 ]=> P2) ->
       (P2 =[ path2 ]=> P3) ->
       (P1 =[ path1 ++ path2 ]=> P3).
@@ -163,17 +169,21 @@ Section PathFacts.
       apply (IHpath1 _ _ P2); auto.
   Qed.
 
+  #[global] Arguments path_seq path_left path_right source middle target : rename.
+
 
   Lemma path_seq1' : forall [path a P1 P2 P3],
-      P1 =[ path ]=> P2 ->
-                     P2 =(a)=> P3 ->
-                               P1 =[ path ++ [a] ]=> P3.
+      (P1 =[ path ]=> P2) ->
+      (P2 =(a)=> P3) ->
+      (P1 =[ path ++ [a] ]=> P3).
 
   Proof.
     intros.
     eapply path_seq; eauto.
     apply path_seq0; auto.
   Qed.
+
+  #[global] Arguments path_seq1' path act source middle target : rename.
 
 
   Lemma path_split0 : forall [a] [N0 N1],
@@ -187,10 +197,7 @@ Section PathFacts.
     assumption.
   Qed.
 
-
-  Lemma path0_inv : forall a N0 N1,
-      (N0 ={a}=> N1) <-> (N0 =(a)=> N1).
-  Proof. split; auto using path_split0, path_seq0. Qed.
+  #[global] Arguments path_split0 act source target : rename.
 
 
   Lemma path_split1 : forall {a path N0 N'},
@@ -205,6 +212,8 @@ Section PathFacts.
     - ltac1:(decompose record H).
       econstructor; eauto.
   Qed.
+
+  #[global] Arguments path_split1 act path source target : rename.
 
 
   Lemma path_split : forall {path1 path2 P0 P2},
@@ -224,8 +233,11 @@ Section PathFacts.
       apply (path_seq1 T0 T0').
     - destruct H as [P1 [T0 T1]].
       inversion_clear T0.
-      apply (path_seq1 T2 (path_seq T3 T1)).
+      apply path_seq1 with (middle := N1); auto.
+      apply path_seq with (middle := P1); auto.
   Qed.
+
+  #[global] Arguments path_split path_left path_right source target : rename.
 
 
   Lemma path_split1' : forall [path a P0 P2],
@@ -239,6 +251,8 @@ Section PathFacts.
     apply path_split0 in T1.
     exists P1; auto.
   Qed.
+
+  #[global] Arguments path_split1' path path_act source target : rename.
 
 
   Lemma path_split_In : forall [path a P0 P1],
@@ -261,6 +275,25 @@ Section PathFacts.
       destruct (IHpath T1) as (P0'' & P1' & path0' & path1' & T0' & Ta & T1').
       exists P0'', P1', (a::path0'), path1'...
   Qed.
+
+  #[global] Arguments path_split_In path act source target : rename.
+
+
+  Section Inversions.
+    Lemma path0_inv : forall a N0 N1,
+        (N0 ={a}=> N1) <-> (N0 =(a)=> N1).
+    Proof. split; auto using path_split0, path_seq0. Qed.
+
+
+    Lemma path_nil_inv : forall N0 N1,
+        (N0 =[]=> N1) <-> N0 = N1.
+
+    Proof.
+      split; intros.
+      - auto using path_nil.
+      - subst; constructor.
+    Qed.
+  End Inversions.
 
 
   Lemma path_trans_invariant
@@ -307,7 +340,7 @@ End PathFacts.
 #[export] Hint Resolve path_seq : LTS.
 
 
-#[export] Hint Rewrite -> @path_split1 @path_split @path_nil using spank : LTS.
+#[export] Hint Rewrite -> @path_split1 @path_split @path_nil_inv using spank : LTS.
 #[export] Hint Rewrite -> @path0_inv using spank : LTS_concl.
 
 

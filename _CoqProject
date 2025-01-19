@@ -10,6 +10,7 @@ theories/Network.v
 theories/Lemmas.v
 theories/Transp.v
 theories/Locks.v
+theories/NetLocks.v
 theories/SRPC.v
 theories/SRPCNet.v
 theories/Compl.v
