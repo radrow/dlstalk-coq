@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import graphlib
 import argparse
 import re
 import os
@@ -48,7 +49,7 @@ class Node:
         s += f'body={"yes" if self.body else "no"}, ' if self.body else ''
         s += f'kind={self.kind}, ' if self.kind else ''
         s += f'prop={"yes" if self.prop else "no"}, ' if self.prop else ''
-        s += f'path="{self.path[-1]}", ' if self.path else ''
+        s += f'path="{".".join(self.path)}", ' if self.path else ''
         s += '];'
         return s
 
@@ -86,6 +87,49 @@ def parse(lines):
     return nodes, edges
 
 
+def mk_idmap(nodes):
+    idmap = {}
+
+    for n in nodes:
+        idmap[n.i] = n
+
+    return idmap
+
+
+def mk_graph(nodes, edges):
+    graph = {}
+
+    for e in edges:
+        targets = graph.get(e.source, [])
+        targets.append(e.target)
+        graph[e.source] = targets
+
+    return graph
+
+
+def toposort(nodes, edges, group=False):
+    idmap = mk_idmap(nodes)
+    graph = mk_graph(nodes, edges)
+
+    ts = graphlib.TopologicalSorter(graph)
+    groups = []
+
+    ts.prepare()
+    while ts.is_active():
+        node_group = ts.get_ready()
+        groups.append([idmap[i] for i in node_group])
+        ts.done(*node_group)
+
+    for i, ns in enumerate(groups):
+        for n in ns:
+            if group:
+                if n.path:
+                    n.path.append(f"G{i}")
+                else:
+                    n.path = [f"G{i}"]
+            yield n
+
+
 def reduce(nodes, edges):
     new_nodes = []
     merge = {}  # (name, module) => id
@@ -95,6 +139,8 @@ def reduce(nodes, edges):
     for n in nodes:
         if not n.path or n.path[0] != 'Deps':
             continue
+
+        n.path = n.path[-1:]
 
         teresting.add(n.i)
 
@@ -136,18 +182,24 @@ def graph_name(f):
     return re.sub(r'[\-.]+', '', f.stem)
 
 
-def generate(filename, layout='dot', defs=False, trans=False):
+def load_file(filename):
+    with open(filename) as f:
+        lines = [line for line in f]
+
+    return parse(lines)
+
+
+def generate(filename, layout='dot', defs=False, trans=False, group=False):
     input_path = filename
     dpd_path = input_path.with_stem(input_path.stem + "_reduced")
     dot_path = input_path.with_suffix(".dot")
     svg_path = input_path.with_suffix(".svg")
 
-    with open(input_path) as f:
-        lines = [line for line in f]
-
-    nodes, edges = parse(lines)
+    nodes, edges = load_file(input_path)
 
     new_nodes, new_edges = reduce(nodes, edges)
+
+    new_nodes = list(toposort(new_nodes, new_edges, group))
 
     with open(dpd_path, "w") as f:
         for n in new_nodes:
@@ -174,6 +226,7 @@ def generate(filename, layout='dot', defs=False, trans=False):
         return
 
     DOT_CMD = f"dot {dot_path} -o {svg_path} -Tsvg -K{layout}"
+
     print("Running", DOT_CMD)
     if os.system(DOT_CMD) != 0:
         return
@@ -187,6 +240,7 @@ def main():
     parser.add_argument("--layout", type=str, default='dot', help="DOT layout")
     parser.add_argument("--defs", action='store_true', default=False, help="Include non-Prop definitions")
     parser.add_argument("--trans", action='store_true', default=False, help="Include transitive dependencies")
+    parser.add_argument("--group", action='store_true', default=False, help="Group SCC")
 
     args = parser.parse_args()
 

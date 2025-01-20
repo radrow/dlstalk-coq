@@ -16,13 +16,14 @@ Module Deps.
     Definition MState := @Compl.MState' NAME.t'.
   End DetConf.
 
-  Module ComplMod := ModelData.Empty <+ Compl.COMPL(DetConf).
-  Module SoundMod := ModelData.Empty <+ Sound.SOUND(DetConf).
+  Module Sound := ModelData.Empty <+ Sound.SOUND(DetConf).
+  Module Compl := Sound. (* TODO fix separation *)
+  (* Module Compl := ModelData.Empty <+ Compl.COMPL(DetConf). *)
 
   Module Correct.
-    Definition compl := Deps.ComplMod.detection_completeness.
-    Definition sound := Deps.SoundMod.detection_soundness.
-    (* Definition correct := conj Deps.ComplMod.detection_completeness Deps.SoundMod.detection_soundness. *)
+    Definition compl := Deps.Compl.detection_completeness.
+    Definition sound := Deps.Sound.detection_soundness.
+    (* Definition correct := conj Deps.Compl.detection_completeness Deps.Sound.detection_soundness. *)
     Definition correct := conj sound compl.
   End Correct.
 End Deps.
@@ -32,42 +33,42 @@ End Deps.
 
 
 Set DependGraph File "../graphs/Transp_completeness.dpd".
-Print DependGraph Deps.ComplMod.Transp.Mon.Transp_completeness.
+Print DependGraph Deps.Compl.Transp.Mon.Transp_completeness.
 
 Set DependGraph File "../graphs/Transp_soundness.dpd".
-Print DependGraph Deps.ComplMod.Transp.Mon.Transp_soundness_base. (* todo, full *)
+Print DependGraph Deps.Compl.Transp.Mon.Transp_soundness_base. (* todo, full *)
 
 
 Set DependGraph File "../graphs/Net_Transp_completeness.dpd".
-Print DependGraph Deps.ComplMod.Transp.Net_Transp_completeness.
+Print DependGraph Deps.Compl.Transp.Net_Transp_completeness.
 
 Set DependGraph File "../graphs/Net_Transp_soundness.dpd".
-Print DependGraph Deps.ComplMod.Transp.Net_Transp_soundness.
+Print DependGraph Deps.Compl.Transp.Net_Transp_soundness.
 
 
 Set DependGraph File "../graphs/deadset_dep_self.dpd".
-Print DependGraph Deps.ComplMod.SrpcNet.deadset_dep_self.
+Print DependGraph Deps.Compl.SrpcNet.deadset_dep_self.
 
 Set DependGraph File "../graphs/dep_self_deadset.dpd".
-Print DependGraph Deps.ComplMod.SrpcNet.dep_self_deadset.
+Print DependGraph Deps.Compl.SrpcNet.dep_self_deadset.
 
 
 Set DependGraph File "../graphs/trans_invariant_net_sane.dpd".
-Print DependGraph Deps.ComplMod.SrpcNet.trans_invariant_net_sane.
+Print DependGraph Deps.Compl.SrpcNet.trans_invariant_net_sane.
 
 
 Set DependGraph File "../graphs/KIC.dpd".
-Print DependGraph Deps.ComplMod.KIC_invariant.
+Print DependGraph Deps.Compl.KIC_invariant.
 
 Set DependGraph File "../graphs/KIS.dpd".
-Print DependGraph Deps.SoundMod.KIS_invariant.
+Print DependGraph Deps.Sound.KIS_invariant.
 
 
 Set DependGraph File "../graphs/compl.dpd".
-Print DependGraph Deps.ComplMod.detection_completeness.
+Print DependGraph Deps.Compl.detection_completeness.
 
 Set DependGraph File "../graphs/sound.dpd".
-Print DependGraph Deps.SoundMod.detection_soundness.
+Print DependGraph Deps.Sound.detection_soundness.
 
 
 Set DependGraph File "../graphs/correctness.dpd".
