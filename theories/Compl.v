@@ -76,6 +76,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Include NetLocks.LOCKS_UNIQ.
   Import SrpcDefs.
+  Import Srpc.
 
   Notation MProbe := (@MProbe' Name).
 
@@ -84,6 +85,18 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Parameter Name_nat : Name -> nat.
     Axiom nat_Name_bij : forall n, nat_Name (Name_nat n) = n.
     Axiom Name_nat_bij : forall n, Name_nat (nat_Name n) = n.
+
+    #[local,reversible] Coercion nat_Name : nat >-> Name.
+    #[local,reversible] Coercion Name_nat : Name >-> nat.
+
+    Definition natchan := (nat * Tag)%type.
+    Definition NChan_nat (nc : NChan) : natchan :=
+      let (n, t) := nc in (Name_nat n, t).
+    Definition nat_NChan  (nc : natchan) : NChan :=
+      let (n, t) := nc in (nat_Name n, t).
+    #[local,reversible] Coercion nat_NChan : natchan >-> NChan.
+    #[local,reversible] Coercion NChan_nat : NChan >-> natchan.
+
 
     CoInductive Mover (N : PNet) : Name -> Prop :=
     | mover_ [n0 n1] : Mover N n0 -> net_lock_on N n0 n1 -> Mover N n1.
@@ -111,7 +124,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         ).
 
     Definition MoverNail : Proc :=
-      PSend (nat_Name 0, Q) some_val (MoverFinger (nat_Name 1)).
+      PSend (nat_Name 0, Q) some_val (MoverFinger 1).
 
 
     Lemma Decisive_Echo : Decisive Echo.
@@ -139,11 +152,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         destruct n as [c [|]]; doubt.
         exists c, v.
         split; auto.
-        hsimpl in *.
-        constructor; intros; auto; doubt.
-        + constructor; bullshit.
-        + kill H.
-          apply C.
+        kill H0.
+        constructor; intros; attac.
+        constructor; attac.
     Qed.
 
     Lemma SRPC_Finger : forall n, SRPC (Lock (nat_Name (S (S n))) (nat_Name n)) (MoverFinger (nat_Name (S n))).
@@ -296,7 +307,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           constructor.
           rewrite <- Heqb.
           now rewrite nat_Name_bij.
-      + bullshit.
+      + clear C. bullshit.
+        Guarded.
     - assert (forall n, n <> 0 -> net_lock_on N (nat_Name (S n)) (nat_Name n)) as HL.
       {
         intros.
@@ -377,6 +389,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           hsimpl in *.
           destruct n.
           + absurd (Lock c n0 = Work (nat_Name 2)); doubt.
+            eauto using SRPC_Nail, SRPC_inv.
           + assert (Lock c n0 = Lock (nat_Name (S (S (S n)))) (nat_Name (S n))); doubt.
             eapply SRPC_inv; eauto using SRPC_Finger.
             hsimpl in *.
@@ -505,6 +518,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       bullshit.
   Qed.
 
+  Ltac2 Notation iattac := repeat (first [split | intros ?]); attac.
+  Ltac2 Notation ieattac := repeat (first [split | intros ?]); eattac.
 
   Lemma NoRecvQ_from_dec n0 MQ0 :
     NoRecvQ_from n0 MQ0 \/ ~ NoRecvQ_from n0 MQ0.
@@ -517,7 +532,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       + left; attac.
       + destruct n.
         smash_eq n0 n; destruct t; attac.
-        right. attac.
+        right. iattac.
         specialize (H0 v).
         attac.
       + left; attac.
@@ -541,7 +556,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       + left; attac.
       + destruct n.
         smash_eq n0 n; destruct t; attac.
-        right. attac.
+        right. iattac.
         specialize (H0 v).
         attac.
       + left; attac.
@@ -1951,7 +1966,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           -- left.
              hsimpl in * |- .
              exists (TrRecv (n, Q) v :: MQ'), MQ'', n', v0.
-             eattac.
+             ieattac.
           -- left.
              exists [], MQ, n1, v.
              attac.
@@ -1964,7 +1979,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
                 specialize (Hx v). bullshit.
              ++ left.
                 exists (TrRecv n0 v :: MQ'), MQ'', n', v0.
-                eattac.
+                ieattac.
           -- hsimpl in * |- .
              right; intros Hx; apply H; clear H; hsimpl in * |-.
              destruct MQ'; kill Hx4.
@@ -1976,13 +1991,13 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       + destruct IHMQ.
         * hsimpl in * |- .
           left.
-          exists (EvRecv n0 m :: MQ'), MQ'', n', v. eattac.
+          exists (EvRecv n0 m :: MQ'), MQ'', n', v. ieattac.
         * right.
           intros Hx; apply H; clear H; hsimpl in * |-.
           destruct MQ'; kill Hx4.
           hsimpl in * |-.
           exists (MQ'), MQ'', n', v.
-          eattac.
+          ieattac.
           specialize (Hx v0). eapply Hx. eattac.
 
     - destruct (lock state0) as [n0|] eqn:?.
@@ -2037,10 +2052,10 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           - left; exists v; attac.
           - right; attac.
         }
-        - left; eattac.
+        - left; ieattac.
           specialize (H v).
           hsimpl in *. bullshit.
-        - right; eattac.
+        - right; ieattac.
       }
 
       specialize (wtf' MQ my_prop my_prop_dec) as [|].
@@ -2048,15 +2063,15 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         hsimpl in *.
         left.
         exists MQ', l1, n0.
-        eattac.
+        ieattac.
         specialize (H0 v).
         eapply `(~ _).
         attac.
       + right.
         intros ?; apply H; subst my_prop; hsimpl in *.
         exists (MQ' ++ [EvRecv (n', R) p]), MQ''.
-        eattac.
-        destruct `(_ \/ _); attac.
+        ieattac.
+        destruct `(_ \/ _); eattac.
   Qed.
 
 
@@ -2367,13 +2382,13 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       repeat (specialize (IHL ltac:(auto))).
       hsimpl in IHL.
       destruct `(_ \/ _) as [|[|[|]]]; hsimpl in *; hsimpl in *; eexists _,_,_; split; eauto.
-      + do 2 right. left; eattac.
+      + do 2 right. left; ieattac.
       + do 3 right.
         (* split; eauto. split; eauto. *)
         exists []; eattac.
       + assert (~ net_lock_on N0 m0 n1) by attac.
         smash_eq m0 n0.
-        2: right; right; left; eattac.
+        2: right; right; left; ieattac.
         consider (n0' = n1) by (eapply SRPC_net_lock_uniq; eauto with LTS).
         bullshit.
       + smash_eq m0 n0.
@@ -2811,10 +2826,10 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       assert ((exists m0 m1 v, a = @NComm PAct _ m0 m1 Q v) \/ ~ (exists m0 m1 v, a = @NComm PAct _ m0 m1 Q v)) as [|].
       {
         destruct a.
-        - right; attac.
+        - right; iattac.
         - destruct &t.
-          + left; eattac.
-          + right; eattac.
+          + left; ieattac.
+          + right; ieattac.
       }
       + hsimpl in *.
         consider (~ net_lock_on N0 m0 m1 /\ net_lock_on N1 m0 m1) by eauto using SRPC_net_query_new_lock with LTS.
@@ -3299,13 +3314,16 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     - destruct n0 as [? [|]].
       2: bullshit.
       assert (~ List.In (n1, R, v0) [(n0, Q, v)]) by (intros ?; attac).
-      assert (~ List.In (n1, R, v) (I1 ++ MQ_r MQ0)) by attac.
-      apply in_app_or in H5 as [|]. bullshit.
-      apply in_app_or in H5 as [|]. bullshit.
-      bullshit.
+      assert (~ List.In (n1, R, v) (I1 ++ MQ_r MQ0)) by iattac.
+      iattac.
+      rewrite app_assoc in *.
+      apply in_app_or in H7 as [|]; bullshit.
     - rewrite <- app_assoc in *.
       bullshit.
-    - kill TP; attac.
+    - kill TP; doubt.
+      hsimpl in *.
+      assert (~ (In (n1, R, v0) (I0 ++ MQ_r MQ1))) by eauto.
+      bullshit (In (n1, R, v0) I0).
   Qed.
 
 
@@ -3321,7 +3339,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     intros.
 
     consider (exists m, net_lock_on '' MN0 n m) by eauto using deadlocked_M_get_lock with LTS.
-    apply lock_singleton in H4. 2: attac.
+    apply lock_singleton in H4; eauto with LTS.
 
     assert (net_lock '' MN1 [m] n)
       by eauto using deadlocked_vis_preserve_M_net_lock.
@@ -3371,8 +3389,6 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     } subst.
 
     eauto.
-    eapply SRPC_net_lock_uniq; eauto with LTS.
-    eauto with LTS.
   Qed.
 
 
@@ -3507,7 +3523,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     consider (exists m, net_lock_on '' MN0 n m) by eauto using deadlocked_M_get_lock with LTS.
-    apply lock_singleton in H5. 2: attac.
+    apply lock_singleton in H5; eauto with LTS.
 
     assert (net_lock '' MN1 [m] n)
       by eauto using deadlocked_vis_preserve_M_net_lock.
@@ -3564,8 +3580,6 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     ltac1:(autounfold with LTS_get in * ).
     rewrite `(NetMod.get n MN0 = _) in *.
     attac.
-    eapply SRPC_net_lock_uniq; eauto with LTS.
-    eauto with LTS.
   Qed.
 
 
@@ -3725,7 +3739,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           -- smash_eq n n0.
              {
                exfalso.
-               apply lock_singleton in H3. 2: attac.
+               apply lock_singleton in H3; eauto with LTS.
                unfold net_lock in *.
                clear - H3 H7.
                unfold net_deinstr in *.
@@ -3734,8 +3748,6 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
                kill H3.
                destruct P0.
                bullshit.
-               eapply SRPC_net_lock_uniq; eauto with LTS.
-               eauto with LTS.
              }
              ltac1:(autounfold with LTS_get in * ).
              hsimpl.
@@ -4128,11 +4140,11 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       + kill H1; hsimpl in *.
         * destruct MQ0; kill H7.
           hsimpl in *.
-          econstructor 1; eattac.
+          econstructor 1; ieattac.
           specialize (H v0). bullshit.
         * destruct MQ0; kill H7.
           hsimpl in *.
-          econstructor 2; destruct H4; eattac.
+          econstructor 2; destruct H4; ieattac.
           specialize (H v); bullshit.
           specialize (H v); bullshit.
       + destruct lock0 as [n0|].
@@ -4143,17 +4155,17 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           -- destruct (PeanoNat.Nat.eqb lock_id0 index1); hsimpl in *.
              ++ {
                  kill H1; hsimpl in *.
-                 -- destruct MQ0; kill H7; hsimpl in *; econstructor 1; eattac.
+                 -- destruct MQ0; kill H7; hsimpl in *; econstructor 1; ieattac.
                     specialize (H v0); bullshit.
-                 -- destruct MQ0; kill H7; hsimpl in *; econstructor 2; kill H4; eattac.
+                 -- destruct MQ0; kill H7; hsimpl in *; econstructor 2; kill H4; ieattac.
                     specialize (H v); bullshit.
                     specialize (H v); bullshit.
                }
              ++ {
                  kill H1; hsimpl in *.
-                 -- destruct MQ0; kill H7; hsimpl in *; econstructor 1; eattac.
+                 -- destruct MQ0; kill H7; hsimpl in *; econstructor 1; ieattac.
                     specialize (H v0); bullshit.
-                 -- destruct MQ0; kill H7; hsimpl in *; econstructor 2; kill H4; eattac.
+                 -- destruct MQ0; kill H7; hsimpl in *; econstructor 2; kill H4; ieattac.
                     specialize (H v); bullshit.
                     specialize (H v); bullshit.
                }
@@ -4170,9 +4182,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
              2: subst; apply sends_probe_skip_neq; attac.
              2: kill H1.
-             2: destruct MQ0; kill H8; econstructor 1; eattac.
+             2: destruct MQ0; kill H8; econstructor 1; ieattac.
              2: specialize (H v0); bullshit.
-             2: destruct MQ0; kill H8; doubt; econstructor 2; kill H4; eattac.
+             2: destruct MQ0; kill H8; doubt; econstructor 2; kill H4; ieattac.
              2: specialize (H v); bullshit.
              2: specialize (H v); bullshit.
 
@@ -4186,7 +4198,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
                ** destruct MQ0; kill H8; hsimpl in *.
                   econstructor 1; eattac.
                ** destruct MQ0; kill H8; hsimpl in *. 1: bullshit.
-                  econstructor 2; eattac.
+                  econstructor 2; ieattac.
                   specialize (H v0); bullshit.
              }
              destruct &t. 1: bullshit.
@@ -4203,7 +4215,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
                              waitees := waitees0;
                              alarm := alarm0|}).
 
-             eapply sends_probe_waitees_skip_l1 in H1. 2: attac.
+             eapply sends_probe_waitees_skip_l1 in H1. 2: iattac.
 
              specialize IHwaitees0 with (2:=eq_refl).
 
@@ -4214,9 +4226,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           subst.
           destruct p; simpl in *; subst.
           kill H1; hsimpl in *.
-          ++ destruct MQ0; kill H7; econstructor 1; eattac.
+          ++ destruct MQ0; kill H7; econstructor 1; ieattac.
              specialize (H v0); bullshit.
-          ++ destruct MQ0; kill H7; econstructor 2; kill H4; eattac.
+          ++ destruct MQ0; kill H7; econstructor 2; kill H4; ieattac.
              specialize (H v); bullshit.
              specialize (H v); bullshit.
   Qed.
@@ -4369,14 +4381,14 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         {
           clear.
           induction MQ.
-          right; eattac.
+          right; ieattac.
           kill IHMQ; eattac.
           destruct a.
-          - right; eattac.
+          - right; ieattac.
           - destruct (NChan_eq_dec (n0, Q) n); subst.
-            + left; eattac.
-            + right; eattac.
-          - right; eattac.
+            + left; ieattac.
+            + right; ieattac.
+          - right; ieattac.
         }
         1: eattac.
 
@@ -4574,14 +4586,14 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       {
         clear.
         induction MQ.
-        right; eattac.
+        right; ieattac.
         kill IHMQ; eattac.
         destruct a.
-        - right; eattac.
+        - right; ieattac.
         - destruct (NChan_eq_dec (n0, Q) n); subst.
-          + left; eattac.
-          + right; eattac.
-        - right; eattac.
+          + left; ieattac.
+          + right; ieattac.
+        - right; ieattac.
       }
       1: eattac.
 
@@ -4828,7 +4840,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           -- exfalso.
              clear - H H10 H17 H19 H20.
              destruct P0 as [I0 P0 O0].
-             apply lock_singleton in H10. 2: attac.
+             apply lock_singleton in H10; eauto with LTS.
              unfold net_lock in *.
              destruct (NetMod.get m '' MN0) as [I0' P0' O0'] eqn:?.
              unfold net_deinstr in *.
@@ -4838,10 +4850,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
              unfold deinstr in *.
              hsimpl in *.
              clear - H1 H19 H2 Heqp.
-             kill H19; hsimpl in *; attac.
-
-             eapply SRPC_net_lock_uniq; eauto with LTS.
-             eauto with LTS.
+             kill H19; iattac.
+             bullshit (~ In (n0, R, v0) (I0 ++ MQ_r l1 ++ MQ_r l2)).
           -- bullshit.
           -- simpl in *.
              assert (self s = m).
@@ -5236,8 +5246,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         hsimpl in Hxx2.
         replace M with M' by auto.
         exists (MQ'0 ++ if NAME.eqb n0 m then [TrRecv (n, &t) v] else []).
-        rewrite app_assoc. eattac.
-        smash_eq n0 m; hsimpl in |- *; split; attac.
+        rewrite app_assoc. ieattac.
+        smash_eq n0 m; hsimpl in |- *; attac.
         smash_eq n0 m; attac.
       - attac.
         specialize (Hx1 m MQ M &S ltac:(auto)). hsimpl in Hx1.
@@ -6216,7 +6226,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       destruct `(_of alarm MN1 m = true \/
                    _of alarm MN1 m' = true \/ sends_probe (n, R) p (NetMod.get m MN1)
         ) as [|[|]].
-      1,2: eattac.
+      1,2: ieattac.
       assert (net_lock_on '' MN1 n m).
       {
         consider (exists ppath, '' MN0 =[ppath]=> '' MN1) by eauto using Net_path_corr with LTS.
@@ -6689,3 +6699,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 End COMPL_F.
 
 Module Type COMPL(Conf : DETECT_CONF) := Conf <+ DETECT_PARAMS(Conf) <+ COMPL_F.
+
+(* TODO
+End of deadlocked_vis_preserve_in_waitees --- candidate for bidirectional hints?
+
+ *)
