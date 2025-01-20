@@ -1,0 +1,36 @@
+* Theorem
+
+Things completely crucial to the point.
+
+
+* Proposition
+
+Important steps in proving Theorems. They should generally be mentioned in informal proofs.
+
+
+* Lemma
+
+- Intermediate steps in proving other things, with little value on their own.
+- Things that are easy to prove on paper, but annoying in Coq.
+- If you would leave it as an "exercise for the reader", most likely it goes here.
+
+
+* Corollary
+
+
+Simplified or reduced versions of Theorems.
+
+
+* Property
+
+All "unpacking" lemmas, where there is a clear owner of the property. Proofs should be simple, ideally max induction+inversion.
+
+
+* Fact
+
+Things of zero value to the reader. All obvious, purely technical and Coq-quirky items should go here. For example rewrite lemmas.
+
+
+* Remark
+
+Any "btw" steps which only a human would care for.
