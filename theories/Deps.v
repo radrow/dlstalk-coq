@@ -74,5 +74,16 @@ Print DependGraph Deps.Sound.detection_soundness.
 Set DependGraph File "../graphs/correctness.dpd".
 Print DependGraph Deps.Correct.correct.
 
+Module Preview.
+  Import Deps.
+  Import Sound.
+  Import LTS.
+  Import Que.
+  Import Mon.
+  Import Srpc.
+  Import Compl.
+  Import SrpcNet.
+  Check Net_Transp_completeness.
+
 (* Set DependGraph File "modules.dpd". *)
 (* Print FileDependGraph Deps. *)

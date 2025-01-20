@@ -121,13 +121,27 @@ def toposort(nodes, edges, group=False):
         ts.done(*node_group)
 
     for i, ns in enumerate(groups):
+        g = len(groups) - i - 1
         for n in ns:
             if group:
                 if n.path:
-                    n.path.append(f"G{i}")
+                    n.path.append(f"G{g}")
                 else:
-                    n.path = [f"G{i}"]
+                    n.path = [f"G{g}"]
             yield n
+
+
+def mk_org_list(nodes):
+    from itertools import groupby
+    nodes = sorted(nodes, key=lambda n: '.'.join(n.path))
+    ms = list((g, list(ns)) for (g, ns) in groupby(nodes, key=lambda n: n.path[0]))
+    ms = sorted(ms, key=lambda m: min([n.path[1] for n in m[1]]))
+    for g, ns in ms:
+        print(f"** {g}\n")
+        for gg, nns in groupby(ns, key=lambda n: n.path[1]):
+            print(f"*** {gg}\n")
+            for n in sorted(nns, key=lambda n: n.i):
+                print(f"**** {n.name}\n")
 
 
 def reduce(nodes, edges):

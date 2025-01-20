@@ -36,806 +36,1554 @@ All "unpacking" lemmas, where there is a clear owner of the property. Proofs sho
 Things of zero value to the reader. All obvious, purely technical and Coq-quirky items should go here. For example rewrite lemmas.
 
 * Everything
+# Local Variables:
+# eval: (defun check () (interactive) (let ((w (current-word))) (progn (set-buffer "Deps.v") (proof-shell-invisible-command (format "Check %s ." w)) (sleep-for 0.5) (set-buffer "*response*") (let '(tstr (buffer-substring-no-properties (point-min) (point-max))) (progn (message tstr) (set-buffer "highlight.org") (move-end-of-line 1) (newline) (insert (concat "#+BEGIN_SRC coq\n" tstr "#+END_SRC")))))))
+# eval: (local-set-key (kbd "C-c C-RET") 'check)
+# End:
+** Sound
 
-** Channel
-Name
-Payload
-ia
-Tag
-recv
-send
-gen_Act
-NChan
-NChan_neq_Tag_inv
-NChan_neq_Name_inv
-Build_gen_Act
-NChan_eq_dec
-Val
+*** G0
 
-** Compl
-_of
-KIC
-NoRecvQ_from
-ac
-hot_of
-hot_ev_of
-sends_probe
-NoRecvR_from
-detection_completeness
-ac_to_alarm
-net_sane_lock_dec
-SRPC_pq_client_dec
-SRPC_proc_client_dec
-dep_self_deadlocked
-propagation_finito
-detection_finito
-hot_hot_of
-KIC_net_sane
-hot
-KIC_Rad_net
-KIC_lock_C
-flush_one_In
-deadlocked_preserve_M_lock_id
-KIC_invariant
-KIC_invariant_H_lock
-KIC_invariant_H_wait
-invariant_dep_dec1
-KIC_invariant_H_alarm
-KIC_invariant_net_sane1
-net_preserve_self
-KIC_
-net_vis_preserve_self
-mq_preserve_self
-deadlocked_preserve_hot_of1
-SRPC_M_net_query_new_lock
-probe_pass_on
-MProbe_eq_dec
-sends_probe_skip_neq1_proj_l2r
-Rad_net_invariant
-sends_probe_dec
-net_preserve_alarm
-NoRecvR_MQ_from
-Rad_MQued
-deadlocked_dep_on_loop
-deadlocked_M_dep_invariant1
-deadlocked_M_NoRecvR
-deadlocked_M_get_lock
-_of_put_eq_inv
-net_lock_on_M_no_sends_in
-Rad_MQued_inv
-sends_probe_sent
-Rad_net
-sends_probe_skip_s1_proj_r2l
-net_M_dep_close
-get_MQ_put_eq_inv
-ac_alarm
-ac_seek
-ac_fin
-sp_init
-sp_send
-net_dep_close
-lock_chain_connect
-net_sane_lock_chain_dec
-sends_probe_skip_s1
-sp_late
-vis_sends_probe_sent
-mq_sends_probe_sent
-sends_probe_skip_neq
-sends_probe_waitees_skip_l1
-sends_probe_proc
-sends_probe_waitees_s_l1
-sends_probe_extend_r
-sp_prop
-sends_probe_ind
-locked_M_NoRecvR
-net_deinstr_act_or
-net_vis_preserve_alarm
-mq_preserve_alarm
-wtf'
-NoSends_dec
-NoRecvR_from_dec
-sends_probe_skip_neq1
-SRPC_M_net_unlock_reply
-Rad_net_get
-NV_preserve_Rad_net
-sends_probe_prop_skip
-sends_probe_skip1
-SRPC_net_query_new_lock
-deadlocked_preserve_hot_probe1
-hot_of_hot
-deadlocked_preserve_M_lock_id1
-deadlocked_vis_preserve_M_lock_id
-pq_lock_preserve_lock_id
-deadlocked_vis_preserve_M_net_lock
-SRPC_net_new_lock_no_unlock_dep
-SRPC_net_new_lock_no_unlock
-NoRecvQ_from_dec
-SRPC_M_net_new_lock_query
-net_TrRecvQ_pop
-net_vis_TrRecvQ_pop
-pq_TrRecvQ_pop
-Rad_set_unlock
-_of_put_neq_inv
-locked_M_no_send
-M_preserve_steady_lock
-M_vis_preserve_steady_lock
-M_vis_unlock
-flush_one_until
-make_ready
-flush_ready_one1
-flush_one1
-propagation
-sends_probe_send
-propagation_init
-deadlocked_preserve_hot_probe
-deadlocked_preserve_M_lock
-deadlocked_preserve_M_in_waitees
-deadlocked_preserve_M_in_waitees1
-deadlocked_vis_preserve_in_waitees
-pq_lock_preserve_in_waitees
-deadlocked_preserve_M_lock1
-deadlocked_lock_chain_invariant
-propagation1
-in_sends_probe
-sends_probe_prop_foreign
-deadlocked_lock_chain_invariant1
-
-** Locks
-Val
-some_val
-some_name
-pq_lock_equiv
-proc_lock_equiv
-proc_lock
-pq_lock
-Decisive
-proc_lock_incl
-pq_lock_incl
-pq_lock_equiv_inv
-proc_lock_equiv_inv
-PQ_Lock
-pq_lock_P_inv
-Decisive_Q_e
-pq_lock_recv_inv
-pq_lock_recv
-proc_lock_recv_inv
-proc_lock_recv
-unlocking_msg_inv
-unlocking_msg
-DecRecv
-DecSend
-DecTau
-pq_lock_invariant
-not_unlocking_msg
-pq_recv_Q_derive_lock
-pq_lock_I_inv
-
-** Mon
-PayloadM
-MValM
-MValP
-gen_Act_MAct
-MVal
-deinstr_instr
-MQ_Clear
-MQ_clear
-MQ_r
-MQ_s
-instr
-MQ_r_mrecv_nil
-MQ_s_mrecv_nil
-Mon_ready
-deinstr
-Event
-MQued
-Mon
-MCode
-ready
-state
-MRecv
-MQ_Clear_cons_inv
-EvRecv
-is_EvRecv
-is_EvRecv_inv
-TrSend
-TrRecv
-instr_t
-mq
-ready_inv
-Build_Mon
-MonTrans_Tau_inv
-trans_mon
-MonAct
-MonTrans
-MSend
-MonRecv
-MonSend
-MonTau
-MonTrans_Recv_inv
-MonTRecv
-MonTrans_Send_inv
-handle
-MonTSend
-mq_preserve_handle
-mq_preserve_handle1
-trans_mqued
-MAct
-MTrans
-MActP
-MActT
-MActM
-MQ_s_app
-MQ_r_app
-MCode_ind
-MTrans_RecvT_inv
-MTRecvT
-MTrans_RecvP_inv
-ready_recv
-ready_inv_proj_r2l
-MTRecvP
-next_state
-MTrans_RecvM_inv
-MTRecvM
-MQ_s_In_inv
-In_MQ_s
-MQ_s_In
-deinstr_In_send
-deinstr_In_recv
-MQ_r_In
-MTrans_PickM_inv
-MTPickM
-MQ_Clear_NoSends
-Forall_app_solve
-MQ_nil_mrecv
-MQ_Clear_nil
-MTrans_SendT_inv
-MTSendT
-MTrans_SendP_inv
-MTSendP
-MTrans_SendM_inv
-MTSendM
-MTrans_TauP_inv
-MTTauP
-recv_is_ready
-ready_q
-MQ_Clear_app_inv
-mq_MQ
-
-** Net
-NV_stay
-get_put_neq_inv
-NVTrans_inv
-NVTrans
-NT_Vis
-NTrans_Comm_eq_inv
-put_put_eq_inv
-get_put_eq_inv
-trans_net
-put_eq_inv
-NAct
-NTrans
-NTau
-NComm
-NT_Comm
-NTrans_Comm_neq_inv
-path_of_ptrans
-NTrans_Tau_inv
-Path_of_nil_inv
-Path_of
-PO_nil
-NT_Tau
-path_of_exists
-PO_tau
-PO_comm_send
-PO_comm_recv
-PO_comm_self
-PO_skip_tau
-PO_skip_comm
-act_particip_stay
-act_particip
-NComm_neq_stay
-net_ind_of
-NTau_neq_stay
-get_map_inv
-put_map_inv
-
-** NetLocks
-Deadlocked
-deadset_in
-deadset_incl
-net_lock_on
-net_lock
-DeadSet
-net_lock_equiv
-deadset_net_lock
-net_lock_only_in
-deadset_dep_set
-dep_set
-dep_lock_chain
-deadset_dep_in
-lock_chain_dep
-deadset_dep_dec
-lock_chain
-dep_on
-deadset_dep_dec_k
-deadset_nil
-deadset_lock_chain_len
-deadset
-lock_chain_deadset_incl
-lock_chain_dedup
-lock_chain_seq_inv
-lock_chain_split
-LC_cons
-LC_nil
-lock_chain_seq
-lock_chain_deadset_in
-lock_chain_split_in
-deadset_dep_dec_nope_k'
-deadset_lock_on_dec
-net_lock_on_in
-lock_chain_ind
-dep_on_seq1
-dep_on_Direct
-dep_on_seq
-dep_on_ind
-dep_on_Indirect
-dep_on_seq1'
-lock_chain_dep_in
-lock_chain_seq1'
-dep_set_incl
-lock_chain_nil_inv
-lock_chain_cons_inv
-deadset_dep_set_deadset
-deadlocked_dep
-deadlocked
-net_lock_inv_P
-net_lock_inv_P_Decisive
-net_lock_all_in
-net_lock_on_move_eq
-net_lock_inv_O
-deadlocked_dep_invariant1
-deadlocked_lock_on
-deadlocked_lock_on_invariant1
-deadlocked_invariant
-deadset_invariant
-deadset_invariant_lock
-deadset_stay1
-deadset_no_send'
-net_lock_inv_I
-deadset_recv
-deadset_no_tau
-deadset_no_send
-deadlocked_lock_invariant1
-deadlocked_dep_invariant
-deadlocked_lock_on_invariant
-deadlocked_lock'
-lock_chain_dep_set_In
-
-** NetMod
-t
-get
-map
-put
-put_map
-get_put_neq
-extensionality
-get_map
-put_get_eq
-get_put_eq
-put_put_eq
-put_put_neq
-
-** Proc
-pq_O
-pq_I
-ProcTrans_Tau_inv
-PAct
-trans_proc
-Act
-Proc
-ProcTrans
-Send
-Recv
-Tau
-PSend
-PRecv
-PTau
-PrTTau
-Val
-ProcTrans_Recv_inv
-PrTRecv
-ProcTrans_Send_inv
-PrTSend
-ProcTrans_PRecv_inv
-ProcTrans_PTau_inv
-ProcTrans_PSend_inv
-PQued
-pq
-PTrans_Recv_inv
-trans_pqued
-PTrans
-PTRecv
-PTrans_Send_inv
-PTPush
-PEnd
-ia_PAct_inv
-gen_Act_PAct
-pq_P_inv
-pq_P
-PTrans_Tau_t_inv
-PTTau
-PTrans_Tau_Send_inv
-PTSend
-PTrans_Pick_t_inv
-PTPick
-PTrans_Push_t_inv
-
-** Que
-Val
-in_dec_v
-Enq_inv
-QTrans
-QEnq
-QDeq
-QPush
-QAct
-que_Enq
-que_Enq1
-que_Deq
-QPop
-QSeek
-Deq_In
-Deq_not_In
-Deq_app_or_r
-Deq_app_or_l
-Enq_nil
-Deq_neq_In
-Deq_split
-Deq_dec'
-Deq_nil
-Deq_Deq_swap
-Deq_length_neq
-Deq_length
-In_Deq
-
-** SoundMod
-_of
-KIS
-hot_of
-sends_to
-hot_ev_of
-sends_to_mon
+**** detection_soundness
+#+BEGIN_SRC coq
 detection_soundness
-KIS_invariant
-KIS_sane
-dep_self_deadlocked
-KIS_invariant_index_recvp
-KIS_invariant_index_sendp
-KIS_invariant_recvp_hot
-KIS_invariant_lock
-KIS_invariant_sane
-KIS_invariant_self
-KIS_invariant_wait
-KIS_invariant_sendp_hot
-KIS_invariant_Rad
-KIS_invariant_dep_dec
-KIS_invariant_alarm
-KIS_invariant_sendp
-KIS_
-sends_to_mon_many_inv
-M_sends_to_send_set
-sends_to_mon_bs_inv
-_of_put_eq_inv
-net_sane_lock_dec
-sends_to_dec
-SRPC_M_net_unlock_reply
-KIS_sendp
-Val
-KIS_Rad_get
-KIS_Rad
-sends_to_mon_dec
-MProbe_eq_dec
-stm_find
-stm_seek
-SRPC_pq_client_dec
-SRPC_proc_client_dec
-sends_to_mon_last_inv
-deadlocked_M_dep_invariant1
-KIS_recvp_hot
-M_alarm_set
-KIS_alarm
-net_deinstr_act_or
-invariant_dep_dec1
-KIS_dep_dec
-SRPC_net_new_lock_no_unlock_dep
-SRPC_net_query_new_lock
-net_dep_close
-lock_chain_connect
-net_sane_lock_chain_dec
-SRPC_net_new_lock_no_unlock
-KIS_self_get
-SRPC_M_net_new_lock_query
-M_lock_no_send
-M_lock_id_update
-M_lock_set_act
-M_lock_id_update_act
-KIS_self
-KIS_sendp_hot
-M_lock_no_reset
-KIS_index_sendp
-M_lock_set
-_of_put_neq_inv
-SRPC_M_net_no_immediate_relock
-KIS_lock
-SRPC_M_net_query_new_lock
-locked_M_no_send
-net_lock_on_M_no_sends_in
-M_wait_add
-KIS_wait
-net_preserve_self
-net_vis_preserve_self
-mq_preserve_self
-M_recv_ev_act
-KIS_index_recvp
-get_MQ_put_eq_inv
+     : forall (I0 : mon_assg) (N0 : PNet) (MN1 : MNet)
+         (mpath : list (NAct (Act:=MAct)))
+         (n : Srpc.Locks.Proc.Que.Channel.Name),
+       KIS (net_instr I0 N0) ->
+       net_instr I0 N0 =[ mpath ]=> MN1 ->
+       _of Compl.alarm MN1 n = true -> deadlocked n '' MN1
 
-** Srpc
-SRPC_work_inv
-SRPC_busy_reply_exists
-SRPC_busy_reply
-trans_invariant_AnySRPC
-SRPC_Handling_work_act
-SRPC_AnySRPC
-SRPC_inv
-AnySRPC_AnySRPC_pq
-SRPC_pq_AnySRPC_pq
-lock_SRPC_Lock_pq
-lock_SRPC_Lock
-SRPC_Lock_tau_bs
-SRPC_Lock_recv_other_Some_bs
-SRPC_Lock_send_bs
-SRPC_Lock_recv_Q_Some_bs
-trans_invariant_AnySRPC_pq
-SRPC_pq_no_relock
-SRPC_no_relock
-SRPC_Lock_lock
-SRPC_Decisive
-SRPC_pq_get_lock
-SRPC_get_lock
-SRPC_one_lock
-SRPC_pq_inv
-SRPC_tau_no_lock_r
-SRPC_inv_tau_r
-SRPC_inv_recv_Q_r
-SRPC_inv_recv_R_r
-SRPC_recv_R
-SRPC_recv_Q
-SRPC_tau
-SRPC_send_R
-SRPC_send_Q
-SRPC_inv_send_R_l
-SRPC_inv_send_R_r
-SRPC_inv_send_Q_r
-SRPC_inv_send_Q_l
-SRPC_inv_tau_l
-SRPC_SRPC_pq
-SRPC
-SRPC_Handle_State
-Busy
-SRPC_Handling
-HWork
-HLock
-Free
-SRPC_State
-AnySRPC
-SRPC_Handling_ind
-HSRPC_Work
-SRPC_Busy
-AnySRPC_pq
-SRPC_pq
-HSRPC_Lock
+#+END_SRC
+
+*** G1
+
+**** KIS_invariant
+
+**** KIS_invariant_index_recvp
+*** G11
+
+
+**** SRPC_M_net_new_lock_query
+
+*** G12
+
+**** M_lock_set_act
+
+*** G13
+
+**** KIS_invariant_alarm
+
+**** SRPC_M_net_no_immediate_relock
+
+**** SRPC_M_net_query_new_lock
+
+*** G14
+
+**** KIS_invariant_index_sendp
+
+**** SRPC_net_query_new_lock
+
+**** deadlocked_M_dep_invariant1
+
+**** net_sane_lock_chain_dec
+
+**** M_lock_no_reset
+
+*** G15
+
+**** dep_self_deadlocked
+
+**** M_sends_to_send_set
+
+**** M_lock_id_update
+
+**** M_recv_ev_act
+
+**** net_sane_lock_dec
+
+**** SRPC_M_net_unlock_reply
+
+**** M_alarm_set
+
+**** M_lock_no_send
+
+**** M_lock_id_update_act
+
+**** M_lock_set
+
+**** M_wait_add
+
+*** G16
+
+**** KIS_invariant_self
+
+**** KIS_Rad_get
+
+**** KIS_self_get
+
+**** SRPC_pq_client_dec
+
+*** G17
+
+**** KIS_sane
+
+**** KIS_invariant_Rad
+
+**** KIS_self
+
+**** KIS_index_recvp
+
+**** KIS_index_sendp
+
+**** KIS_Rad
+
+**** KIS_lock
+
+**** KIS_sendp
+
+**** SRPC_proc_client_dec
+
+**** KIS_recvp_hot
+
+**** KIS_alarm
+
+**** KIS_dep_dec
+
+**** KIS_sendp_hot
+
+**** KIS_wait
+
+*** G18
+
+**** KIS
+
+**** KIS_
+
+**** net_deinstr_act_or
+
+**** net_preserve_self
+
+*** G2
+
+**** KIS_invariant_recvp_hot
+
+**** KIS_invariant_sendp_hot
+
+*** G20
+
+**** locked_M_no_send
+
+**** net_vis_preserve_self
+
+*** G21
+
+**** hot_ev_of
+
+**** mq_preserve_self
+
+*** G22
+
+**** hot_of
+
+**** sends_to_dec
+
+**** _of_put_neq_inv
+
+**** _of_put_eq_inv
+
+*** G23
+
+**** sends_to
+
+**** _of
+
+**** net_lock_on_M_no_sends_in
+
+*** G24
+
+**** get_MQ_put_eq_inv
+
+*** G27
+
+**** sends_to_mon_last_inv
+
+**** sends_to_mon_many_inv
+
+*** G28
+
+**** sends_to_mon_bs_inv
+
+**** sends_to_mon_dec
+
+*** G29
+
+**** sends_to_mon
+
+**** stm_find
+
+**** stm_seek
+
+*** G3
+
+**** KIS_invariant_dep_dec
+
+*** G30
+
+**** MProbe_eq_dec
+
+*** G32
+
+**** Val
+
+*** G4
+
+**** KIS_invariant_sendp
+
+**** invariant_dep_dec1
+
+*** G5
+
+**** KIS_invariant_lock
+
+**** KIS_invariant_wait
+
+**** net_dep_close
+
+**** SRPC_net_new_lock_no_unlock_dep
+
+*** G6
+
+**** KIS_invariant_sane
+
+**** SRPC_net_new_lock_no_unlock
+
+**** lock_chain_connect
 
 ** SrpcNet
-net_sane
-locks_sound
-SRPC_sane_net
-locks_complete
-pq_client
-proc_client
-SRPC_sane
-SRPC_sane_R_in_lock
-SRPC_sane_R_out_uniq
-SRPC_sane_in_Q_no_out_R
-SRPC_sane_in_Q_no_client
-SRPC_sane_Q_R
-SRPC_sane_R_Q
-SRPC_sane_client_no_out_R
-SRPC_sane_lock_Q
-SRPC_sane_Q_in
-SRPC_sane_R_in
-SRPC_sane_Q_out_last
-SRPC_sane_Q_out_lock
-eq_some_neq_none
-net_dep_on_unlock
-net_lock_on_bad_sender_preserve
-locks_dec_in
-SRPC_net_lock_neq_nil
-SRPC_net_lock_uniq
-dep_reloop
-net_sane_SRPC
-deadset_dep_self
-net_sane_lock_client
-net_sane_client_lock
-SRPC_net_get
-PQH_in
-PQH_proc
-PQH_out
-mk_proc_client
-SRPC_net
-lock_uniq_type
-dep_loop
-net_get_lock
-lock_neq_nil_type
-longest_lock_chain
-dep_on_loop_dep_set
-dep_loop_dep_set
-dep_set_lock_set_dec
-dep_on_noloop_dep_set
-lock_self_dep_uniq
-lock_chain_prefix
-lock_chain_target
-dep_set_lock_on_dec
-lock_singleton
-net_get_lock_In
-lock_chain_loop_in
-lock_self_lock_chain_uniq
-lock_chain_break
-lock_nil_bs
-dep_loop1
-trans_invariant_net_sane
-trans_invariant_net_sane_tau
-trans_invariant_net_sane_comm
-trans_invariant_net_sane_comm__SRPC_sane
-trans_invariant_net_sane_comm__locks_sound
-trans_invariant_net_sane_comm__locks_complete
-NetSane
-trans_invariant_net_sane_comm__locks_complete_Q
-trans_invariant_net_sane_comm__locks_complete_R
-SRPC_net_get_lock
-net_sane_send_R_receiver_no_lock
-SRPC_sane_Q_out_uniq_inv
-SRPC_sane_SRPC_inv
-net_sane_in_net_R_excl_c
-net_sane_SRPC_sane_
-SRPC_sane_R_in_lock_inv
-net_sane_send_R_lock_l
-net_sane_no_self_reply
-net_sane_AnySrpc
-SRPC_sane_R_excl_Q_inv
-net_lock_on_no_send
-net_send_lock_neq
-net_send_no_lock
-SRPC_sane_c_excl_R_inv
-net_lock_on_reply_unlock
-SRPC_net_no_relock
-trans_invariant_SRPC_net
-net_lock_reply_unlock
-net_lock_on_Q_preserve
-pq_client_app_I_l
-net_sane_send_Q_new_lock
-SRPC_sane_send_Q_lock
-SRPC_sane_Q_R_inv
-SRPC_sane__Q_out_last_nil_inv
-SRPC_sane_Q_out_lock_inv
-SRPC_sane_Q_out_last_inv
-net_comm_Q_preserve_lock
-trans_invariant_net_sane_comm__locks_sound_Q
-trans_invariant_net_sane_comm__locks_sound_R
-pq_client_app_I_r
-net_sane_R_derive_lock
-SRPC_sane_send_R_no_lock_r
-SRPC_sane_lock_Q_inv
-net_sane_Q_bad_sender_derive_lock
-trans_invariant_net_sane__net_sane_comm__sender
-trans_invariant_net_sane__net_sane_comm__receiver
-trans_invariant_net_sane__net_sane_comm__self
-trans_invariant_net_sane__net_sane_comm__self_Q
-SRPC_sane_R_in_inv
-SRPC_sane_Q_in_inv
-SRPC_sane_R_in_out_nil
-SRPC_sane_Q_excl_R_inv
-SRPC_sane_R_excl_c_inv
-SPRC_pq_net_
-trans_invariant_net_sane__net_sane_comm__receiver_Q
-trans_invariant_net_sane__net_sane_comm__receiver_R
-pq_I_net_inv
-SRPC_sane_SRPC_proc_inv
-net_sane_lock_no_R
-net_sane_reply_lock
-net_sane_recv_R_SRPC
-SRPC_sane_lock_no_R
-SRPC_sane_R_Q_inv
-net_sane_in_net_Q_out_last
-trans_invariant_net_sane__net_sane_comm__sender_Q
-trans_invariant_net_sane__net_sane_comm__sender_R
-trans_invariant_net_sane_tau__locks_complete
-trans_invariant_net_sane_tau__SRPC_sane
-trans_invariant_net_sane_tau__locks_sound
-pq_client_invariant_tau
-SRPC_net_lock_on_tau_derive
-SRPC_net_tau_no_lock
-pq_client_app_O_l
-pq_client_app_O_r
-proc_client_uniq
-trans_invariant_net_sane_tau__client_no_out_R
-trans_invariant_net_sane_tau__Q_R
-trans_invariant_net_sane_tau__R_Q
-trans_invariant_net_sane_tau__Q_in
-trans_invariant_net_sane_tau__R_in
-trans_invariant_net_sane_tau__Q_out_last
-trans_invariant_net_sane_tau__Q_out_lock
-trans_invariant_net_sane_tau__in_Q_no_client
-trans_invariant_net_sane_tau__in_Q_no_out_R
-trans_invariant_net_sane_tau__R_in_lock
-trans_invariant_net_sane_tau__lock_Q
-trans_invariant_net_sane_tau__R_out_uniq
-SRPC_sane_c_excl_Q_inv
-net_lock_on_tau_preserve
-net_tau_preserve_lock
-net_sane_new_lock_send_Q
-net_sane_new_lock_comm_Q_inv_tag
-net_sane_new_lock_comm_Q_inv_receiver
-net_sane_new_lock_comm_Q_inv_sender
-Val
-net_sane_in_net_R_in_lock
-net_unlock_on_reply
-net_unlock_reply
-net_unlock_send_inv
-net_unlock_recv_inv
-net_lock_bad_receiver_preserve
-net_lock_bad_sender_preserve
-net_dep_Q_preserve
-deadlocked_dep'
-net_sane_in_net_Q_in
-net_sane_in_net_R_excl_Q
-net_sane_in_net_c_excl_Q
-deadlocked_lock_on'
-dep_self_deadset
-dep_set_deadset
-SRPC_net_lock
+
+*** G10
+
+**** trans_invariant_net_sane_comm__locks_sound
+
+**** trans_invariant_net_sane_comm__locks_complete_Q
+
+**** trans_invariant_net_sane_comm__locks_complete_R
+
+*** G11
+
+**** trans_invariant_net_sane_comm__SRPC_sane
+
+**** trans_invariant_net_sane_comm__locks_sound_R
+
+*** G12
+
+**** net_sane_new_lock_send_Q
+
+**** trans_invariant_net_sane__net_sane_comm__sender
+
+**** trans_invariant_net_sane__net_sane_comm__receiver
+
+**** net_sane_R_derive_lock
+
+*** G13
+
+**** trans_invariant_net_sane_tau
+
+**** trans_invariant_net_sane__net_sane_comm__self
+
+**** trans_invariant_net_sane__net_sane_comm__receiver_R
+
+**** trans_invariant_net_sane__net_sane_comm__sender_R
+
+**** net_sane_send_R_receiver_no_lock
+
+**** net_sane_new_lock_comm_Q_inv_receiver
+
+*** G14
+
+**** SRPC_net_no_relock
+
+**** trans_invariant_net_sane__net_sane_comm__self_Q
+
+**** trans_invariant_net_sane__net_sane_comm__receiver_Q
+
+**** net_sane_lock_no_R
+
+**** net_sane_recv_R_SRPC
+
+**** trans_invariant_net_sane__net_sane_comm__sender_Q
+
+**** trans_invariant_net_sane_comm__locks_sound_Q
+
+**** trans_invariant_net_sane_tau__locks_sound
+
+**** net_sane_new_lock_comm_Q_inv_tag
+
+*** G15
+
+**** net_sane_send_Q_new_lock
+
+**** SRPC_net_get_lock
+
+**** trans_invariant_net_sane_tau__SRPC_sane
+
+**** SRPC_net_lock_on_tau_derive
+
+*** G16
+
+**** dep_self_deadset
+
+**** SRPC_net_lock_uniq
+
+**** SRPC_sane_R_in_out_nil
+
+**** SRPC_sane_send_Q_lock
+
+**** net_sane_reply_lock
+
+**** SRPC_sane_lock_no_R
+
+**** pq_client_invariant_tau
+
+**** SRPC_net_tau_no_lock
+
+**** trans_invariant_net_sane_tau__R_in_lock
+
+**** trans_invariant_net_sane_tau__lock_Q
+
+**** trans_invariant_net_sane_tau__Q_out_lock
+
+**** net_dep_on_unlock
+
+*** G17
+
+**** dep_set_deadset
+
+**** SRPC_sane_Q_out_lock_inv
+
+**** SRPC_sane_R_in_lock_inv
+
+**** net_unlock_on_reply
+
+**** net_sane_no_self_reply
+
+**** net_sane_send_R_lock_l
+
+**** SRPC_sane_send_R_no_lock_r
+
+**** trans_invariant_net_sane_tau__locks_complete
+
+**** proc_client_uniq
+
+**** trans_invariant_net_sane_tau__in_Q_no_client
+
+**** trans_invariant_net_sane_tau__in_Q_no_out_R
+
+**** trans_invariant_net_sane_tau__R_out_uniq
+
+**** trans_invariant_net_sane_tau__client_no_out_R
+
+**** trans_invariant_net_sane_tau__Q_R
+
+**** trans_invariant_net_sane_tau__R_Q
+
+**** trans_invariant_net_sane_tau__Q_in
+
+**** trans_invariant_net_sane_tau__R_in
+
+**** trans_invariant_net_sane_tau__Q_out_last
+
+**** net_sane_new_lock_comm_Q_inv_sender
+
+*** G18
+
+**** net_sane_SRPC
+
+**** dep_loop_dep_set
+
+**** dep_reloop
+
+**** net_sane_SRPC_sane_
+
+**** net_sane_lock_client
+
+**** net_sane_client_lock
+
+**** net_unlock_reply
+
+**** net_sane_in_net_Q_out_last
+
+**** net_sane_in_net_R_excl_c
+
+**** net_sane_AnySrpc
+
+**** net_sane_Q_bad_sender_derive_lock
+
+*** G19
+
+**** net_sane
+
+**** SRPC_net_lock_neq_nil
+
+**** SRPC_net_lock
+
+**** lock_chain_loop_in
+
+**** dep_loop
+
+**** SRPC_sane__Q_out_last_nil_inv
+
+**** trans_invariant_SRPC_net
+
+**** NetSane
+
+**** net_unlock_send_inv
+
+**** net_dep_Q_preserve
+
+**** SRPC_sane_SRPC_proc_inv
+
+**** net_lock_on_bad_sender_preserve
+
+*** G20
+
+**** SRPC_sane_net
+
+**** lock_self_lock_chain_uniq
+
+**** SRPC_sane_SRPC_inv
+
+**** SRPC_net_get
+
+**** SRPC_sane_Q_R_inv
+
+**** SRPC_sane_Q_out_last_inv
+
+**** SRPC_sane_lock_Q_inv
+
+**** lock_singleton
+
+**** net_unlock_recv_inv
+
+**** net_lock_bad_sender_preserve
+
+**** SRPC_sane_Q_excl_R_inv
+
+**** SRPC_sane_R_excl_c_inv
+
+**** SRPC_sane_Q_out_uniq_inv
+
+**** SRPC_sane_R_in_inv
+
+**** SRPC_sane_Q_in_inv
+
+**** SRPC_sane_c_excl_R_inv
+
+**** SRPC_sane_R_Q_inv
+
+**** SRPC_sane_R_excl_Q_inv
+
+**** net_lock_on_reply_unlock
+
+**** net_lock_on_Q_preserve
+
+**** SRPC_sane_c_excl_Q_inv
+
+*** G21
+
+**** locks_complete
+
+**** locks_sound
+
+**** SRPC_sane
+
+**** SRPC_net
+
+**** lock_chain_prefix
+
+**** lock_self_dep_uniq
+
+**** net_get_lock_In
+
+**** net_lock_on_no_send
+
+**** pq_client_app_I_l
+
+**** pq_client_app_O_r
+
+**** net_comm_Q_preserve_lock
+
+**** net_lock_bad_receiver_preserve
+
+**** SPRC_pq_net_
+
+**** net_lock_reply_unlock
+
+**** pq_client_app_I_r
+
+**** net_lock_on_tau_preserve
+
+**** pq_client_app_O_l
+
+*** G22
+
+**** pq_client
+
+**** SRPC_sane_in_Q_no_client
+
+**** SRPC_sane_client_no_out_R
+
+**** SRPC_sane_lock_Q
+
+**** SRPC_sane_Q_out_lock
+
+**** SRPC_sane_R_in_lock
+
+**** lock_chain_break
+
+**** lock_chain_target
+
+**** net_get_lock
+
+**** dep_loop1
+
+**** net_send_lock_neq
+
+**** PQH_in
+
+**** net_tau_preserve_lock
+
+**** PQH_proc
+
+**** PQH_out
+
+**** mk_proc_client
+
+*** G23
+
+**** proc_client
+
+**** lock_uniq_type
+
+**** lock_nil_bs
+
+**** net_send_no_lock
+
+*** G24
+
+**** lock_neq_nil_type
+
+*** G25
+
+**** SRPC_sane_R_out_uniq
+
+**** SRPC_sane_in_Q_no_out_R
+
+**** SRPC_sane_Q_R
+
+**** SRPC_sane_R_Q
+
+**** SRPC_sane_Q_in
+
+**** SRPC_sane_R_in
+
+**** SRPC_sane_Q_out_last
+
+**** pq_I_net_inv
+
+*** G32
+
+**** Val
+
+*** G33
+
+**** eq_some_neq_none
+
+*** G7
+
+**** trans_invariant_net_sane
+
+*** G8
+
+**** trans_invariant_net_sane_comm
+
+*** G9
+
+**** trans_invariant_net_sane_comm__locks_complete
+
+** NetLocks
+
+*** G15
+
+**** deadlocked_dep_invariant1
+
+*** G16
+
+**** deadlocked_lock_on_invariant1
+
+**** deadlocked_invariant
+
+*** G17
+
+**** deadset_invariant
+
+**** deadlocked_lock_invariant1
+
+*** G18
+
+**** lock_chain_dep_set_In
+
+**** deadset_invariant_lock
+
+*** G19
+
+**** lock_chain_dep
+
+**** deadlocked_dep
+
+**** deadset_stay1
+
+*** G20
+
+**** dep_on_seq1
+
+**** dep_on_seq1'
+
+**** lock_chain_dedup
+
+**** lock_chain_split_in
+
+**** deadlocked_lock_on
+
+**** deadset_recv
+
+**** deadset_dep_in
+
+*** G21
+
+**** dep_on_seq
+
+**** lock_chain_seq_inv
+
+**** dep_lock_chain
+
+**** dep_set_incl
+
+**** net_lock_all_in
+
+**** deadset_in
+
+**** deadset_no_send'
+
+**** deadset_no_tau
+
+*** G22
+
+**** lock_chain_seq
+
+**** lock_chain_ind
+
+**** dep_on_ind
+
+**** lock_chain_nil_inv
+
+**** lock_chain_cons_inv
+
+**** lock_chain_split
+
+**** dep_set
+
+**** net_lock_on_in
+
+**** deadset_incl
+
+**** deadset_no_send
+
+*** G23
+
+**** lock_chain
+
+**** LC_cons
+
+**** dep_on
+
+**** dep_on_Direct
+
+**** dep_on_Indirect
+
+**** LC_nil
+
+**** net_lock_only_in
+
+**** net_lock_equiv
+
+**** deadlocked
+
+**** deadset_net_lock
+
+**** net_lock_on_move_eq
+
+*** G24
+
+**** net_lock_on
+
+**** DeadSet
+
+**** deadset
+
+**** net_lock_inv_P_Decisive
+
+**** net_lock_inv_I
+
+**** net_lock_inv_O
+
+**** net_lock_inv_P
+
+*** G25
+
+**** net_lock
+
+** Srpc
+
+*** G16
+
+**** SRPC_pq_no_relock
+
+*** G17
+
+**** SRPC_pq_inv
+
+**** SRPC_no_relock
+
+**** SRPC_tau_no_lock_r
+
+*** G18
+
+**** SRPC_inv
+
+*** G19
+
+**** SRPC_work_inv
+
+*** G20
+
+**** SRPC_pq_get_lock
+
+**** lock_SRPC_Lock_pq
+
+**** SRPC_busy_reply_exists
+
+**** SRPC_Decisive
+
+**** trans_invariant_AnySRPC_pq
+
+*** G21
+
+**** AnySRPC_AnySRPC_pq
+
+**** SRPC_get_lock
+
+**** lock_SRPC_Lock
+
+**** trans_invariant_AnySRPC
+
+**** SRPC_pq_AnySRPC_pq
+
+**** SRPC_inv_recv_Q_r
+
+**** SRPC_inv_recv_R_r
+
+**** SRPC_inv_tau_r
+
+**** SRPC_inv_tau_l
+
+**** SRPC_inv_send_R_l
+
+**** SRPC_inv_send_Q_r
+
+**** SRPC_inv_send_Q_l
+
+**** SRPC_inv_send_R_r
+
+*** G22
+
+**** SRPC_one_lock
+
+**** SRPC_Lock_recv_other_Some_bs
+
+**** SRPC_AnySRPC
+
+**** SRPC_tau
+
+**** SRPC_send_R
+
+**** SRPC_send_Q
+
+**** SRPC_recv_R
+
+**** SRPC_recv_Q
+
+*** G23
+
+**** SRPC_Lock_tau_bs
+
+**** SRPC_Lock_send_bs
+
+**** SRPC_Lock_recv_Q_Some_bs
+
+**** SRPC_busy_reply
+
+**** SRPC_Lock_lock
+
+*** G24
+
+**** SRPC_Handling_work_act
 
 ** Transp
-mon_assg
-net_instr
-net_deinstr
-get_M
-get_MQ
-net_instr_n
-get_Mc
-net_deinstr_instr
-Net_path_corr
-net_deinstr_act_skip
-net_deinstr_act_do
-PNAct
-net_preserve_handle
-MNAct_to_PNAct
-net_vis_preserve_handle
-Net_path_corr1
-Net_Vis_corr_precv
-Net_Vis_corr_psend
-Net_Vis_corr_ptau
-Net_Vis_corr_recv
-Net_Vis_corr_send
-Net_Vis_corr_mon
-no_sends_in
-NoTrSend
-MNAct
-net_deinstr_act
-Net_Vis_corr_tau
-Clear_NoSends_MQ
-ready_in
-MNet_trans_simpl_inv
-mq_MQ_net_inv
-send_comm_available
-send_available
-recv_available
+
+*** G18
+
+**** net_preserve_handle
+
+*** G19
+
+**** net_deinstr_act_do
+
+**** net_deinstr_act_skip
+
+**** net_vis_preserve_handle
+
+*** G20
+
+**** net_instr
+
+**** net_deinstr_act
+
+*** G21
+
+**** net_instr_n
+
+**** Net_Vis_corr_precv
+
+**** Net_Vis_corr_psend
+
+**** Net_Vis_corr_ptau
+
+**** Net_Vis_corr_mon
+
+**** Net_Vis_corr_tau
+
+**** MNet_trans_simpl_inv
+
+*** G23
+
+**** mon_assg
+
+*** G24
+
+**** net_deinstr
+
+**** get_Mc
+
+**** MNAct_to_PNAct
+
+**** no_sends_in
+
+*** G25
+
+**** get_MQ
+
+**** get_M
+
+**** MNAct
+
+**** NoTrSend
+
+*** G26
+
+**** PNAct
+
+** Mon
+
+*** G20
+
+**** mq_preserve_handle
+
+*** G21
+
+**** MTrans_SendT_inv
+
+**** MTrans_SendP_inv
+
+**** MTrans_SendM_inv
+
+**** MTrans_TauP_inv
+
+**** MTrans_RecvT_inv
+
+**** MTrans_RecvP_inv
+
+**** MTrans_RecvM_inv
+
+**** MTrans_PickM_inv
+
+**** mq_preserve_handle1
+
+*** G22
+
+**** instr
+
+**** trans_mqued
+
+**** recv_is_ready
+
+*** G23
+
+**** instr_t
+
+**** ready_recv
+
+**** ready_inv_proj_r2l
+
+**** MTrans
+
+**** MTSendT
+
+**** MTSendP
+
+**** MTSendM
+
+**** MTTauP
+
+**** MTRecvT
+
+**** MTRecvP
+
+**** MTRecvM
+
+**** MTPickM
+
+*** G24
+
+**** Mon_ready
+
+**** MonTrans_Recv_inv
+
+**** MonTrans_Send_inv
+
+**** ready_inv
+
+**** MonTrans_Tau_inv
+
+**** deinstr_In_send
+
+*** G25
+
+**** MQ_clear
+
+**** trans_mon
+
+**** ready
+
+**** PayloadM
+
+**** MQ_s_In_inv
+
+**** deinstr
+
+*** G26
+
+**** MQ_Clear
+
+**** MonTrans
+
+**** MonTRecv
+
+**** handle
+
+**** state
+
+**** MonTSend
+
+**** MQued
+
+**** mq
+
+**** gen_Act_MAct
+
+**** MQ_s_app
+
+**** MQ_r_app
+
+**** MQ_r_In
+
+**** In_MQ_s
+
+**** MQ_s_In
+
+*** G27
+
+**** is_EvRecv
+
+**** MonAct
+
+**** Mon
+
+**** MonRecv
+
+**** MonSend
+
+**** Build_Mon
+
+**** MAct
+
+**** MonTau
+
+**** MActP
+
+**** MActT
+
+**** MActM
+
+**** MQ_s
+
+**** MQ_r
+
+*** G28
+
+**** Event
+
+**** TrSend
+
+**** TrRecv
+
+**** EvRecv
+
+**** MValM
+
+**** MValP
+
+**** MVal
+
+*** G29
+
+**** next_state
+
+**** MCode_ind
+
+*** G30
+
+**** MCode
+
+**** MRecv
+
+**** MSend
+
+** Locks
+
+*** G22
+
+**** pq_lock_invariant
+
+**** pq_lock_recv_inv
+
+**** pq_recv_Q_derive_lock
+
+*** G23
+
+**** pq_lock_recv
+
+*** G24
+
+**** pq_lock_equiv
+
+**** proc_lock_recv_inv
+
+*** G25
+
+**** pq_lock_equiv_inv
+
+**** proc_lock_recv
+
+**** proc_lock_equiv
+
+**** pq_lock_incl
+
+**** pq_lock_P_inv
+
+**** pq_lock_I_inv
+
+*** G26
+
+**** proc_lock_incl
+
+**** proc_lock_equiv_inv
+
+**** Decisive_Q_e
+
+**** pq_lock
+
+**** unlocking_msg_inv
+
+**** not_unlocking_msg
+
+**** PQ_Lock
+
+*** G27
+
+**** proc_lock
+
+**** Decisive
+
+**** DecRecv
+
+**** DecSend
+
+**** DecTau
+
+**** unlocking_msg
+
+*** G28
+
+**** some_val
+
+*** G31
+
+**** some_name
+
+*** G32
+
+**** Val
+
+** SrpcDefs
+
+*** G22
+
+**** AnySRPC_pq
+
+*** G23
+
+**** AnySRPC
+
+**** SRPC_pq
+
+*** G24
+
+**** SRPC
+
+**** SRPC_Busy
+
+**** SRPC_Handling_ind
+
+*** G25
+
+**** SRPC_Handling
+
+**** HSRPC_Lock
+
+**** HSRPC_Work
+
+*** G30
+
+**** SRPC_State
+
+**** Free
+
+**** Busy
+
+*** G31
+
+**** SRPC_Handle_State
+
+**** HWork
+
+**** HLock
+
+** Proc
+
+*** G23
+
+**** PTrans_Send_inv
+
+**** PTrans_Recv_inv
+
+**** PTrans_Tau_Send_inv
+
+**** PTrans_Tau_t_inv
+
+**** PTrans_Pick_t_inv
+
+**** PTrans_Push_t_inv
+
+*** G24
+
+**** trans_pqued
+
+*** G25
+
+**** PTPush
+
+**** PTRecv
+
+**** PTrans
+
+**** ProcTrans_Send_inv
+
+**** ProcTrans_Recv_inv
+
+**** ProcTrans_Tau_inv
+
+**** ProcTrans_PSend_inv
+
+**** ProcTrans_PTau_inv
+
+**** ProcTrans_PRecv_inv
+
+**** PTTau
+
+**** PTSend
+
+**** PTPick
+
+**** pq_P_inv
+
+*** G26
+
+**** pq_I
+
+**** pq_O
+
+**** pq_P
+
+**** trans_proc
+
+**** ia_PAct_inv
+
+*** G27
+
+**** PQued
+
+**** pq
+
+**** gen_Act_PAct
+
+**** ProcTrans
+
+**** PrTSend
+
+**** PrTRecv
+
+**** PrTTau
+
+*** G28
+
+**** Proc
+
+**** PSend
+
+**** PRecv
+
+**** PTau
+
+**** PEnd
+
+**** PAct
+
+*** G30
+
+**** Act
+
+**** Send
+
+**** Recv
+
+**** Tau
+
+*** G31
+
+**** Val
+
+** Net
+
+*** G24
+
+**** path_of_ptrans
+
+**** NTau_neq_stay
+
+**** NComm_neq_stay
+
+*** G25
+
+**** NTrans_Tau_inv
+
+**** NTrans_Comm_neq_inv
+
+**** NTrans_Comm_eq_inv
+
+**** act_particip_stay
+
+*** G26
+
+**** trans_net
+
+**** Path_of_nil_inv
+
+**** path_of_exists
+
+**** net_ind_of
+
+*** G27
+
+**** NTrans
+
+**** NT_Tau
+
+**** NT_Comm
+
+**** Path_of
+
+**** PO_nil
+
+**** PO_tau
+
+**** PO_comm_send
+
+**** PO_comm_recv
+
+**** PO_comm_self
+
+**** PO_skip_tau
+
+**** PO_skip_comm
+
+**** act_particip
+
+*** G28
+
+**** NAct
+
+**** NTau
+
+**** NComm
+
+*** G29
+
+**** NV_stay
+
+*** G30
+
+**** get_put_eq_inv
+
+**** put_put_eq_inv
+
+**** NVTrans_inv
+
+**** get_put_neq_inv
+
+**** get_map_inv
+
+**** put_map_inv
+
+**** put_eq_inv
+
+*** G31
+
+**** NVTrans
+
+**** NT_Vis
+
+** Que
+
+*** G26
+
+**** que_Enq
+
+*** G27
+
+**** que_Enq1
+
+**** Deq_app_or_l
+
+**** Deq_length
+
+**** Deq_neq_In
+
+**** Deq_length_neq
+
+**** Deq_dec'
+
+*** G28
+
+**** Deq_In
+
+**** que_Deq
+
+**** Deq_app_or_r
+
+**** Deq_not_In
+
+**** Enq_inv
+
+**** Deq_split
+
+**** Enq_nil
+
+**** Deq_Deq_swap
+
+**** Deq_nil
+
+*** G29
+
+**** QPop
+
+**** QPush
+
+**** in_dec_v
+
+**** QTrans
+
+**** QSeek
+
+*** G30
+
+**** Val
+
+**** QEnq
+
+**** QDeq
+
+**** QAct
+
+** Rad
+
+*** G27
+
+**** Rad_handle
+
+*** G28
+
+**** next_state_Send_all
+
+*** G29
+
+**** MSend_all
+
+** Channel
+
+*** G28
+
+**** recv
+
+**** send
+
+*** G29
+
+**** Val
+
+**** Payload
+
+**** ia
+
+*** G30
+
+**** gen_Act
+
+**** NChan_eq_dec
+
+**** Build_gen_Act
+
+*** G31
+
+**** NChan_neq_Name_inv
+
+**** NChan
+
+**** NChan_neq_Tag_inv
+
+*** G32
+
+**** Name
+
+**** Tag
+
+** NAME_H
+
+*** G28
+
+**** same_eqb_inv
+
+**** neq_neqb_inv
+
+*** G29
+
+**** eqb_neq_inv
+
+** NAME
+
+*** G30
+
+**** eqb_eq
+
+*** G31
+
+**** eqb
+
+**** eq_dec
+
+*** G32
+
+**** t
+
+*** G33
+
+**** t'
+
+** NetMod
+
+*** G31
+
+**** get_put_eq
+
+**** put_put_eq
+
+**** get_put_neq
+
+**** get_map
+
+**** extensionality
+
+**** put_map
+
+**** put_get_eq
+
+*** G32
+
+**** get
+
+**** map
+
+**** put
+
+*** G33
+
+**** t
+
+** TAG
+
+*** G32
+
+**** eq_dec
+
+*** G33
+
+**** t'
+
+**** t
+
+** DetConf
+
+*** G33
+
+**** Val
