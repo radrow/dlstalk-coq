@@ -83,7 +83,11 @@ Module Preview.
   Import Srpc.
   Import Compl.
   Import SrpcNet.
+  Check Transp_completeness.
+  Check Transp_soundness_base.
   Check Net_Transp_completeness.
-
+  Check Net_Transp_soundness.
+  Check deadset_dep_self.
+  Check dep_self_deadset.
 (* Set DependGraph File "modules.dpd". *)
 (* Print FileDependGraph Deps. *)

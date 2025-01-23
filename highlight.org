@@ -35,1555 +35,339 @@ All "unpacking" lemmas, where there is a clear owner of the property. Proofs sho
 
 Things of zero value to the reader. All obvious, purely technical and Coq-quirky items should go here. For example rewrite lemmas.
 
-* Everything
-# Local Variables:
-# eval: (defun check () (interactive) (let ((w (current-word))) (progn (set-buffer "Deps.v") (proof-shell-invisible-command (format "Check %s ." w)) (sleep-for 0.5) (set-buffer "*response*") (let '(tstr (buffer-substring-no-properties (point-min) (point-max))) (progn (message tstr) (set-buffer "highlight.org") (move-end-of-line 1) (newline) (insert (concat "#+BEGIN_SRC coq\n" tstr "#+END_SRC")))))))
-# eval: (local-set-key (kbd "C-c C-RET") 'check)
-# End:
-** Sound
+* Sketch
 
-*** G0
+** High-level pipeline:
 
-**** detection_soundness
+1. Local transparency
+2. Network transparency
+3. Deadlock <=> cycle
+4. SRPC sanity invariant
+5. KIS & KIC invariants
+6. Detect completeness & soundness
+
+** Local transparency
+
+*** Completeness
+
+#+begin_src coq
+  Transp_completeness
+       : forall (path : list Mon.Proc.PAct) (S0 S1 : Mon.Proc.PQued)
+           (MQ0 : MQ_clear) (M0 : Mon_ready),
+         S0 =[ path ]=> S1 ->
+         exists (mpath : list MAct) (M1 : Mon_ready),
+           (instr MQ0 M0 S0 =[ mpath ]=>
+            instr (exist _ nil (List.Forall_nil is_EvRecv))
+              M1 S1) /\ mpath >:~ path
+#+end_src
+
+*** Soundness
+
+#+begin_src coq
+  Transp_soundness_base
+       : forall (mpath0 : list MAct) (MS0 MS1 : MQued),
+         MS0 =[ mpath0 ]=> MS1 -> MS0 =[ mpath0 ++ flush_path MS1 ]=> flush_MS MS1
+#+end_src
+
+** Net transparency
+
+*** Completeness
+
 #+BEGIN_SRC coq
-detection_soundness
-     : forall (I0 : mon_assg) (N0 : PNet) (MN1 : MNet)
-         (mpath : list (NAct (Act:=MAct)))
-         (n : Srpc.Locks.Proc.Que.Channel.Name),
-       KIS (net_instr I0 N0) ->
-       net_instr I0 N0 =[ mpath ]=> MN1 ->
-       _of Compl.alarm MN1 n = true -> deadlocked n '' MN1
-
+  Net_Transp_completeness
+       : forall (I0 : mon_assg) (N0 N1 : PNet),
+         N0 =[ ?path ]=> N1 ->
+         exists (mpath : list (Transp.Net.NAct (Act:=MAct))) (I1 : mon_assg),
+           net_instr I0 N0 =[ mpath ]=> net_instr I1 N1
 #+END_SRC
 
-*** G1
+*** Soundness
 
-**** KIS_invariant
+#+BEGIN_SRC coq
+  Net_Transp_soundness
+       : net_instr ?I0 ?N0 =[ ?mnpath0 ]=> ?MN1 ->
+         exists mnpath1 pnpath (I2 : mon_assg) (N2 : PNet),
+           (?MN1 =[ mnpath1 ]=> net_instr I2 N2) /\ (?N0 =[ pnpath ]=> N2)
+#+END_SRC
 
-**** KIS_invariant_index_recvp
-*** G11
 
+** Deadlock condition
 
-**** SRPC_M_net_new_lock_query
+Deadlocks are equivalent to dependency cycles extended by dependants
 
-*** G12
+*** Completeness
 
-**** M_lock_set_act
-
-*** G13
-
-**** KIS_invariant_alarm
-
-**** SRPC_M_net_no_immediate_relock
-
-**** SRPC_M_net_query_new_lock
-
-*** G14
-
-**** KIS_invariant_index_sendp
-
-**** SRPC_net_query_new_lock
-
-**** deadlocked_M_dep_invariant1
-
-**** net_sane_lock_chain_dec
-
-**** M_lock_no_reset
-
-*** G15
-
-**** dep_self_deadlocked
-
-**** M_sends_to_send_set
-
-**** M_lock_id_update
-
-**** M_recv_ev_act
-
-**** net_sane_lock_dec
-
-**** SRPC_M_net_unlock_reply
-
-**** M_alarm_set
-
-**** M_lock_no_send
-
-**** M_lock_id_update_act
-
-**** M_lock_set
-
-**** M_wait_add
-
-*** G16
-
-**** KIS_invariant_self
-
-**** KIS_Rad_get
-
-**** KIS_self_get
-
-**** SRPC_pq_client_dec
-
-*** G17
-
-**** KIS_sane
-
-**** KIS_invariant_Rad
-
-**** KIS_self
-
-**** KIS_index_recvp
-
-**** KIS_index_sendp
-
-**** KIS_Rad
-
-**** KIS_lock
-
-**** KIS_sendp
-
-**** SRPC_proc_client_dec
-
-**** KIS_recvp_hot
-
-**** KIS_alarm
-
-**** KIS_dep_dec
-
-**** KIS_sendp_hot
-
-**** KIS_wait
-
-*** G18
-
-**** KIS
-
-**** KIS_
-
-**** net_deinstr_act_or
-
-**** net_preserve_self
-
-*** G2
-
-**** KIS_invariant_recvp_hot
-
-**** KIS_invariant_sendp_hot
-
-*** G20
-
-**** locked_M_no_send
-
-**** net_vis_preserve_self
-
-*** G21
-
-**** hot_ev_of
-
-**** mq_preserve_self
-
-*** G22
-
-**** hot_of
-
-**** sends_to_dec
-
-**** _of_put_neq_inv
-
-**** _of_put_eq_inv
-
-*** G23
-
-**** sends_to
-
-**** _of
-
-**** net_lock_on_M_no_sends_in
-
-*** G24
-
-**** get_MQ_put_eq_inv
-
-*** G27
-
-**** sends_to_mon_last_inv
-
-**** sends_to_mon_many_inv
-
-*** G28
-
-**** sends_to_mon_bs_inv
-
-**** sends_to_mon_dec
-
-*** G29
-
-**** sends_to_mon
-
-**** stm_find
-
-**** stm_seek
-
-*** G3
-
-**** KIS_invariant_dep_dec
-
-*** G30
-
-**** MProbe_eq_dec
-
-*** G32
-
-**** Val
-
-*** G4
-
-**** KIS_invariant_sendp
-
-**** invariant_dep_dec1
-
-*** G5
-
-**** KIS_invariant_lock
-
-**** KIS_invariant_wait
-
-**** net_dep_close
-
-**** SRPC_net_new_lock_no_unlock_dep
-
-*** G6
-
-**** KIS_invariant_sane
-
-**** SRPC_net_new_lock_no_unlock
-
-**** lock_chain_connect
-
-** SrpcNet
-
-*** G10
-
-**** trans_invariant_net_sane_comm__locks_sound
-
-**** trans_invariant_net_sane_comm__locks_complete_Q
-
-**** trans_invariant_net_sane_comm__locks_complete_R
-
-*** G11
-
-**** trans_invariant_net_sane_comm__SRPC_sane
-
-**** trans_invariant_net_sane_comm__locks_sound_R
-
-*** G12
-
-**** net_sane_new_lock_send_Q
-
-**** trans_invariant_net_sane__net_sane_comm__sender
-
-**** trans_invariant_net_sane__net_sane_comm__receiver
-
-**** net_sane_R_derive_lock
-
-*** G13
-
-**** trans_invariant_net_sane_tau
-
-**** trans_invariant_net_sane__net_sane_comm__self
-
-**** trans_invariant_net_sane__net_sane_comm__receiver_R
-
-**** trans_invariant_net_sane__net_sane_comm__sender_R
-
-**** net_sane_send_R_receiver_no_lock
-
-**** net_sane_new_lock_comm_Q_inv_receiver
-
-*** G14
-
-**** SRPC_net_no_relock
-
-**** trans_invariant_net_sane__net_sane_comm__self_Q
-
-**** trans_invariant_net_sane__net_sane_comm__receiver_Q
-
-**** net_sane_lock_no_R
-
-**** net_sane_recv_R_SRPC
-
-**** trans_invariant_net_sane__net_sane_comm__sender_Q
-
-**** trans_invariant_net_sane_comm__locks_sound_Q
-
-**** trans_invariant_net_sane_tau__locks_sound
-
-**** net_sane_new_lock_comm_Q_inv_tag
-
-*** G15
-
-**** net_sane_send_Q_new_lock
-
-**** SRPC_net_get_lock
-
-**** trans_invariant_net_sane_tau__SRPC_sane
-
-**** SRPC_net_lock_on_tau_derive
-
-*** G16
-
-**** dep_self_deadset
-
-**** SRPC_net_lock_uniq
-
-**** SRPC_sane_R_in_out_nil
-
-**** SRPC_sane_send_Q_lock
-
-**** net_sane_reply_lock
-
-**** SRPC_sane_lock_no_R
-
-**** pq_client_invariant_tau
-
-**** SRPC_net_tau_no_lock
-
-**** trans_invariant_net_sane_tau__R_in_lock
-
-**** trans_invariant_net_sane_tau__lock_Q
-
-**** trans_invariant_net_sane_tau__Q_out_lock
-
-**** net_dep_on_unlock
-
-*** G17
-
-**** dep_set_deadset
-
-**** SRPC_sane_Q_out_lock_inv
-
-**** SRPC_sane_R_in_lock_inv
-
-**** net_unlock_on_reply
-
-**** net_sane_no_self_reply
-
-**** net_sane_send_R_lock_l
-
-**** SRPC_sane_send_R_no_lock_r
-
-**** trans_invariant_net_sane_tau__locks_complete
-
-**** proc_client_uniq
-
-**** trans_invariant_net_sane_tau__in_Q_no_client
-
-**** trans_invariant_net_sane_tau__in_Q_no_out_R
-
-**** trans_invariant_net_sane_tau__R_out_uniq
-
-**** trans_invariant_net_sane_tau__client_no_out_R
-
-**** trans_invariant_net_sane_tau__Q_R
-
-**** trans_invariant_net_sane_tau__R_Q
-
-**** trans_invariant_net_sane_tau__Q_in
-
-**** trans_invariant_net_sane_tau__R_in
-
-**** trans_invariant_net_sane_tau__Q_out_last
-
-**** net_sane_new_lock_comm_Q_inv_sender
-
-*** G18
-
-**** net_sane_SRPC
-
-**** dep_loop_dep_set
-
-**** dep_reloop
-
-**** net_sane_SRPC_sane_
-
-**** net_sane_lock_client
-
-**** net_sane_client_lock
-
-**** net_unlock_reply
-
-**** net_sane_in_net_Q_out_last
-
-**** net_sane_in_net_R_excl_c
-
-**** net_sane_AnySrpc
-
-**** net_sane_Q_bad_sender_derive_lock
-
-*** G19
-
-**** net_sane
-
-**** SRPC_net_lock_neq_nil
-
-**** SRPC_net_lock
-
-**** lock_chain_loop_in
-
-**** dep_loop
-
-**** SRPC_sane__Q_out_last_nil_inv
-
-**** trans_invariant_SRPC_net
-
-**** NetSane
-
-**** net_unlock_send_inv
-
-**** net_dep_Q_preserve
-
-**** SRPC_sane_SRPC_proc_inv
-
-**** net_lock_on_bad_sender_preserve
-
-*** G20
-
-**** SRPC_sane_net
-
-**** lock_self_lock_chain_uniq
-
-**** SRPC_sane_SRPC_inv
-
-**** SRPC_net_get
-
-**** SRPC_sane_Q_R_inv
-
-**** SRPC_sane_Q_out_last_inv
-
-**** SRPC_sane_lock_Q_inv
-
-**** lock_singleton
-
-**** net_unlock_recv_inv
-
-**** net_lock_bad_sender_preserve
-
-**** SRPC_sane_Q_excl_R_inv
-
-**** SRPC_sane_R_excl_c_inv
-
-**** SRPC_sane_Q_out_uniq_inv
-
-**** SRPC_sane_R_in_inv
-
-**** SRPC_sane_Q_in_inv
-
-**** SRPC_sane_c_excl_R_inv
-
-**** SRPC_sane_R_Q_inv
-
-**** SRPC_sane_R_excl_Q_inv
-
-**** net_lock_on_reply_unlock
-
-**** net_lock_on_Q_preserve
-
-**** SRPC_sane_c_excl_Q_inv
-
-*** G21
-
-**** locks_complete
-
-**** locks_sound
-
-**** SRPC_sane
-
-**** SRPC_net
-
-**** lock_chain_prefix
-
-**** lock_self_dep_uniq
-
-**** net_get_lock_In
-
-**** net_lock_on_no_send
-
-**** pq_client_app_I_l
-
-**** pq_client_app_O_r
-
-**** net_comm_Q_preserve_lock
-
-**** net_lock_bad_receiver_preserve
-
-**** SPRC_pq_net_
-
-**** net_lock_reply_unlock
-
-**** pq_client_app_I_r
-
-**** net_lock_on_tau_preserve
-
-**** pq_client_app_O_l
-
-*** G22
-
-**** pq_client
-
-**** SRPC_sane_in_Q_no_client
-
-**** SRPC_sane_client_no_out_R
-
-**** SRPC_sane_lock_Q
-
-**** SRPC_sane_Q_out_lock
-
-**** SRPC_sane_R_in_lock
-
-**** lock_chain_break
-
-**** lock_chain_target
-
-**** net_get_lock
-
-**** dep_loop1
-
-**** net_send_lock_neq
-
-**** PQH_in
-
-**** net_tau_preserve_lock
-
-**** PQH_proc
-
-**** PQH_out
-
-**** mk_proc_client
-
-*** G23
-
-**** proc_client
-
-**** lock_uniq_type
-
-**** lock_nil_bs
-
-**** net_send_no_lock
-
-*** G24
-
-**** lock_neq_nil_type
-
-*** G25
-
-**** SRPC_sane_R_out_uniq
-
-**** SRPC_sane_in_Q_no_out_R
-
-**** SRPC_sane_Q_R
-
-**** SRPC_sane_R_Q
-
-**** SRPC_sane_Q_in
-
-**** SRPC_sane_R_in
-
-**** SRPC_sane_Q_out_last
-
-**** pq_I_net_inv
-
-*** G32
-
-**** Val
-
-*** G33
-
-**** eq_some_neq_none
-
-*** G7
-
-**** trans_invariant_net_sane
-
-*** G8
-
-**** trans_invariant_net_sane_comm
-
-*** G9
-
-**** trans_invariant_net_sane_comm__locks_complete
-
-** NetLocks
-
-*** G15
-
-**** deadlocked_dep_invariant1
-
-*** G16
-
-**** deadlocked_lock_on_invariant1
-
-**** deadlocked_invariant
-
-*** G17
-
-**** deadset_invariant
-
-**** deadlocked_lock_invariant1
-
-*** G18
-
-**** lock_chain_dep_set_In
-
-**** deadset_invariant_lock
-
-*** G19
-
-**** lock_chain_dep
-
-**** deadlocked_dep
-
-**** deadset_stay1
-
-*** G20
-
-**** dep_on_seq1
-
-**** dep_on_seq1'
-
-**** lock_chain_dedup
-
-**** lock_chain_split_in
-
-**** deadlocked_lock_on
-
-**** deadset_recv
-
-**** deadset_dep_in
-
-*** G21
-
-**** dep_on_seq
-
-**** lock_chain_seq_inv
-
-**** dep_lock_chain
-
-**** dep_set_incl
-
-**** net_lock_all_in
-
-**** deadset_in
-
-**** deadset_no_send'
-
-**** deadset_no_tau
-
-*** G22
-
-**** lock_chain_seq
-
-**** lock_chain_ind
-
-**** dep_on_ind
-
-**** lock_chain_nil_inv
-
-**** lock_chain_cons_inv
-
-**** lock_chain_split
-
-**** dep_set
-
-**** net_lock_on_in
-
-**** deadset_incl
-
-**** deadset_no_send
-
-*** G23
-
-**** lock_chain
-
-**** LC_cons
-
-**** dep_on
-
-**** dep_on_Direct
-
-**** dep_on_Indirect
-
-**** LC_nil
-
-**** net_lock_only_in
-
-**** net_lock_equiv
-
-**** deadlocked
-
-**** deadset_net_lock
-
-**** net_lock_on_move_eq
-
-*** G24
-
-**** net_lock_on
-
-**** DeadSet
-
-**** deadset
-
-**** net_lock_inv_P_Decisive
-
-**** net_lock_inv_I
-
-**** net_lock_inv_O
-
-**** net_lock_inv_P
-
-*** G25
-
-**** net_lock
-
-** Srpc
-
-*** G16
-
-**** SRPC_pq_no_relock
-
-*** G17
-
-**** SRPC_pq_inv
-
-**** SRPC_no_relock
-
-**** SRPC_tau_no_lock_r
-
-*** G18
-
-**** SRPC_inv
-
-*** G19
-
-**** SRPC_work_inv
-
-*** G20
-
-**** SRPC_pq_get_lock
-
-**** lock_SRPC_Lock_pq
-
-**** SRPC_busy_reply_exists
-
-**** SRPC_Decisive
-
-**** trans_invariant_AnySRPC_pq
-
-*** G21
-
-**** AnySRPC_AnySRPC_pq
-
-**** SRPC_get_lock
-
-**** lock_SRPC_Lock
-
-**** trans_invariant_AnySRPC
-
-**** SRPC_pq_AnySRPC_pq
-
-**** SRPC_inv_recv_Q_r
-
-**** SRPC_inv_recv_R_r
-
-**** SRPC_inv_tau_r
-
-**** SRPC_inv_tau_l
-
-**** SRPC_inv_send_R_l
-
-**** SRPC_inv_send_Q_r
-
-**** SRPC_inv_send_Q_l
-
-**** SRPC_inv_send_R_r
-
-*** G22
-
-**** SRPC_one_lock
-
-**** SRPC_Lock_recv_other_Some_bs
-
-**** SRPC_AnySRPC
-
-**** SRPC_tau
-
-**** SRPC_send_R
-
-**** SRPC_send_Q
-
-**** SRPC_recv_R
-
-**** SRPC_recv_Q
-
-*** G23
-
-**** SRPC_Lock_tau_bs
-
-**** SRPC_Lock_send_bs
-
-**** SRPC_Lock_recv_Q_Some_bs
-
-**** SRPC_busy_reply
-
-**** SRPC_Lock_lock
-
-*** G24
-
-**** SRPC_Handling_work_act
-
-** Transp
-
-*** G18
-
-**** net_preserve_handle
-
-*** G19
-
-**** net_deinstr_act_do
-
-**** net_deinstr_act_skip
-
-**** net_vis_preserve_handle
-
-*** G20
-
-**** net_instr
-
-**** net_deinstr_act
-
-*** G21
-
-**** net_instr_n
-
-**** Net_Vis_corr_precv
-
-**** Net_Vis_corr_psend
-
-**** Net_Vis_corr_ptau
-
-**** Net_Vis_corr_mon
-
-**** Net_Vis_corr_tau
-
-**** MNet_trans_simpl_inv
-
-*** G23
-
-**** mon_assg
-
-*** G24
-
-**** net_deinstr
-
-**** get_Mc
-
-**** MNAct_to_PNAct
-
-**** no_sends_in
-
-*** G25
-
-**** get_MQ
-
-**** get_M
-
-**** MNAct
-
-**** NoTrSend
-
-*** G26
-
-**** PNAct
-
-** Mon
-
-*** G20
-
-**** mq_preserve_handle
-
-*** G21
-
-**** MTrans_SendT_inv
-
-**** MTrans_SendP_inv
-
-**** MTrans_SendM_inv
-
-**** MTrans_TauP_inv
-
-**** MTrans_RecvT_inv
-
-**** MTrans_RecvP_inv
-
-**** MTrans_RecvM_inv
-
-**** MTrans_PickM_inv
-
-**** mq_preserve_handle1
-
-*** G22
-
-**** instr
-
-**** trans_mqued
-
-**** recv_is_ready
-
-*** G23
-
-**** instr_t
-
-**** ready_recv
-
-**** ready_inv_proj_r2l
-
-**** MTrans
-
-**** MTSendT
-
-**** MTSendP
-
-**** MTSendM
-
-**** MTTauP
-
-**** MTRecvT
-
-**** MTRecvP
-
-**** MTRecvM
-
-**** MTPickM
-
-*** G24
-
-**** Mon_ready
-
-**** MonTrans_Recv_inv
-
-**** MonTrans_Send_inv
-
-**** ready_inv
-
-**** MonTrans_Tau_inv
-
-**** deinstr_In_send
-
-*** G25
-
-**** MQ_clear
-
-**** trans_mon
-
-**** ready
-
-**** PayloadM
-
-**** MQ_s_In_inv
-
-**** deinstr
-
-*** G26
-
-**** MQ_Clear
-
-**** MonTrans
-
-**** MonTRecv
-
-**** handle
-
-**** state
-
-**** MonTSend
-
-**** MQued
-
-**** mq
-
-**** gen_Act_MAct
-
-**** MQ_s_app
-
-**** MQ_r_app
-
-**** MQ_r_In
-
-**** In_MQ_s
-
-**** MQ_s_In
-
-*** G27
-
-**** is_EvRecv
-
-**** MonAct
-
-**** Mon
-
-**** MonRecv
-
-**** MonSend
-
-**** Build_Mon
-
-**** MAct
-
-**** MonTau
-
-**** MActP
-
-**** MActT
-
-**** MActM
-
-**** MQ_s
-
-**** MQ_r
-
-*** G28
-
-**** Event
-
-**** TrSend
-
-**** TrRecv
-
-**** EvRecv
-
-**** MValM
-
-**** MValP
-
-**** MVal
-
-*** G29
-
-**** next_state
-
-**** MCode_ind
-
-*** G30
-
-**** MCode
-
-**** MRecv
-
-**** MSend
-
-** Locks
-
-*** G22
-
-**** pq_lock_invariant
-
-**** pq_lock_recv_inv
-
-**** pq_recv_Q_derive_lock
-
-*** G23
-
-**** pq_lock_recv
-
-*** G24
-
-**** pq_lock_equiv
-
-**** proc_lock_recv_inv
-
-*** G25
-
-**** pq_lock_equiv_inv
-
-**** proc_lock_recv
-
-**** proc_lock_equiv
-
-**** pq_lock_incl
-
-**** pq_lock_P_inv
-
-**** pq_lock_I_inv
-
-*** G26
-
-**** proc_lock_incl
-
-**** proc_lock_equiv_inv
-
-**** Decisive_Q_e
-
-**** pq_lock
-
-**** unlocking_msg_inv
-
-**** not_unlocking_msg
-
-**** PQ_Lock
-
-*** G27
-
-**** proc_lock
-
-**** Decisive
-
-**** DecRecv
-
-**** DecSend
-
-**** DecTau
-
-**** unlocking_msg
-
-*** G28
-
-**** some_val
-
-*** G31
-
-**** some_name
-
-*** G32
-
-**** Val
-
-** SrpcDefs
-
-*** G22
-
-**** AnySRPC_pq
-
-*** G23
-
-**** AnySRPC
-
-**** SRPC_pq
-
-*** G24
-
-**** SRPC
-
-**** SRPC_Busy
-
-**** SRPC_Handling_ind
-
-*** G25
-
-**** SRPC_Handling
-
-**** HSRPC_Lock
-
-**** HSRPC_Work
-
-*** G30
-
-**** SRPC_State
-
-**** Free
-
-**** Busy
-
-*** G31
-
-**** SRPC_Handle_State
-
-**** HWork
-
-**** HLock
-
-** Proc
-
-*** G23
-
-**** PTrans_Send_inv
-
-**** PTrans_Recv_inv
-
-**** PTrans_Tau_Send_inv
-
-**** PTrans_Tau_t_inv
-
-**** PTrans_Pick_t_inv
-
-**** PTrans_Push_t_inv
-
-*** G24
-
-**** trans_pqued
-
-*** G25
-
-**** PTPush
-
-**** PTRecv
-
-**** PTrans
-
-**** ProcTrans_Send_inv
-
-**** ProcTrans_Recv_inv
-
-**** ProcTrans_Tau_inv
-
-**** ProcTrans_PSend_inv
-
-**** ProcTrans_PTau_inv
-
-**** ProcTrans_PRecv_inv
-
-**** PTTau
-
-**** PTSend
-
-**** PTPick
-
-**** pq_P_inv
-
-*** G26
-
-**** pq_I
-
-**** pq_O
-
-**** pq_P
-
-**** trans_proc
-
-**** ia_PAct_inv
-
-*** G27
-
-**** PQued
-
-**** pq
-
-**** gen_Act_PAct
-
-**** ProcTrans
-
-**** PrTSend
-
-**** PrTRecv
-
-**** PrTTau
-
-*** G28
-
-**** Proc
-
-**** PSend
-
-**** PRecv
-
-**** PTau
-
-**** PEnd
-
-**** PAct
-
-*** G30
-
-**** Act
-
-**** Send
-
-**** Recv
-
-**** Tau
-
-*** G31
-
-**** Val
-
-** Net
-
-*** G24
-
-**** path_of_ptrans
-
-**** NTau_neq_stay
-
-**** NComm_neq_stay
-
-*** G25
-
-**** NTrans_Tau_inv
-
-**** NTrans_Comm_neq_inv
-
-**** NTrans_Comm_eq_inv
-
-**** act_particip_stay
-
-*** G26
-
-**** trans_net
-
-**** Path_of_nil_inv
-
-**** path_of_exists
-
-**** net_ind_of
-
-*** G27
-
-**** NTrans
-
-**** NT_Tau
-
-**** NT_Comm
-
-**** Path_of
-
-**** PO_nil
-
-**** PO_tau
-
-**** PO_comm_send
-
-**** PO_comm_recv
-
-**** PO_comm_self
-
-**** PO_skip_tau
-
-**** PO_skip_comm
-
-**** act_particip
-
-*** G28
-
-**** NAct
-
-**** NTau
-
-**** NComm
-
-*** G29
-
-**** NV_stay
-
-*** G30
-
-**** get_put_eq_inv
-
-**** put_put_eq_inv
-
-**** NVTrans_inv
-
-**** get_put_neq_inv
-
-**** get_map_inv
-
-**** put_map_inv
-
-**** put_eq_inv
-
-*** G31
-
-**** NVTrans
-
-**** NT_Vis
-
-** Que
-
-*** G26
-
-**** que_Enq
-
-*** G27
-
-**** que_Enq1
-
-**** Deq_app_or_l
-
-**** Deq_length
-
-**** Deq_neq_In
-
-**** Deq_length_neq
-
-**** Deq_dec'
-
-*** G28
-
-**** Deq_In
-
-**** que_Deq
-
-**** Deq_app_or_r
-
-**** Deq_not_In
-
-**** Enq_inv
-
-**** Deq_split
-
-**** Enq_nil
-
-**** Deq_Deq_swap
-
-**** Deq_nil
-
-*** G29
-
-**** QPop
-
-**** QPush
-
-**** in_dec_v
-
-**** QTrans
-
-**** QSeek
-
-*** G30
-
-**** Val
-
-**** QEnq
-
-**** QDeq
-
-**** QAct
-
-** Rad
-
-*** G27
-
-**** Rad_handle
-
-*** G28
-
-**** next_state_Send_all
-
-*** G29
-
-**** MSend_all
-
-** Channel
-
-*** G28
-
-**** recv
-
-**** send
-
-*** G29
-
-**** Val
-
-**** Payload
-
-**** ia
-
-*** G30
-
-**** gen_Act
-
-**** NChan_eq_dec
-
-**** Build_gen_Act
-
-*** G31
-
-**** NChan_neq_Name_inv
-
-**** NChan
-
-**** NChan_neq_Tag_inv
-
-*** G32
-
-**** Name
-
-**** Tag
-
-** NAME_H
-
-*** G28
-
-**** same_eqb_inv
-
-**** neq_neqb_inv
-
-*** G29
-
-**** eqb_neq_inv
-
-** NAME
-
-*** G30
-
-**** eqb_eq
-
-*** G31
-
-**** eqb
-
-**** eq_dec
-
-*** G32
-
-**** t
-
-*** G33
-
-**** t'
-
-** NetMod
-
-*** G31
-
-**** get_put_eq
-
-**** put_put_eq
-
-**** get_put_neq
-
-**** get_map
-
-**** extensionality
-
-**** put_map
-
-**** put_get_eq
-
-*** G32
-
-**** get
-
-**** map
-
-**** put
-
-*** G33
-
-**** t
-
-** TAG
-
-*** G32
-
-**** eq_dec
-
-*** G33
-
-**** t'
-
-**** t
-
-** DetConf
-
-*** G33
-
-**** Val
+#+begin_src coq
+
+  deadset_dep_self
+       : forall N : PNet,
+         lock_uniq_type N ->
+         lock_neq_nil_type N ->
+         locks_dec_in N ->
+         forall DS : Names, DeadSet DS N -> exists n : Name, List.In n DS /\ dep_on N n n
+
+  deadlocked_dep_self
+       : forall N : PNet,
+         lock_uniq_type N ->
+         lock_neq_nil_type N ->
+         locks_dec_in N ->
+         deadlocked n N -> exists n' : dep_on N n n' /\ dep_on N n' n'
+#+end_src
+
+*** Soundness
+
+#+begin_src coq
+  dep_self_deadset
+       : forall N : PNet,
+         lock_uniq_type N ->
+         lock_neq_nil_type N ->
+         forall n : Name, dep_on N n n -> exists DS : Names, List.In n DS /\ DeadSet DS N
+
+  dep_self_deadlocked
+       : forall N : PNet,
+         lock_uniq_type N ->
+         lock_neq_nil_type N ->
+         forall n : Name, dep_on N n n -> deadlocked n N
+#+end_src
+
+
+** SRPC sanity
+
+#+begin_src coq
+    Definition SRPC_sane_Q_in (S : PQued) := forall c v v' I', Deq (c, Q) v (pq_I S) I' -> ~ List.In (c, Q, v') I'.
+    Definition SRPC_sane_R_in (S : PQued) := forall s s' v v' I', Deq (s, R) v (pq_I S) I' -> ~ List.In (s', R, v') I'.
+    Definition SRPC_sane_R_in_lock (S : PQued) := forall s v, List.In (s, R, v) (pq_I S) -> exists c, SRPC_pq (Lock c s) S.
+    Definition SRPC_sane_Q_out_lock (S : PQued) := forall s v, List.In (s, Q, v) (pq_O S) -> exists c, SRPC_pq (Lock c s) S.
+    Definition SRPC_sane_Q_out_last (S : PQued) := forall s v, ~ List.In (s, Q, v) (List.removelast (pq_O S)).
+    Definition SRPC_sane_R_out_uniq (S : PQued) := forall c v v' O', Deq (c, R) v (pq_O S) O' -> ~ List.In (c, R, v') O'.
+    Definition SRPC_sane_R_Q (S : PQued) := forall s v v', List.In (s, R, v) (pq_I S) -> ~ List.In (s, Q, v') (pq_O S).
+    Definition SRPC_sane_Q_R (S : PQued) := forall s v v', List.In (s, Q, v) (pq_O S) -> ~ List.In (s, R, v') (pq_I S).
+    Definition SRPC_sane_lock_Q (S : PQued) := forall c s, SRPC_pq (Lock c s) S -> pq_O S <> [] -> exists v, List.In (s, Q, v) (pq_O S).
+
+    Definition SRPC_sane_in_Q_no_client (S : PQued) := forall c v, List.In (c, Q, v) (pq_I S) -> ~ proc_client c (pq_P S).
+    Definition SRPC_sane_in_Q_no_out_R (S : PQued) := forall c v v', List.In (c, Q, v) (pq_I S) -> ~ List.In (c, R, v') (pq_O S).
+    Definition SRPC_sane_client_no_out_R (S : PQued) := forall c v, proc_client c (pq_P S) -> ~ List.In (c, R, v) (pq_O S).
+#+end_src
+
+#+begin_src coq
+  (* Every process is individually sane *)
+  Definition SRPC_sane_net N := forall n, exists srpc, SRPC_sane srpc (NetMod.get n N).
+
+
+  (* If n0 is locked on n1, then n1 handles the query of n0 *)
+  Definition locks_sound N := forall n0 n1,
+      net_lock_on N n0 n1 ->
+      pq_client n0 (NetMod.get n1 N).
+
+
+  (* If n1 handles a query from n0, then n0 is locked on n1   *)
+  Definition locks_complete N := forall n0 n1,
+      pq_client n0 (NetMod.get n1 N) -> net_lock_on N n0 n1.
+
+
+  Inductive net_sane (N : PNet) : Prop :=
+  | NetSane
+      (H_Sane_SRPC : SRPC_sane_net N)
+      (H_lock_sound : locks_sound N)
+      (H_lock_complete : locks_complete N)
+    : net_sane N.
+
+
+  Theorem trans_invariant_net_sane : trans_invariant net_sane always.
+#+end_src
+
+
+** Detection
+
+*** completeness
+
+**** Variants & Invariants
+
+#+begin_src coq
+  (** Monitor is going to send a probe (inevitably) *)
+  Inductive sends_probe : NChan -> MProbe -> MQued -> Prop :=
+  | sp_init MQ MQ' c S n n' v p :
+    NoRecvR_from n' MQ -> (* We won't unlock *)
+    NoSends_MQ MQ -> (* We won't change the lock_id *)
+    lock c = Some n' -> (* We are locked *)
+    init p = self c -> index p = lock_id c -> (* Our hot probe *)
+    sends_probe (n, R)
+      p
+      (mq
+         (MQ ++ TrRecv (n, Q) v :: MQ') (* There is a query incoming... *)
+         {|handle:=Rad.Rad_handle; state:=MRecv c|} (* We are ready to take it *)
+         S
+      )
+
+  | sp_prop MQ MQ' c S n n' p :
+    NoRecvR_from n' MQ -> (* We won't unlock *)
+    NoSends_MQ MQ -> (* We won't change the lock_id *)
+    lock c = Some n' -> (* We are locked *)
+    init p <> self c -> (* The probe is not ours *)
+    List.In n (waitees c) \/ (exists v, List.In (TrRecv (n, Q) v) MQ) -> (* The receiver will be in waitees *)
+    sends_probe (n, R) p (mq (MQ ++ EvRecv (n', R) p :: MQ') {|handle:=Rad.Rad_handle; state:=MRecv c|} S)
+
+  | sp_send MQ M h S nc p :
+    sends_probe nc p (mq MQ {|handle:=h; state:=MSend nc p M|} S)
+
+  | sp_late MQ M h S nc nc' p p' :
+    (nc' <> nc \/ p' <> p) ->
+    sends_probe nc p (mq MQ {|handle:=h; state:=M|} S) ->
+    sends_probe nc p (mq MQ {|handle:=h; state:=MSend nc' p' M|} S)
+  .
+
+
+  Inductive KIC (MN : MNet) : Prop :=
+  | KIC_
+      (* We are sane *)
+      (H_sane_C : net_sane '' MN)
+      (* `self` is correct *)
+      (H_self_C : forall n, _of self MN n = n)
+      (* We are using the algorithm *)
+      (H_Rad_C : forall n, handle (get_M MN n) = Rad.Rad_handle)
+      (* Monitor knows about its lock. Note that if there was any R in MQ, it would not be locked. *)
+      (H_lock_C : forall n0 n1, net_lock_on '' MN n0 n1 -> _of lock MN n0 = Some n1)
+      (* Flushed monitor knows about everyone who waits on it *)
+      (H_wait_C : forall n0 n1, net_lock_on '' MN n0 n1 -> NoRecvQ_from n0 (get_MQ MN n1) -> List.In n0 (_of waitees MN n1))
+      (* Self-dependency implies alarm condition *)
+      (H_alarm_C : forall n0, dep_on '' MN n0 n0 -> exists n1, dep_on '' MN n0 n1 /\ ac n1 MN)
+      (* Dependency is decidable *)
+      (H_dep_dec_C : forall n0 n1, dep_on '' MN n0 n1 \/ ~ dep_on '' MN n0 n1)
+    : KIC MN.
+
+
+  (** ** Alarm condition *)
+  (** Either there is an alarm, or an alarm is inevitable due to probe and lock alignment *)
+  Inductive ac (n : Name) (MN : MNet) : Prop :=
+  | ac_alarm :
+    _of alarm MN n = true ->
+    ac n MN
+
+  | ac_seek [m m'] :
+    (n = m \/ dep_on '' MN n m) ->
+    net_lock_on '' MN m m' ->  (* TODO: try to relate to mon states exlusively *)
+    sends_probe (m, R) (hot_of MN n) (NetMod.get m' MN) ->
+    ac n MN
+
+  | ac_fin [n'] :
+    net_lock_on '' MN n n' ->
+    List.In (hot_ev_of MN n' n) (get_MQ MN n) ->
+    ac n MN
+  .
+
+
+  detection_finito
+     : forall (MN0 : MNet) (n : Name) (m : Que.Channel.Name),
+       KIC MN0 ->
+       deadlocked n '' MN0 ->
+       net_lock_on '' MN0 n m ->
+       List.In (hot_ev_of MN0 m n) (get_MQ MN0 n) ->
+       exists (MN1 : MNet) (mpath : list (NAct (Act:=MAct))),
+         (MN0 =[ mpath ]=> MN1) /\ _of Compl.alarm MN1 n = true.
+
+  propagation_finito
+     : forall (MN0 : MNet) (n m : Name) (m' : Que.Channel.Name) (p : MProbe),
+       KIC MN0 ->
+       dep_on '' MN0 n m ->
+       net_lock_on '' MN0 m m' ->
+       deadlocked m' '' MN0 ->
+       hot MN0 p n ->
+       sends_probe (m, Locks.R) p (NetMod.get m' MN0) ->
+       exists (MN1 : MNet) (mpath : list (NAct (Act:=MAct))),
+         (MN0 =[ mpath ]=> MN1) /\
+         (exists n' : Srpc.Locks.Proc.Que.Channel.Name, _of Compl.alarm MN1 n' = true).
+
+
+  Theorem ac_to_alarm [MN0 : MNet] [n] :
+    KIC MN0 ->
+    ac n MN0 ->
+    dep_on '' MN0 n n ->
+    exists MN1 mpath, (MN0 =[mpath]=> MN1) /\ (exists n', _of alarm MN1 n' = true).
+
+
+  Theorem KIC_invariant : trans_invariant KIC always.
+#+end_src
+
+
+#+begin_src coq
+  Theorem detection_completeness [N0] [I0] :
+    KIC (net_instr I0 N0) ->
+    Deadlocked N0 ->
+    exists mpath MN1, (net_instr I0 N0 =[mpath]=> MN1) /\ exists n, _of alarm MN1 n = true.
+
+  Corollary detection_completeness_uni [N0 N1] [ppath] [I0] :
+    KIC (net_instr I0 N0) ->
+    (N0 =[ ppath ]=> N1) ->
+    Deadlocked N1 ->
+    forall mpath0 I1,
+      (net_instr I0 N0 =[ mpath0 ]=> net_instr I1 N1) ->
+      exists mpath1 MN2,
+        (net_instr I1 N1 =[ mpath1 ]=> MN2)
+        /\ exists n, _of alarm MN2 n = true.
+
+  Corollary detection_completeness_exi [N0 N1] [ppath] [I0] :
+    KIC (net_instr I0 N0) ->
+    (N0 =[ ppath ]=> N1) ->
+    Deadlocked N1 ->
+    exists mpath0 I1 mpath1 MN2,
+      (net_instr I0 N0 =[ mpath0 ]=> net_instr I1 N1)
+      /\ (net_instr I1 N1 =[ mpath1 ]=> MN2)
+      /\ exists n, _of alarm MN2 n = true.
+#+end_src
+
+*** soundness
+
+#+BEGIN_SRC coq
+  Inductive sends_to_mon : MCode -> Name -> MProbe -> Prop :=
+  | stm_find n p M : sends_to_mon (MSend (n, R) p M) n p
+  | stm_seek n nc' p p' M :
+    nc' <> (n, R) \/ p <> p' ->
+    sends_to_mon M n p ->
+    sends_to_mon (MSend nc' p' M) n p
+  .
+
+  #[export] Hint Constructors sends_to_mon : LTS.
+
+
+  Definition sends_to N n0 n1 p := sends_to_mon (get_Mc N n0) n1 p.
+  #[export] Hint Unfold sends_to : LTS_get.
+  #[export] Hint Transparent sends_to : LTS.
+
+
+
+  Inductive KIS (MN : MNet) :=
+    KIS_
+      (* We are sane *)
+      (H_sane_S : net_sane '' MN)
+      (* Dependency is decidable *)
+      (H_dep_dec_C : forall n0 n1, dep_on '' MN n0 n1 \/ ~ dep_on '' MN n0 n1)
+      (* `self` is correct *)
+      (H_self_S : forall n0, _of self MN n0 = n0)
+      (* We are using the algorithm *)
+      (H_Rad_S : forall n0, handle (get_M MN n0) = Rad.Rad_handle)
+      (* Monitor correctly judges the lock, unless there is a reply incoming it is about to see *)
+      (H_lock_S : forall n0 n1, _of lock MN n0 = Some n1 -> net_lock_on '' MN n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) (get_MQ MN n0))
+      (* All members of the waiting list are locked on us *)
+      (H_wait_S : forall n0 n1, List.In n0 (_of waitees MN n1) -> net_lock_on '' MN n0 n1)
+      (* Monitors send probes only to those locked. *)
+      (H_sendp_S : forall n0 n1 p, sends_to MN n1 n0 p -> net_lock_on '' MN n0 n1)
+      (* All sent probes have their index no higher than the lock id of the initiator *)
+      (H_index_send_S : forall n0 n1 p, sends_to MN n0 n1 p -> (index p <= _of lock_id MN (init p))%nat)
+      (* All received probes have their index no higher than the lock id of the initiator *)
+      (H_index_recvp_S : forall n0 n1 p, List.In (EvRecv (n1, R) p) (get_MQ MN n0) -> (index p <= _of lock_id MN (init p))%nat)
+      (* If we are about to receive a hot probe of someone whose monitor considers locked, then we depend on them. *)
+      (H_sendp_hot_S : forall n0 n1 n2, sends_to MN n1 n0 (hot_of MN n2) -> _of lock MN n2 <> None -> dep_on '' MN n0 n2)
+      (* If we received a hot probe of someone whose monitor considers locked, then we depend on them. *)
+      (H_recvp_hot_S : forall n0 n1 n2, List.In (hot_ev_of MN n2 n0) (get_MQ MN n1) -> _of lock MN n0 <> None -> dep_on '' MN n1 n0)
+      (* No false alarms: if anyone screams, they are indeed deadlocked *)
+      (H_alarm_S : forall n, _of alarm MN n = true -> dep_on '' MN n n)
+      : KIS MN.
+
+
+  detection_soundness
+       : forall (I0 : mon_assg) (N0 : PNet) (MN1 : MNet) (mpath : list (NAct (Act:=MAct)))
+           (n : Srpc.Locks.Proc.Que.Channel.Name),
+         KIS (net_instr I0 N0) ->
+         net_instr I0 N0 =[ mpath ]=> MN1 ->
+         _of Compl.alarm MN1 n = true -> deadlocked n '' MN1
+#+END_SRC

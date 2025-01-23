@@ -9,11 +9,11 @@ from pathlib import Path
 NODE_REG = re.compile(
     r'N: '
     r'(?P<id>[0-9]+) '
-    r'"(?P<name>[a-zA-Z0-9\-_\']+)" '
-    r'\['
+    r'"(?P<name>[^"]+)" '
+    r'\[ *'
     r'(?:body=(?P<body>[a-z]+),)? *'
     r'kind=(?P<kind>[a-z]+), *'
-    r'prop=(?P<prop>[a-z]+), *'
+    r'(prop=(?P<prop>[a-z]+),)? *'
     r'(?:path="(?P<path>[^"]+)",)? *'
     r'\];'
 )
@@ -32,6 +32,9 @@ class Node:
 
     def parse(s):
         n = re.match(NODE_REG, s)
+        if not n:
+            print(f"Chuj kurwa: {s}")
+
         d = dict(
             i=int(n['id']),
             name=n['name'],
@@ -98,11 +101,11 @@ def mk_idmap(nodes):
 
 def mk_graph(nodes, edges):
     graph = {}
+    for n in nodes:
+        graph[n.i] = []
 
     for e in edges:
-        targets = graph.get(e.source, [])
-        targets.append(e.target)
-        graph[e.source] = targets
+        graph[e.source].append(e.target)
 
     return graph
 
@@ -131,17 +134,27 @@ def toposort(nodes, edges, group=False):
             yield n
 
 
-def mk_org_list(nodes):
+def mk_org_list(nodes, edges):
     from itertools import groupby
+
+    idmap = mk_idmap(nodes)
+    graph = mk_graph(nodes, edges)
+
     nodes = sorted(nodes, key=lambda n: '.'.join(n.path))
     ms = list((g, list(ns)) for (g, ns) in groupby(nodes, key=lambda n: n.path[0]))
     ms = sorted(ms, key=lambda m: min([n.path[1] for n in m[1]]))
     for g, ns in ms:
         print(f"** {g}\n")
-        for gg, nns in groupby(ns, key=lambda n: n.path[1]):
+        for gg, nns in groupby(ns, key=lambda n: int(n.path[1][1:])):
             print(f"*** {gg}\n")
             for n in sorted(nns, key=lambda n: n.i):
-                print(f"**** {n.name}\n")
+                if n.kind == 'cnst' and n.prop and n.body:
+                    print(f"**** {n.name}\n")
+                    for ii in graph[n.i]:
+                        nn = idmap[ii]
+                        if nn.kind == 'cnst' and nn.prop and nn.body:
+                            print(f"- ~{idmap[ii].name}~")
+                    print("")
 
 
 def reduce(nodes, edges):
