@@ -1,364 +1,883 @@
+From Ltac2 Require Import Ltac2.
+From Ltac2 Require Import Std.
+
+From Ltac2 Require Fresh.
+From Ltac2 Require Import Control.
+From Ltac2 Require Import Message.
+From Ltac2 Require Import Std.
+From Ltac2 Require Import Printf.
+
+Import Ltac2.Notations.
+
+Require Import DlStalk.Lemmas.
+Require Import DlStalk.Tactics.
+Require Import DlStalk.LTS.
+Require Import DlStalk.Model.
+Require Import DlStalk.ModelData.
+Require Import DlStalk.Network.
+Require Import DlStalk.SRPC.
+Require Import DlStalk.Que.
+Require Import DlStalk.Locks.
+Require Import DlStalk.SRPC.
+Require Import DlStalk.SRPCNet.
+Require Import DlStalk.Transp.
+Require Import DlStalk.Sound.
+Require Import DlStalk.Compl.
+
+From Coq Require Import Strings.String.
+From Coq Require Import Lists.List.
+From Coq Require Import Structures.Equalities.
+Import ListNotations.
+Open Scope string_scope.
+
+(* this must be extracted or else coq bugs https://github.com/coq/coq/issues/19994 *)
+Inductive Name_ : Set :=
+| Initiator : string -> nat -> Name_
+| Worker : string -> Name_
+.
+
+Lemma Name_neq_IW : forall i si sw, Initiator si i <> Worker sw. attac. Qed.
+Lemma Name_neq_WI : forall i si sw, Worker sw <> Initiator si i. attac. Qed.
+Hint Resolve Name_neq_WI Name_neq_IW : core.
+
+Module Name_ <: UsualDecidableSet.
+  Definition t' := Name_.
+  Definition t := Name_.
+  Definition eq := @eq t.
+
+  Definition eq_refl := @eq_refl t.
+  Definition eq_sym := @eq_sym t.
+  Definition eq_trans := @eq_trans t.
+  Definition eq_equiv := Build_Equivalence eq eq_refl eq_sym eq_trans.
+
+  Definition eq_dec : forall x y : t, {x = y} + {x <> y}.
+  Proof.
+    intros x y.
+    destruct x; destruct y; try (first [left; solve [eattac] | right; solve [eattac]]).
+    - ltac1:(decide equality); eauto using PeanoNat.Nat.eq_dec, string_dec.
+    - ltac1:(decide equality); eauto using PeanoNat.Nat.eq_dec, string_dec.
+  Defined.
+
+  Definition eqb : t -> t -> bool.
+    intros x y. destruct (eq_dec x y) > [apply true | apply false].
+  Defined.
+
+  Lemma eqb_eq : forall x y : t, eqb x y = true <-> eq x y.
+  Proof.
+    intros x y. split; intros H.
+    - destruct x; destruct y; unfold eqb in H.
+      destruct (string_dec s s0), (PeanoNat.Nat.eq_dec n n0); subst.
+      all: blast_cases; attac.
+    - unfold eq, eqb, eq_dec in *; subst.
+      blast_cases; auto.
+  Qed.
+
+  Lemma eqb_neq : forall x y : t, eqb x y = false <-> x <> y.
+  Proof.
+    intros x y. split; intros H.
+    - destruct x; destruct y; unfold eqb in H.
+      destruct (string_dec s s0), (PeanoNat.Nat.eq_dec n n0); subst.
+      all: blast_cases; attac.
+    - unfold eq, eqb, eq_dec in *; subst.
+      blast_cases; attac.
+  Qed.
+End Name_.
 
 
-  Module ThomasNet.
-    Parameter nat_Name : nat -> Name.
-    Parameter Name_nat : Name -> nat.
-    Axiom nat_Name_bij : forall n, nat_Name (Name_nat n) = n.
-    Axiom Name_nat_bij : forall n, Name_nat (nat_Name n) = n.
+Module Thomas.
+  Module DetConf <: Compl.DETECT_CONF.
+    Parameter Val : Set.
 
-    CoInductive Mover (N : PNet) : Name -> Prop :=
-    | mover_ [n0 n1] : Mover N n0 -> net_lock_on N n0 n1 -> Mover N n1.
+    Module NAME := Name_.
+    Module TAG := Locks.Tag_.
 
-    CoFixpoint Echo : Proc :=
-            PRecv (
-                fun m =>
-                  let (c, t) := m in
-                  match t with
-                  | R => None
-                  | Q => Some (fun v => PSend (c, R) v Echo)
-                  end
-              ).
+    Declare Module NetMod : Network.NET_MOD(NAME).
 
-    Definition MoverFinger (self : Name) : Proc :=
-      PRecv (
-          fun m =>
-            let (s, t) := m in
-            match t with
-            | Q => None
-            | R => if S (Name_nat s) =? Name_nat self
-                  then Some (fun v => PSend (nat_Name (S (Name_nat self)), R) v Echo)
-                  else None
-            end
-        ).
-
-    Definition MoverNail : Proc :=
-      PSend (nat_Name 0, Q) some_val (MoverFinger (nat_Name 1)).
+    Definition Msg := @Compl.MProbe' NAME.t'.
+    Definition MState := @Compl.MState' NAME.t'.
+  End DetConf.
 
 
-    Lemma Decisive_Echo : Decisive Echo.
-      ltac1:(cofix C).
-      unfold Echo.
-      rewrite unfold_Proc.
-      apply DecRecv; intros.
-      - kill H.
-        split; auto.
-        intros.
-        constructor.
-        Guarded.
-        assumption.
-      - split; try (bullshit).
-    Qed.
+  Module Import Sound := ModelData.Empty <+ Sound.SOUND(DetConf). (* TODO fix separation: this includes Compl *)
 
-    Lemma SRPC_Echo : SRPC Free Echo.
-      ltac1:(cofix C).
-      unfold Echo in *.
-      rewrite unfold_Proc.
-      constructor; intros.
-      - eexists.
+  Lemma Name_eqb_refl (n0 : Name) : NAME.eqb n0 n0 = true.
+  Proof. apply NAME.eqb_eq. auto. Qed.
+
+  Hint Rewrite -> Name_eqb_refl using assumption : LTS LTS_concl.
+
+
+  Definition recvq (cont : Name -> Val -> Proc) : Proc :=
+    PRecv (
+        fun m =>
+          let (c, t) := m in
+          match t with
+          | R => None
+          | Q => Some (cont c)
+          end
+      ).
+
+  Definition recvr (from : Name) (cont : Val -> Proc) : Proc :=
+    PRecv (
+        fun m =>
+          let (s, t) := m in
+          match t with
+          | Q => None
+          | R => if NAME.eqb s from
+                then Some cont
+                else None
+          end
+      ).
+
+
+  Definition call (to : string) (arg : Val) (cont : Val -> Proc) :=
+    PSend (Worker to, Q) arg (recvr (Worker to) cont).
+
+
+  Inductive Handler (state_t : Set) :=
+  | handle_end (reply : Val) (next_state : state_t) : Handler state_t
+  | handle_call (to : string) (arg : Val) (cont : Val -> Handler state_t) : Handler state_t
+  .
+
+
+  Inductive GenState (state_t : Set) :=
+  | GSReady : state_t -> GenState _ | GSHandle : Name -> Handler state_t -> GenState _.
+
+  Record GenServer_ (state_t : Set) :=
+    { gs_state : GenState state_t
+    ; gs_handler : Name -> Val -> state_t -> Handler state_t
+    }.
+
+  CoFixpoint run_gen_server [state_t : Set] :=
+    fun (impl : GenServer_ state_t) =>
+      match impl with
+      | {|gs_state:=GSReady _ gss; gs_handler:=gsh|} =>
+          recvq (
+              fun from arg =>
+                run_gen_server {|gs_state:=GSHandle _ from (gsh from arg gss); gs_handler:=gsh|}
+            )
+      | {|gs_state:=GSHandle _ client (handle_end _ reply next_state); gs_handler:=gsh|} =>
+          PSend (client, R) reply (run_gen_server {|gs_state := GSReady _ next_state; gs_handler := gsh|})
+      | {|gs_state:=GSHandle _ client (handle_call _ to arg handler_cont); gs_handler:=gsh|} =>
+          call to arg (fun v =>
+                         run_gen_server {|gs_state:=GSHandle _ client (handler_cont v); gs_handler := gsh|}
+            )
+      end.
+
+
+  Import Locks.
+
+  Import Srpc.
+  Import SrpcDefs.
+
+
+  Lemma SRPC_recvr_h client serv cont :
+    (forall v, SRPC (Work client) (cont v)) ->
+    SRPC_Handling (HLock client serv) (recvr serv cont).
+
+  Proof.
+    intros.
+    constructor; intros.
+    - eexists.
+      constructor.
+      rewrite Name_eqb_refl. auto.
+    - kill H0.
+      blast_cases; attac.
+      rewrite NAME.eqb_eq in Heqb.
+      attac.
+    - kill H0.
+      blast_cases; attac.
+      rewrite NAME.eqb_eq in Heqb.
+      specialize (H v).
+      kill H.
+      attac.
+  Qed.
+
+  Lemma SRPC_recvr client serv cont :
+    (forall v, SRPC (Work client) (cont v)) ->
+    SRPC (Lock client serv) (recvr serv cont).
+
+  Proof.
+    intros.
+    constructor; intros.
+    - eapply SRPC_recvr_h; auto.
+    - kill H0; bullshit.
+    - kill H0; bullshit.
+    - kill H0.
+      blast_cases; attac.
+    - kill H0; bullshit.
+  Qed.
+
+  Lemma SRPC_call client cont :
+    (forall v, SRPC (Work client) (cont v)) ->
+    forall to arg, SRPC (Work client) (call to arg cont).
+
+  Proof.
+    intros.
+    unfold call.
+    assert (SRPC (Lock client (Worker to)) (recvr (Worker to) cont)) by eauto using SRPC_recvr.
+    clear H.
+    constructor; intros; doubt.
+    - constructor; intros; doubt.
+      kill H0; attac.
+    - kill H.
+  Qed.
+
+
+  Lemma SRPC_gen_server_hwork [state_t] :
+    forall client st gsh,
+      SRPC_Handling (HWork client) (@run_gen_server state_t {|gs_state:=GSHandle _ client st; gs_handler:=gsh|}).
+
+  Proof.
+    intros.
+    induction st; attac.
+    - constructor; intros; doubt.
+      + rewrite (unfold_Proc (run_gen_server _)) in H.
+        kill H.
+      + rewrite (unfold_Proc (run_gen_server _)) in H.
+        kill H.
+      + rewrite (unfold_Proc (run_gen_server _)) in H.
+        kill H.
+      + rewrite (unfold_Proc (run_gen_server _)).
         attac.
-      - kill H.
-        destruct n as [c [|]]; doubt.
-        exists c, v.
-        split; auto.
-        hsimpl in *.
-        constructor; intros; auto; doubt.
-        + constructor; bullshit.
-        + kill H.
-          apply C.
-    Qed.
-
-    Lemma SRPC_Finger : forall n, SRPC (Lock (nat_Name (S (S n))) (nat_Name n)) (MoverFinger (nat_Name (S n))).
-      intros.
-      constructor; intros; doubt.
-      - constructor; intros; doubt.
-        + eexists; econstructor.
-          rewrite Name_nat_bij in *.
-          rewrite Name_nat_bij in *.
-          rewrite PeanoNat.Nat.eqb_refl.
-          attac.
-        + kill H.
-          exists v.
-          destruct n0, t0; doubt.
-          rewrite Name_nat_bij in *.
-          destruct (Name_nat n0 =? n) eqn:?; doubt.
-          rewrite PeanoNat.Nat.eqb_eq in Heqb; attac.
-          now rewrite nat_Name_bij in *.
-        + kill H.
-          destruct n0, t0; doubt.
-          rewrite Name_nat_bij in *.
-          destruct (Name_nat n0 =? n) eqn:?; doubt.
-          hsimpl in *.
-          constructor; intros; doubt.
-      - unfold MoverFinger in H.
-        kill H.
-        rewrite Name_nat_bij in *.
-        destruct (Name_nat s =? n) eqn:?; doubt.
-        rewrite PeanoNat.Nat.eqb_eq in Heqb.
-        hsimpl in *.
-        constructor; intros; doubt.
-        1: constructor; intros; doubt; auto.
-        kill H.
-        apply SRPC_Echo.
-    Qed.
-
-
-    Lemma SRPC_Nail : SRPC (Work (nat_Name 2)) MoverNail.
-      constructor; intros; doubt.
-      - assert (SRPC (Lock (nat_Name 2) (nat_Name 0)) (MoverFinger (nat_Name 1)))
-          by apply SRPC_Finger.
-
-        constructor; intros; doubt.
-        kill H; attac.
-      - kill H; attac.
-        apply SRPC_Finger.
-    Qed.
-
-    Lemma SRPC_sane_Echo : SRPC_pq_in_net Free (pq [] Echo []).
-      constructor; intros; doubt.
-      - auto using SRPC_Echo.
-      - solve_mut_exclusive true; bullshit.
-    Qed.
-
-    Lemma SRPC_sane_Finger : forall n, SRPC_pq_in_net (Lock (nat_Name (S (S n))) (nat_Name n)) (pq [] (MoverFinger (nat_Name (S n))) []).
-      intros.
-      constructor; intros; doubt.
-      - auto using SRPC_Finger.
-      - solve_mut_exclusive true; bullshit.
-    Qed.
-
-    Lemma SRPC_sane_Nail : SRPC_pq_in_net (Work (nat_Name 2)) (pq [] MoverNail []).
-      constructor; intros; doubt.
-      - auto using SRPC_Nail.
-      - solve_mut_exclusive true; bullshit.
-    Qed.
-
-    Example t_Net : {N : PNet | Mover N (nat_Name 1) /\ net_sane N}.
-    pose (N := NetMod.init
-         (
-           fun n => (pq [] (
-                      match Name_nat n with
-                      | 0 => Echo
-                      | S 0 => MoverNail
-                      | n' => MoverFinger (nat_Name n')
-                      end
-                    ) [])
-         )).
-    exists N.
-
-    assert (forall n, Decisive_q (NetMod.get n N)) as HD.
-    {
-      clear C.
-      intros.
-      subst N.
-      rewrite NetMod.init_get.
+      + rewrite (unfold_Proc (run_gen_server _)).
+        attac.
+    - rewrite (unfold_Proc (run_gen_server _)).
       simpl.
-
-      destruct (Name_nat n) eqn:?.
-      - apply Decisive_Echo.
-      - destruct n0; unfold MoverNail, MoverFinger.
-        + constructor.
-          constructor; attac.
-          rewrite Name_nat_bij in *.
-          destruct (Name_nat n0 =? 0); doubt.
-          hsimpl in *.
-          constructor.
-          apply Decisive_Echo.
-        + constructor; split; intros; auto; doubt.
-          rewrite Name_nat_bij in *.
-          destruct (S (Name_nat n1) =? S (S n0)); doubt.
-          hsimpl in *.
-          constructor.
-          apply Decisive_Echo.
-    }
-
-    split.
-    - enough (forall n, n <> 0 -> Mover N (nat_Name n)) by auto.
-      ltac1:(cofix C).
-
-      subst N.
-      intros.
-      constructor 1 with (n0:=(nat_Name (S n)))(n1:=(nat_Name n)); auto; doubt.
-      unfold net_lock_on, net_lock.
-      exists [nat_Name n].
-      split. 1: attac.
-      rewrite NetMod.init_get.
-
-      constructor.
-      + rewrite Name_nat_bij.
-        destruct n; doubt.
-        clear C H.
-        revert n.
-        ltac1:(cofix C).
-        intros.
-        specialize (HD (nat_Name (S (S n)))).
-        rewrite NetMod.init_get in HD.
-        rewrite Name_nat_bij in HD.
-        constructor; split; intros; auto; doubt.
-        rewrite Name_nat_bij in *.
-        destruct (S (Name_nat n0) =? S (S n)) eqn:?; doubt.
-        unfold MoverFinger in *.
-        simpl in *.
-        kill HD.
-        rewrite Name_nat_bij in *.
-        specialize (HDecR n0 P).
-        rewrite Heqb in HDecR.
-        specialize (HDecR H).
+      constructor; intros; doubt.
+      kill H0.
+      constructor; intros; doubt.
+      + eexists.
+        constructor.
+        rewrite Name_eqb_refl.
+        eattac.
+      + kill H0.
+        blast_cases; attac.
+        rewrite NAME.eqb_eq in Heqb.
         attac.
-      + rewrite Name_nat_bij.
-        destruct n; doubt.
-        constructor; auto.
-        split; intros.
-        * rewrite Name_nat_bij.
-          kill H0.
-          rewrite Name_nat_bij.
-          rewrite PeanoNat.Nat.eqb_refl.
-          attac.
-        * rewrite Name_nat_bij in *.
-          destruct (S (Name_nat n0) =? S (S n)) eqn:?; doubt.
-          apply PeanoNat.Nat.eqb_eq in Heqb.
-          hsimpl in * |-.
-          constructor.
-          rewrite <- Heqb.
-          now rewrite nat_Name_bij.
-      + bullshit.
-    - assert (forall n, n <> 0 -> net_lock_on N (nat_Name (S n)) (nat_Name n)) as HL.
-      {
-        intros.
-        exists [nat_Name n]; split; attac.
-        unfold net_lock.
-        destruct n; doubt. clear H.
-        specialize (HD (nat_Name (S (S n)))).
-        subst N.
-        rewrite NetMod.init_get in *.
-        rewrite Name_nat_bij in *.
-        simpl in HD.
-        constructor; auto.
-        clear HD.
-        constructor; split; intros; rewrite Name_nat_bij in *.
-        - kill H.
-          rewrite Name_nat_bij in *.
-          rewrite PeanoNat.Nat.eqb_refl.
-          attac.
-        - destruct (S (Name_nat n0) =? S (S n)) eqn:?; doubt.
-          apply PeanoNat.Nat.eqb_eq in Heqb.
-          kill Heqb.
-          rewrite nat_Name_bij. attac.
-      }
-
-      assert (forall n, n <> 0 -> pq_client (nat_Name (S n)) (NetMod.get (nat_Name n) N)) as HC.
-      {
-        intros.
-        clear HL HD.
-        subst N.
-        rewrite NetMod.init_get.
-        rewrite Name_nat_bij.
-        destruct n; doubt. clear H.
-        constructor 2.
+      + kill H0.
         destruct n.
-        - econstructor 1. apply SRPC_Nail.
-        - econstructor 1. apply SRPC_Finger.
-      }
+        destruct t; doubt.
+        blast_cases; doubt.
+        kill H1.
+        apply NAME.eqb_eq in Heqb.
+        subst.
+        attac.
+  Qed.
 
-      assert (forall n0 n1, net_lock_on N n1 n0 -> S (Name_nat n0) = (Name_nat n1) /\ Name_nat n0 <> 0) as HL'.
-      {
-        intros.
-        subst N.
-        unfold net_lock_on, net_lock in H.
-        hsimpl in *.
-        rewrite NetMod.init_get in *.
-        kill H0.
-        assert (AnySRPC (match Name_nat n1 with
-                         | 0 => Echo
-                         | 1 => MoverNail
-                         | S (S n1) => MoverFinger (nat_Name (S (S n1)))
-                         end)).
-        {
-          destruct (Name_nat n1).
-          eexists; eauto using SRPC_Echo.
-          destruct n; eexists; eauto using SRPC_Finger, SRPC_Nail.
-        }
-        assert (proc_lock [n0] (match Name_nat n1 with
-                                | 0 => Echo
-                                | 1 => MoverNail
-                                | S (S n1) => MoverFinger (nat_Name (S (S n1)))
-                                end)).
-        {
-          edestruct (SRPC_get_lock).
-          apply H0.
-          apply H2.
-          enough (n0 = x) by (subst; auto).
-          enough (List.In n0 [x]) by attac.
-          apply (proc_lock_incl `(proc_lock L _)); auto.
-        }
-        destruct (Name_nat n1) eqn:?.
-        - eapply lock_SRPC_Lock in H0.
-          + hsimpl in *.
-            absurd (Lock c n0 = Free); attac.
-            eapply SRPC_inv; eauto using SRPC_Echo.
-          + auto.
-        - clear H2 H3.
-          eapply lock_SRPC_Lock in H4. 2: auto.
-          hsimpl in *.
-          destruct n.
-          + absurd (Lock c n0 = Work (nat_Name 2)); doubt.
-            eapply SRPC_inv; eauto using SRPC_Nail.
-          + assert (Lock c n0 = Lock (nat_Name (S (S (S n)))) (nat_Name (S n))); doubt.
-            eapply SRPC_inv; eauto using SRPC_Finger.
-            hsimpl in *.
-            rewrite Name_nat_bij.
-            attac.
-      }
 
-      assert (forall n0 n1, pq_client n1 (NetMod.get n0 N) -> S (Name_nat n0) = (Name_nat n1) /\ Name_nat n0 <> 0) as HC'.
-      {
-        intros.
-        subst N.
-        rewrite NetMod.init_get in *.
+  CoFixpoint SRPC_gen_server [state_t] :
+    forall st gsh,
+    SRPC Free (@run_gen_server state_t {|gs_state:=GSReady _ st; gs_handler:=gsh|})
+  with
+  SRPC_gen_server_work [state_t] :
+    forall client st gsh,
+      SRPC (Work client) (@run_gen_server state_t {|gs_state:=GSHandle _ client st; gs_handler:=gsh|}).
+
+  Proof.
+    all: intros.
+    - constructor; intros.
+      + clear C.
+        eexists.
+        rewrite (unfold_Proc (run_gen_server _)).
+        simpl.
+        constructor.
+        attac.
+      + rewrite (unfold_Proc (run_gen_server _)) in H.
+        simpl in H.
         kill H.
-        kill H0; doubt.
-        destruct (Name_nat n0) eqn:?; doubt.
-        - absurd (Busy x = Free); attac.
-          eapply SRPC_inv; eauto using SRPC_Echo.
-        - destruct n.
-          + split; attac.
+        destruct n.
+        destruct t; doubt.
+        kill H0.
+        exists n, v.
+        split; auto.
+    - constructor; intros; doubt.
+      + apply SRPC_gen_server_hwork.
+      + rewrite (unfold_Proc (run_gen_server _)) in H.
+        simpl in *.
+        blast_cases; doubt.
+        attac.
+      + rewrite (unfold_Proc (run_gen_server _)) in H.
+        simpl in *.
+        blast_cases; doubt.
+        kill Heqp.
+        attac.
+        constructor; intros; doubt.
+        * constructor; intros; doubt.
+          -- eexists.
+             constructor.
+             rewrite Name_eqb_refl.
+             attac.
+          -- kill H.
+             blast_cases; attac.
+             apply NAME.eqb_eq in Heqb.
+             attac.
+          -- kill H.
+             destruct n.
+             destruct t; doubt.
+             kill H0.
+             blast_cases; doubt.
+             kill H.
+             eapply SRPC_gen_server_hwork.
+        * kill H.
+          blast_cases; doubt.
+          kill H0.
+          apply NAME.eqb_eq in Heqb.
+          subst.
+          auto.
+      + rewrite (unfold_Proc (run_gen_server _)) in H.
+        simpl in *.
+        blast_cases; doubt.
+      + rewrite (unfold_Proc (run_gen_server _)) in H.
+        simpl in *.
+        blast_cases; doubt.
+  Qed.
 
-            assert (SRPC (Work (nat_Name (2))) MoverNail) by auto using SRPC_Nail.
-            apply (SRPC_inv H0) in H.
-            hsimpl in *.
-            now rewrite Name_nat_bij.
-          + split; attac.
-            assert (SRPC (Lock (nat_Name (S (S (S n)))) (nat_Name (S n))) (MoverFinger (nat_Name (S (S n))))) by auto using SRPC_Finger.
-            apply (SRPC_inv H0) in H.
-            hsimpl in *.
-            now rewrite Name_nat_bij.
-      }
 
-      constructor.
-      + intros n.
-        subst N.
-        rewrite NetMod.init_get.
-        destruct (Name_nat n) eqn:?.
-        * eexists; eapply SRPC_sane_Echo.
-        * destruct n0 eqn:?.
-          -- eexists; eapply SRPC_sane_Nail.
-          -- eexists; eapply SRPC_sane_Finger.
-      + intros n0 n1 HL0.
-        apply HL' in HL0.
-        hsimpl in *.
-        specialize (HC (Name_nat n1) ltac:(auto)).
-        rewrite <- HL0 in *.
-        rewrite nat_Name_bij in *.
-        rewrite nat_Name_bij in *.
-        auto.
-      + intros n0 n1 HC0.
-        apply HC' in HC0.
-        hsimpl in *.
-        specialize (HL (Name_nat n1) ltac:(auto)).
-        rewrite <- HC0 in *.
-        rewrite nat_Name_bij in *.
-        rewrite nat_Name_bij in *.
-        auto.
-    Qed.
+  Definition gen_server [state_t : Set] (init : state_t) (handle_call : Name -> Val -> state_t -> Handler state_t) :=
+    run_gen_server {|gs_state:=GSReady _ init; gs_handler:=handle_call|}.
 
-  End ThomasNet.
 
+  Arguments handle_end {state_t} reply next_state.
+
+  Definition Echo := gen_server tt (fun _ v st => handle_end v st).
+
+  Definition Finger name i to arg :=
+    match i with
+    | 0 => call to arg (fun v => PSend (Initiator name 1, R) v Echo)
+    | S i' => recvr (Initiator name i') (fun v => PSend (Initiator name (S i), R) v Echo)
+    end.
+
+  Definition Init name to arg := Finger name 0 to arg.
+
+
+  Inductive WorkerConf :=
+  | worker_conf [state_t : Set] (init : state_t) (handle_call : Name -> Val -> state_t -> Handler state_t)
+  .
+
+  Inductive InitConf :=
+  | init_conf (to : string) (arg : Val)
+  .
+
+  Record NetConf :=
+    { workers : string -> WorkerConf
+    ; inits : string -> InitConf
+    }.
+
+
+  Definition make_net (conf : NetConf) : PNet :=
+    NetMod.init (
+        fun n => match n with
+              | Worker name =>
+                  match workers conf name with
+                    worker_conf init_call_ handle_call_ => pq [] (gen_server init_call_ handle_call_) []
+                  end
+              | Initiator name i =>
+                  match inits conf name with
+                  | init_conf to arg => pq [] (Finger name i to arg) []
+                  end
+              end
+      ).
+
+
+  Lemma SRPC_Finger : forall name to arg i,
+      SRPC (Lock (Initiator name (S (S i))) (Initiator name i)) (Finger name (S i) to arg).
+
+  Proof.
+    intros.
+    constructor; intros; doubt.
+    - constructor; intros; doubt.
+      + eexists.
+        constructor.
+        rewrite Name_eqb_refl.
+        attac.
+      + kill H.
+        blast_cases; eattac.
+        apply NAME.eqb_eq in Heqb.
+        attac.
+      + kill H.
+        destruct n.
+        blast_cases; doubt.
+        rewrite NAME.eqb_eq in Heqb.
+        kill H0.
+        constructor; intros; doubt.
+    - kill H.
+      blast_cases; doubt.
+      apply NAME.eqb_eq in Heqb.
+      kill H0.
+      constructor; intros; doubt.
+      + constructor; intros; doubt.
+      + kill H.
+        unfold Echo.
+        apply SRPC_gen_server.
+  Qed.
+
+
+  Lemma SRPC_Init : forall name to arg,
+      SRPC (Work (Initiator name 1)) (Init name to arg).
+
+  Proof.
+    intros.
+    constructor; intros; doubt.
+    - constructor; intros; doubt.
+      kill H.
+      constructor; intros; doubt.
+      + eexists.
+        constructor.
+        rewrite Name_eqb_refl.
+        attac.
+      + kill H.
+        blast_cases; eattac.
+        apply NAME.eqb_eq in Heqb.
+        attac.
+      + kill H.
+        destruct n.
+        blast_cases; doubt.
+        rewrite NAME.eqb_eq in Heqb.
+        kill H0.
+        constructor; intros; doubt.
+    - kill H.
+      constructor; intros; doubt.
+      + constructor; intros; doubt.
+        * eexists.
+          constructor.
+          rewrite Name_eqb_refl.
+          attac.
+        * kill H.
+          blast_cases; eattac.
+          apply NAME.eqb_eq in Heqb.
+          attac.
+        * kill H.
+          destruct n.
+          blast_cases; doubt.
+          rewrite NAME.eqb_eq in Heqb.
+          kill H0.
+          constructor; intros; doubt.
+      + kill H.
+        blast_cases; doubt.
+        apply NAME.eqb_eq in Heqb.
+        kill H0.
+        constructor; intros; doubt.
+        * constructor; intros; doubt.
+        * kill H.
+          unfold Echo.
+          apply SRPC_gen_server.
+  Qed.
+
+
+  Lemma make_net_SRPC : forall conf, SRPC_net (make_net conf).
+
+  Proof.
+    unfold SRPC_net.
+    intros.
+    unfold make_net.
+    rewrite NetMod.init_get.
+    destruct n as [name [|i] | name].
+    - destruct (inits conf name).
+      exists (Work (Initiator name 1)).
+      eapply SRPC_Init.
+    - destruct (inits conf name).
+      exists (Lock (Initiator name (S (S i))) (Initiator name i)).
+      eapply SRPC_Finger with (to:=to)(arg:=arg).
+    - destruct (workers conf name).
+      exists Free.
+      apply SRPC_gen_server.
+  Qed.
+
+
+  Lemma make_net_SRPC_sane : forall conf, SRPC_sane_net (make_net conf).
+
+  Proof.
+    unfold SRPC_sane_net.
+    intros.
+    unfold make_net.
+    rewrite NetMod.init_get.
+    destruct n as [name [|i] | name].
+    - destruct (inits conf name).
+      exists (Work (Initiator name 1)).
+      constructor; attac.
+      eapply SRPC_Init.
+    - destruct (inits conf name).
+      exists (Lock (Initiator name (S (S i))) (Initiator name i)).
+      constructor; attac.
+      eapply SRPC_Finger with (to:=to)(arg:=arg).
+    - destruct (workers conf name).
+      exists Free.
+      constructor; attac.
+      apply SRPC_gen_server.
+  Qed.
+
+
+  Lemma make_net_lock_finger : forall conf name i,
+      net_lock_on (make_net conf) (Initiator name (S i)) (Initiator name i).
+
+  Proof.
+    intros.
+    eexists [_]. 1: attac.
+    unfold net_lock.
+    unfold make_net.
+    rewrite NetMod.init_get.
+    blast_cases.
+    assert (Decisive (Finger name (S i) to arg)).
+    {
+      enough (AnySRPC (Finger name (S i) to arg)) by auto using SRPC_Decisive.
+      eexists; eauto using SRPC_Finger.
+    }
+    constructor; auto.
+    eapply SRPC_Lock_lock.
+    eauto using SRPC_Finger.
+  Qed.
+
+  Lemma make_net_lock_init : forall conf name other,
+      ~ net_lock_on (make_net conf) (Initiator name 0) other.
+
+  Proof.
+    intros.
+    intros ?.
+    apply lock_singleton in H.
+    2: apply SRPC_net_lock_uniq; eauto using make_net_SRPC.
+    2: apply SRPC_net_lock_neq_nil; eauto using make_net_SRPC.
+    unfold net_lock in *.
+    unfold make_net in *.
+    rewrite NetMod.init_get in *.
+    blast_cases.
+    kill H.
+  Qed.
+
+  Lemma make_net_lock_worker : forall conf name other,
+      ~ net_lock_on (make_net conf) (Worker name) other.
+
+  Proof.
+    intros.
+    intros ?.
+    apply lock_singleton in H.
+    2: apply SRPC_net_lock_uniq; eauto using make_net_SRPC.
+    2: apply SRPC_net_lock_neq_nil; eauto using make_net_SRPC.
+    unfold net_lock in *.
+    unfold make_net in *.
+    rewrite NetMod.init_get in *.
+    blast_cases.
+    kill H.
+    assert (SRPC Free (gen_server &init handle_call0)) by eauto using SRPC_gen_server.
+    apply lock_SRPC_Lock in H1.
+    - attac.
+      bullshit (Lock c other = Free).
+    - eexists; eauto.
+  Qed.
+
+  Lemma make_net_client_finger : forall conf name i,
+      pq_client  (Initiator name (S i)) (NetMod.get (Initiator name i) (make_net conf)).
+
+  Proof.
+    intros.
+    unfold make_net.
+    rewrite NetMod.init_get.
+    blast_cases.
+    constructor; auto.
+    destruct i.
+    - assert (SRPC (Work (Initiator name 1)) (Finger name 0 to arg)) by eauto using SRPC_Init.
+      attac.
+    - assert (SRPC (Lock (Initiator name (S (S i))) (Initiator name i)) (Finger name (S i) to arg)) by eauto using SRPC_Finger.
+      attac.
+  Qed.
+
+  Lemma make_net_client_worker : forall conf name other,
+      ~ pq_client other (NetMod.get (Worker name) (make_net conf)).
+
+  Proof.
+    intros.
+    intros ?.
+    unfold make_net in *.
+    rewrite NetMod.init_get in *.
+    kill H; blast_cases; doubt; attac.
+    assert (SRPC Free (gen_server &init handle_call0)) by apply SRPC_gen_server.
+    consider (proc_client _ _).
+    bullshit (Busy _ = Free).
+  Qed.
+
+
+  Lemma make_net_lock_inv : forall conf n0 n1,
+      net_lock_on (make_net conf) n0 n1 ->
+      exists name i, n0 = Initiator name (S i) /\ n1 = Initiator name i.
+
+  Proof.
+    intros.
+    destruct n0 as [name0 [|i0] | name0].
+    - apply make_net_lock_init in H; bullshit.
+    - assert (net_lock_on (make_net conf) (Initiator name0 (S i0)) (Initiator name0 i0)) by
+        eauto using make_net_lock_finger.
+      assert (n1 = Initiator name0 i0) by (eapply SRPC_net_lock_uniq; eauto using make_net_SRPC).
+      attac.
+    - apply make_net_lock_worker in H; bullshit.
+  Qed.
+
+
+  Lemma make_net_client_inv : forall conf n0 n1,
+      pq_client n0 (NetMod.get n1 (make_net conf)) ->
+      exists name i, n0 = Initiator name (S i) /\ n1 = Initiator name i.
+
+  Proof.
+    intros.
+    unfold make_net in *.
+    rewrite NetMod.init_get in *.
+    kill H; blast_cases; doubt; attac.
+    - destruct n.
+      + assert (SRPC (Work (Initiator s 1)) (Finger s 0 to arg)) by eauto using SRPC_Init.
+        kill H0.
+        assert (Busy x = Work (Initiator s 1)) by attac.
+        attac.
+      + assert (SRPC (Lock (Initiator s (S (S n))) (Initiator s n)) (Finger s (S n) to arg)) by eauto using SRPC_Finger.
+        kill H0.
+        eassert (Busy x = Lock _ (Initiator s _)) by attac.
+        attac.
+    - assert (SRPC Free (gen_server &init handle_call0)) by eauto using SRPC_gen_server.
+      kill H0.
+      bullshit (Busy x = Free).
+  Qed.
+
+
+  Lemma make_net_sane : forall conf, (net_sane (make_net conf)).
+
+  Proof.
+    intros.
+    constructor.
+    - apply make_net_SRPC_sane.
+    - intros n0 n1 **.
+      apply (make_net_lock_inv conf n0 n1) in H.
+      attac.
+      apply make_net_client_finger.
+    - intros n0 n1 **.
+      apply (make_net_client_inv conf n0 n1) in H.
+      attac.
+      apply make_net_lock_finger.
+  Qed.
+
+
+  Definition make_mon_state n : MState :=
+    match n with
+    | Worker name => {| self := n
+                    ;  lock := None
+                    ;  lock_id := 0
+                    ;  waitees := []
+                    ;  alarm := false
+                    |}
+    | Initiator name 0 => {| self := n
+                         ;  lock := None
+                         ;  lock_id := 0
+                         ;  waitees := [Initiator name 1]
+                         ;  alarm := false
+                         |}
+    | Initiator name (S i) => {| self := n
+                             ;  lock := Some (Initiator name i)
+                             ;  lock_id := 0
+                             ;  waitees := [Initiator name (S (S i))]
+                             ;  alarm := false
+                             |}
+    end.
+
+
+  Definition make_mon_assg : mon_assg.
+    ltac1:(refine (fun n => (exist _ [] MQ_Clear_nil,
+            exist _
+            {|handle:=Rad.Rad_handle; state:=MRecv (make_mon_state n)|}
+            _
+          ))).
+    attac.
+  Defined.
+
+
+  Definition make_mnet (conf : NetConf) := net_instr make_mon_assg (make_net conf).
+
+
+  Lemma make_net_dep : forall conf name i0 i1,
+      lt i1 i0 ->
+      dep_on (make_net conf) (Initiator name i0) (Initiator name i1).
+
+  Proof.
+    induction i0; intros.
+    1: attac.
+
+    kill H.
+    - constructor.
+      eapply make_net_lock_finger.
+    - econstructor 2.
+      eapply make_net_lock_finger.
+      eapply IHi0.
+      kill H0; attac.
+  Qed.
+
+  Lemma make_net_dep_inv : forall conf n0 n1,
+      dep_on (make_net conf) n0 n1 ->
+      exists name i0 i1, n0 = Initiator name i0 /\ n1 = Initiator name i1 /\ lt i1 i0.
+
+  Proof.
+    intros.
+    apply dep_lock_chain in H as [L [H ?]].
+    generalize dependent n0.
+    induction L; intros; kill H.
+    - apply make_net_lock_inv in H1.
+      attac.
+      exists name, (S i), i.
+      attac.
+    - hsimpl in *.
+      specialize (IHL ltac:(auto) a ltac:(auto)).
+      apply make_net_lock_inv in H1.
+      attac.
+      exists name0, (S i0), i1.
+      attac.
+  Qed.
+
+
+  Lemma make_mnet_KIC : forall conf, (KIC (make_mnet conf)).
+    intros.
+    constructor; intros; ltac1:(autounfold with LTS_get in * ).
+    1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_net_sane.
+
+    1: destruct (NetMod.get n (make_mnet conf)) eqn:?.
+    2: destruct (NetMod.get n (make_mnet conf)) eqn:?.
+    3: destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
+    4: destruct (NetMod.get n1 (make_mnet conf)) eqn:?.
+    5: destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
+    6: destruct (NetMod.get n0 (make_mnet conf)) eqn:?, (NetMod.get n1 (make_mnet conf)) eqn:?.
+
+    1, 2: unfold make_mnet, make_mon_assg, net_instr, net_instr_n, instr, make_net in *; try (rewrite NetMod.init_get in * ); simpl in *.
+    - hsimpl in *.
+      unfold make_mon_state.
+      blast_cases; attac.
+    - hsimpl in *; auto.
+    - unfold make_mnet in *.
+      rewrite net_deinstr_instr in *.
+      apply make_net_lock_inv in H.
+      attac.
+      unfold make_net, make_mon_assg, net_instr, net_instr_n, instr in *.
+      attac.
+    - unfold make_mnet in *.
+      rewrite net_deinstr_instr in *.
+      apply make_net_lock_inv in H.
+      attac.
+      unfold make_net, make_mon_assg, net_instr, net_instr_n, instr in *.
+      attac.
+      destruct i; attac.
+    - unfold make_mnet in *.
+      rewrite net_deinstr_instr in *.
+      apply make_net_dep_inv in H.
+      attac.
+    - unfold make_mnet.
+      rewrite net_deinstr_instr.
+      destruct n0 as [n0 [|i0]|n0], n1 as [n1 [|i1]|n1].
+      all: try (solve [right; intros Hx; apply make_net_dep_inv in Hx; attac]).
+      + destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst.
+        * left.
+          clear.
+          induction i0.
+          -- constructor; apply make_net_lock_finger.
+          -- econstructor 2; auto using make_net_lock_finger.
+        * right; intros Hx; apply make_net_dep_inv in Hx; attac.
+      + destruct (Compare_dec.lt_dec (S i1) (S i0)).
+        * destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst.
+          -- left. auto using make_net_dep.
+          -- right; intros Hx. apply make_net_dep_inv in Hx; attac.
+        * right; intros Hx. apply make_net_dep_inv in Hx; attac.
+  Qed.
+
+
+  Lemma make_mnet_KIS : forall conf, (KIS (make_mnet conf)).
+    intros.
+    constructor; intros; ltac1:(autounfold with LTS_get in * ).
+    1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_net_sane.
+
+    - unfold make_mnet.
+      rewrite net_deinstr_instr.
+      destruct n0 as [n0 [|i0]|n0], n1 as [n1 [|i1]|n1].
+      all: try (solve [right; intros Hx; apply make_net_dep_inv in Hx; attac]).
+      + destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst.
+        * left.
+          clear.
+          induction i0.
+          -- constructor; apply make_net_lock_finger.
+          -- econstructor 2; auto using make_net_lock_finger.
+        * right; intros Hx; apply make_net_dep_inv in Hx; attac.
+      + destruct (Compare_dec.lt_dec (S i1) (S i0)).
+        * destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst.
+          -- left. auto using make_net_dep.
+          -- right; intros Hx. apply make_net_dep_inv in Hx; attac.
+        * right; intros Hx. apply make_net_dep_inv in Hx; attac.
+    - destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
+      unfold make_mnet, make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+      blast_cases; attac.
+      blast_cases; attac.
+    - unfold make_mnet, make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+      blast_cases; attac.
+    - left.
+      unfold make_mnet in *.
+      rewrite net_deinstr_instr.
+      unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+
+      blast_cases; attac.
+      blast_cases; attac.
+      apply make_net_lock_finger.
+    -  unfold make_mnet in *.
+       rewrite net_deinstr_instr.
+       unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+
+       blast_cases; attac.
+       blast_cases; attac.
+       apply make_net_lock_finger.
+       apply make_net_lock_finger.
+    - unfold make_mnet in *.
+      rewrite net_deinstr_instr.
+      unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+
+      blast_cases; attac.
+    - unfold make_mnet, make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+
+      blast_cases; attac.
+    - unfold make_mnet, make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+
+      blast_cases.
+      rewrite NetMod.get_map in *.
+      rewrite NetMod.init_get in *.
+      destruct p.
+      destruct m0.
+      simpl in *.
+      blast_cases; simpl in *; kill Heqm; kill Heqm0.
+    - unfold make_mnet in *.
+      rewrite net_deinstr_instr.
+
+      unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+
+      blast_cases.
+      rewrite NetMod.get_map in *.
+      rewrite NetMod.init_get in *.
+      destruct p.
+      destruct m0.
+      simpl in *.
+      blast_cases; simpl in *; kill Heqm; kill Heqm0; simpl in *.
+      all: bullshit.
+    -  unfold make_mnet in *.
+       rewrite net_deinstr_instr.
+
+       unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+
+       blast_cases.
+       rewrite NetMod.get_map in *.
+       rewrite NetMod.init_get in *.
+       destruct p.
+       destruct m0.
+       simpl in *.
+       blast_cases; simpl in *; kill Heqm; kill Heqm0; simpl in *.
+       all: bullshit.
+    -  unfold make_mnet in *.
+       rewrite net_deinstr_instr.
+
+       unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+
+       blast_cases.
+       rewrite NetMod.get_map in *.
+       rewrite NetMod.init_get in *.
+       destruct p.
+       destruct m.
+       simpl in *.
+       blast_cases; simpl in *; kill Heqm; simpl in *.
+       all: bullshit.
+  Qed.
+End Thomas.

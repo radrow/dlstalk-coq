@@ -33,10 +33,6 @@ From Coq Require Import Nat.
 From Coq Require Import Structures.OrderedTypeEx.
 Require Import OrderedType.
 
-Require Import Coq.Structures.OrderedTypeEx.
-Require Import Coq.FSets.FMapList.
-Require Import Coq.FSets.FMapFacts.
-
 Import ListNotations.
 Import BoolNotations.
 
