@@ -2306,7 +2306,20 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Hint Extern 0 (KIS _) => solve_invariant : LTS.
 
 
-  Theorem detection_soundness [I0 N0 MN1 mpath n] :
+  Theorem detection_soundness [MN mpath n] :
+    KIS MN ->
+    _of alarm MN n = true ->
+    exists DS, DeadSet DS '' MN /\ In n DS.
+
+  Proof.
+    intros.
+    assert (KIS MN1) by eauto with LTS.
+    enough (dep_on '' MN1 n n) by eauto using dep_self_deadlocked with LTS.
+    consider (KIS MN1).
+  Qed.
+
+
+  Corollary detection_soundness' [I0 N0 MN1 mpath n] :
     KIS (net_instr I0 N0) ->
     (net_instr I0 N0 =[mpath]=> MN1) ->
     _of alarm MN1 n = true ->
@@ -2320,7 +2333,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem detection_soundness' [I0 N0 I1 N1 mpath n] :
+  Corollary detection_soundness_instr [I0 N0 I1 N1 mpath n] :
     KIS (net_instr I0 N0) ->
     (net_instr I0 N0 =[mpath]=> net_instr I1 N1) ->
     _of alarm (net_instr I1 N1) n = true ->

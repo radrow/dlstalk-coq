@@ -106,6 +106,45 @@ Module Thomas.
   Hint Rewrite -> Name_eqb_refl using assumption : LTS LTS_concl.
 
 
+  Import SrpcNet.
+
+  Theorem correct : forall (N0 : PNet) (MN1 : MNet) mpath0 i0,
+      KIC (net_instr i0 N0) ->
+      KIS (net_instr i0 N0) ->
+      (net_instr i0 N0 =[mpath0]=> MN1) ->
+      (forall DS, DeadSet DS '' MN1 -> exists mpath1 MN2 n,
+            In n DS /\ (MN1 =[mpath1]=> MN2) /\ _of alarm MN2 n = true
+      ) /\
+        (forall n, _of alarm MN1 n = true -> exists DS, DeadSet DS '' MN1 /\ In n DS
+        ).
+
+  Proof.
+    split; intros.
+    - assert (KIC MN1) by eauto with LTS.
+      assert (net_sane '' MN1) by (consider (KIC MN1); hsimpl in *; auto).
+      assert (exists n, dep_on '' MN1 n n) as [n ?].
+      {
+        enough (exists n : Name, In n DS /\ dep_on '' MN1 n n) by attac.
+        eapply deadset_dep_self; eauto with LTS.
+        intros ? ?.
+        eauto using net_sane_lock_dec.
+      }
+
+      consider (exists n', dep_on '' MN1 n n' /\ ac n' MN1) by consider (KIC _).
+      assert (dep_on '' MN1 n' n') by eauto using dep_reloop with LTS.
+
+      consider (exists MN2 mpath1,
+                   (MN1 =[ mpath1 ]=> MN2) /\ (exists n'' : Name, _of alarm MN2 n'' = true)) by eauto using ac_to_alarm.
+
+      exists mpath1, MN2, n''.
+      repeat split; eauto.
+      admit. (* In n'' DS --- completeness forgets that dependency, but easily fixable TODO *)
+    - consider (deadlocked n '' MN1) by eauto 3 using detection_soundness with LTS.
+      attac.
+  Admitted.
+
+
+
   Definition recvq (cont : Name -> Val -> Proc) : Proc :=
     PRecv (
         fun m =>

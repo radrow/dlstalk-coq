@@ -54,7 +54,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
     (** Behavioral description of an Single-threaded RPC process *)
     Inductive SRPC_Busy [c] : SRPC_Busy_State c -> Proc -> Prop :=
-    | BSRPC_Work [P0]
+    | SRPC_Busy_Work [P0]
         (* If sends a reply, then to the client. *)
         (HReply : forall c' v P1, (P0 =(Send (c', R) v)=> P1) -> c = c')
 
@@ -75,7 +75,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
         (HNoEnd : P0 <> PEnd)
       : SRPC_Busy (BWork c) P0
 
-    | BSRPC_Lock [s P0]
+    | SRPC_Busy_Lock [s P0]
         (* Accepts ALL replies from server *)
         (HReplyAll : forall v, exists P1, (P0 =(Recv (s, R) v)=> P1))
         (* Accepts ONLY replies and ONLY from server *)
@@ -115,7 +115,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
       )
       : SRPC Free P0
 
-    | SRPC_Busy [P0 c]
+    | SRPC_Busy_ [P0 c]
         (srpc : SRPC_Busy_State c)
         (HBusy : SRPC_Busy srpc P0)
         (HReply : forall v P1, P0 =(Send (c, R) v)=> P1 -> SRPC Free P1)
