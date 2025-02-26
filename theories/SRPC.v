@@ -44,25 +44,25 @@ End SRPC_PARAMS.
 
 Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   (** SRPC process handling a request from the client [c] *)
-    Inductive SRPC_Handle_State (c : Name) :=
-    | HWork : SRPC_Handle_State c
-    | HLock (s : Name) : SRPC_Handle_State c
+    Inductive SRPC_Busy_State (c : Name) :=
+    | BWork : SRPC_Busy_State c
+    | BLock (s : Name) : SRPC_Busy_State c
     .
 
-    #[export] Hint Constructors SRPC_Handle_State : LTS.
+    #[export] Hint Constructors SRPC_Busy_State : LTS.
 
 
     (** Behavioral description of an Single-threaded RPC process *)
-    Inductive SRPC_Handling [c] : SRPC_Handle_State c -> Proc -> Prop :=
-    | HSRPC_Work [P0]
+    Inductive SRPC_Busy [c] : SRPC_Busy_State c -> Proc -> Prop :=
+    | BSRPC_Work [P0]
         (* If sends a reply, then to the client. *)
         (HReply : forall c' v P1, (P0 =(Send (c', R) v)=> P1) -> c = c')
 
         (* If sends a query, then locked. *)
-        (HQuery : forall s v P1, (P0 =(Send (s, Q) v)=> P1) -> SRPC_Handling (HLock c s) P1)
+        (HQuery : forall s v P1, (P0 =(Send (s, Q) v)=> P1) -> SRPC_Busy (BLock c s) P1)
 
         (* If taus, then still working *)
-        (HTau : forall P1, (P0 =(Tau)=> P1) -> SRPC_Handling (HWork c) P1)
+        (HTau : forall P1, (P0 =(Tau)=> P1) -> SRPC_Busy (BWork c) P1)
 
         (* Is not a receiving process. Note that the below does not work: *)
         (* (forall n v P1, P0 =(Recv n v)=> P1 -> False) -> *)
@@ -73,33 +73,33 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
         (* We assume 100% uptime. We are in academia, after all. *)
         (HNoEnd : P0 <> PEnd)
-      : SRPC_Handling (HWork c) P0
+      : SRPC_Busy (BWork c) P0
 
-    | HSRPC_Lock [s P0]
+    | BSRPC_Lock [s P0]
         (* Accepts ALL replies from server *)
         (HReplyAll : forall v, exists P1, (P0 =(Recv (s, R) v)=> P1))
         (* Accepts ONLY replies and ONLY from server *)
         (HReplyOnly : forall a P1, P0 =(a)=> P1 -> exists v, a = Recv (s, R) v)
         (* If recvs a reply, moves to busy *)
-        (HRecvR : forall a P1, P0 =(a)=> P1 -> SRPC_Handling (HWork c) P1)
-      : SRPC_Handling (HLock c s) P0
+        (HRecvR : forall a P1, P0 =(a)=> P1 -> SRPC_Busy (BWork c) P1)
+      : SRPC_Busy (BLock c s) P0
     .
 
 
     (** SRPC state of any service *)
     Inductive SRPC_State :=
     | Free : SRPC_State
-    | Busy [c] : SRPC_Handle_State c -> SRPC_State
+    | Busy [c] : SRPC_Busy_State c -> SRPC_State
     .
 
     #[export] Hint Constructors SRPC_State : LTS.
 
 
-    Notation "'Work'" := (fun c => Busy (HWork c)) (at level 30).
-    Notation "'Lock'" := (fun c s => Busy (HLock c s)) (at level 30).
+    Notation "'Work'" := (fun c => Busy (BWork c)) (at level 30).
+    Notation "'Lock'" := (fun c s => Busy (BLock c s)) (at level 30).
 
-    Notation "'Work' c" := (Busy (HWork c)) (at level 200) : type_scope.
-    Notation "'Lock' c s" := (Busy (HLock c s)) (at level 200) : type_scope.
+    Notation "'Work' c" := (Busy (BWork c)) (at level 200) : type_scope.
+    Notation "'Lock' c s" := (Busy (BLock c s)) (at level 200) : type_scope.
 
 
     (** Behavioral description of an Single-threaded RPC process *)
@@ -116,8 +116,8 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
       : SRPC Free P0
 
     | SRPC_Busy [P0 c]
-        (srpc : SRPC_Handle_State c)
-        (HBusy : SRPC_Handling srpc P0)
+        (srpc : SRPC_Busy_State c)
+        (HBusy : SRPC_Busy srpc P0)
         (HReply : forall v P1, P0 =(Send (c, R) v)=> P1 -> SRPC Free P1)
         (HQuery : forall s v P1, P0 =(Send (s, Q) v)=> P1 -> SRPC (Lock c s ) P1)
         (HRecv : forall s v P1, P0 =(Recv (s, R) v)=> P1 -> SRPC (Work c) P1)
@@ -270,7 +270,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
                          )
                      ]
                  ]
-      | SRPC_Handling ?srpc ?p =>
+      | SRPC_Busy ?srpc ?p =>
           let p1 := Fresh.in_goal @P in
           let s := Fresh.in_goal @s in
           let hrr := Fresh.in_goal @HRecvR in
@@ -506,7 +506,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
       kill H0.
       1: apply HQueryOnly in T; eattac.
       exists c.
-      have (SRPC_Handling srpc (PTau P)).
+      have (SRPC_Busy srpc (PTau P)).
       kill HBusy.
       1: constructor; attac.
       apply HReplyOnly in T; attac.
@@ -524,7 +524,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
       kill H0.
       1: apply HQueryOnly in T; eattac.
       exists c.
-      have (SRPC_Handling srpc (PSend n v P)).
+      have (SRPC_Busy srpc (PSend n v P)).
       kill HBusy.
       1: constructor; attac.
       apply HReplyOnly in T; attac.
@@ -532,8 +532,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Qed.
 
 
-  Lemma SRPC_Handling_work_act [P0 : Proc] [c] :
-    SRPC_Handling (HWork c) P0 ->
+  Lemma SRPC_Busy_work_act [P0 : Proc] [c] :
+    SRPC_Busy (BWork c) P0 ->
     exists P1, (exists v, P0 =(Send (c, R) v)=> P1) \/ (P0 =(Tau)=> P1) \/ (exists s v, P0 =(Send (s, Q) v)=> P1).
 
   Proof.
@@ -557,7 +557,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Qed.
 
 
-  Lemma SRPC_busy_reply [P0 P1 P2 path] [c c' v] [s : SRPC_Handle_State c] :
+  Lemma SRPC_busy_reply [P0 P1 P2 path] [c c' v] [s : SRPC_Busy_State c] :
     SRPC (Busy s) P0 ->
     (P0 =[path]=> P1) ->
     (P1 =(Send (c', R) v)=> P2) ->
@@ -584,7 +584,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Qed.
 
 
-  Lemma SRPC_busy_reply_exists [P0] [c] [s : SRPC_Handle_State c] :
+  Lemma SRPC_busy_reply_exists [P0] [c] [s : SRPC_Busy_State c] :
     SRPC (Busy s) P0 ->
     exists path P1 P2 v,
       (P0 =[path]=> P1)
@@ -602,8 +602,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     ltac1:(dependent destruction H0).
 
     ltac1:(dependent induction HBusy); intros.
-    - assert (SRPC_Handling (HWork c) P0) as Hsrpc by (constructor; eattac).
-      specialize (SRPC_Handling_work_act Hsrpc) as [P1 [[v T]|[T|[s [v T]]]]].
+    - assert (SRPC_Busy (BWork c) P0) as Hsrpc by (constructor; eattac).
+      specialize (SRPC_Busy_work_act Hsrpc) as [P1 [[v T]|[T|[s [v T]]]]].
       + exists [], P0, P1, v...
       + specialize (H0 P1 T).
         specialize (HTau0 _ T).
@@ -650,7 +650,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Qed.
 
 
-  Lemma SRPC_work_inv [P : Proc] [c0 c1] [s0 : SRPC_Handle_State c0] [s1 : SRPC_Handle_State c1] :
+  Lemma SRPC_work_inv [P : Proc] [c0 c1] [s0 : SRPC_Busy_State c0] [s1 : SRPC_Busy_State c1] :
     SRPC (Busy s0) P ->
     SRPC (Busy s1) P ->
     c0 = c1.
@@ -665,7 +665,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   #[export] Hint Immediate SRPC_work_inv : LTS.
 
 
-  Lemma SRPC_pq_work_inv [S : PQued] [c0 c1] [s0 : SRPC_Handle_State c0] [s1 : SRPC_Handle_State c1] :
+  Lemma SRPC_pq_work_inv [S : PQued] [c0 c1] [s0 : SRPC_Busy_State c0] [s1 : SRPC_Busy_State c1] :
     SRPC_pq (Busy s0) S ->
     SRPC_pq (Busy s1) S ->
     c0 = c1.
@@ -851,7 +851,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   Lemma SRPC_Work_PRecv_bs h c :
     SRPC (Work c) (PRecv h) <-> False.
-  Proof. split; intros. consider (SRPC _ _). consider (SRPC_Handling _ _). bs.  contradiction. Qed.
+  Proof. split; intros. consider (SRPC _ _). consider (SRPC_Busy _ _). bs.  contradiction. Qed.
 
   Lemma SRPC_Free_PSend_bs n v P1 :
     SRPC Free (PSend n v P1) <-> False.
@@ -863,11 +863,11 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   Lemma SRPC_Lock_PSend_bs n v P1 c s :
     SRPC (Lock c s) (PSend n v P1) <-> False.
-  Proof. split; intros. consider (SRPC _ _). destruct n.  consider (SRPC_Handling _ _); doubt. specialize (HReplyAll v); attac. contradiction. Qed.
+  Proof. split; intros. consider (SRPC _ _). destruct n.  consider (SRPC_Busy _ _); doubt. specialize (HReplyAll v); attac. contradiction. Qed.
 
   Lemma SRPC_Lock_PTau_bs P1 c s :
     SRPC (Lock c s) (PTau P1) <-> False.
-  Proof. split; intros. consider (SRPC _ _). consider (SRPC_Handling _ _); doubt. specialize (HReplyAll some_val); attac. contradiction. Qed.
+  Proof. split; intros. consider (SRPC _ _). consider (SRPC_Busy _ _); doubt. specialize (HReplyAll some_val); attac. contradiction. Qed.
 
   #[export] Hint Rewrite ->
     SRPC_Work_PRecv_bs

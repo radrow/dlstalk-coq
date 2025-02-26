@@ -3789,7 +3789,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     exists n1, dep_on N n0 n1 /\ dep_on N n1 n1.
 
   Proof with eattac.
-    intros HSRPC Hd.
+    intros BSRPC Hd.
 
     assert (forall n, AnySRPC_pq (NetMod.get n N)) as Hsrpc by eauto with LTS.
 

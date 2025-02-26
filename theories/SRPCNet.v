@@ -237,10 +237,10 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
     (** [c] is the client of this process *)
     Definition proc_client (c : Name) (P : Proc) : Prop :=
-      exists (srpcb : SRPC_Handle_State c), SRPC (Busy srpcb) P.
+      exists (srpcb : SRPC_Busy_State c), SRPC (Busy srpcb) P.
 
 
-    Lemma mk_proc_client [c P] [srpcb : SRPC_Handle_State c] :
+    Lemma mk_proc_client [c P] [srpcb : SRPC_Busy_State c] :
       SRPC (Busy srpcb) P -> proc_client c P.
     Proof. unfold proc_client. intros; eauto. Qed.
     #[export] Hint Immediate mk_proc_client : LTS.
@@ -1639,28 +1639,28 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); hsimpl in *; try (destruct `(Que.Channel.NChan) as [? [|]] eqn:?); repeat (intros ?); subst; consider (proc_client _ _); doubt.
       - assert (SRPC (Work n1) (cont v)) by eattac.
-        destruct `(SRPC_Handle_State _).
+        destruct `(SRPC_Busy_State _).
         + assert (SRPC (Work n1) (cont v)) by eattac.
           consider (Work n1 = Work c) by attac.
           bs.
         + bs (Work n1 = Lock c s) by attac.
       - consider (exists c', SRPC (Lock c' n1) (PRecv h) /\ SRPC (Work c') (cont v)) by eauto using SRPC_recv_R with LTS.
-        destruct `(SRPC_Handle_State _).
+        destruct `(SRPC_Busy_State _).
         + assert (SRPC (Work c) (cont v)) by eattac.
           consider (Work c' = Work c) by attac.
           enough (proc_client c (cont v)); eattac.
         + bs (Work c' = Lock c s) by attac.
       - consider (exists c', SRPC (Work c') (PSend (n1, Q) v P1) /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q with LTS.
-        destruct `(SRPC_Handle_State _).
+        destruct `(SRPC_Busy_State _).
         + bs (Work c = Lock c' n1) by attac.
         + consider (Lock c' n1 = Lock c s) by attac.
           eenough (proc_client c _); eattac.
       - consider (SRPC (Work n1) _ /\ SRPC Free _) by eattac.
-        destruct `(SRPC_Handle_State _).
+        destruct `(SRPC_Busy_State _).
         + bs (Work c = Free) by attac.
         + bs (Lock c s = Free) by attac.
       - consider (exists c', SRPC (Work c') (PTau P1) /\ SRPC (Work c') P1) by eauto using SRPC_tau with LTS.
-        destruct `(SRPC_Handle_State _).
+        destruct `(SRPC_Busy_State _).
         + consider (Work c' = Work c) by attac.
           attac.
         + bs (Work c' = Lock c s) by attac.
@@ -1699,28 +1699,28 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       consider (_ =(Tau)=> _); repeat (intros ?);
         destruct `(NChan) as [? [|]] eqn:?; subst; consider (proc_client _ _); doubt.
         - assert (SRPC (Work n1) _) by eattac.
-        destruct `(SRPC_Handle_State _).
+        destruct `(SRPC_Busy_State _).
         + assert (SRPC (Work n1) _) by eattac.
           consider (Work n1 = Work c) by attac.
           bs.
         + bs (Work n1 = Lock c s) by attac.
       - consider (exists c', SRPC (Lock c' n1) P0 /\ SRPC (Work c') P1) by eauto using SRPC_recv_R.
-        destruct `(SRPC_Handle_State _).
+        destruct `(SRPC_Busy_State _).
         + assert (SRPC (Work c) P1) by eattac.
           consider (Work c' = Work c) by attac.
           enough (proc_client c P0); eattac.
         + bs (Work c' = Lock c s) by attac.
       - consider (exists c', SRPC (Work c') P0 /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q.
-        destruct `(SRPC_Handle_State _).
+        destruct `(SRPC_Busy_State _).
         + bs (Work c = Lock c' n1) by attac.
         + consider (Lock c' n1 = Lock c s) by attac.
           assert (List.In (c, R, v0) O0 \/ List.In (c, R, v0) [(s, Q, v)]) as [|]; (hsimpl in *|-; eattac).
       - consider (SRPC (Work n1) P0 /\ SRPC Free P1) by eattac.
-        destruct `(SRPC_Handle_State _).
+        destruct `(SRPC_Busy_State _).
         + bs (Work c = Free) by attac.
         + bs (Lock c s = Free) by attac.
       - consider (exists c', SRPC (Work c') P0 /\ SRPC (Work c') P1) by eauto using SRPC_tau.
-        destruct `(SRPC_Handle_State _).
+        destruct `(SRPC_Busy_State _).
         + consider (Work c' = Work c) by attac.
           attac.
         + bs (Work c' = Lock c s) by attac.

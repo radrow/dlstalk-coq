@@ -172,7 +172,7 @@ Module Thomas.
 
   Lemma SRPC_recvr_h client serv cont :
     (forall v, SRPC (Work client) (cont v)) ->
-    SRPC_Handling (HLock client serv) (recvr serv cont).
+    SRPC_Busy (BLock client serv) (recvr serv cont).
 
   Proof.
     intros.
@@ -225,7 +225,7 @@ Module Thomas.
 
   Lemma SRPC_gen_server_hwork [state_t] :
     forall client st gsh,
-      SRPC_Handling (HWork client) (@run_gen_server state_t {|gs_state:=GSHandle _ client st; gs_handler:=gsh|}).
+      SRPC_Busy (BWork client) (@run_gen_server state_t {|gs_state:=GSHandle _ client st; gs_handler:=gsh|}).
 
   Proof.
     intros.
