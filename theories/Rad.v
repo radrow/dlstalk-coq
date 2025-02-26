@@ -111,24 +111,24 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       apply H0.
       intros ? ?.
       specialize (H1 v0).
-      bullshit.
+      bs.
     - exfalso.
       apply H0.
       intros ? ?.
       specialize (H1 v0).
-      bullshit.
+      bs.
     - destruct n0.
       destruct t0.
       + exists v.
         enough (n = n0) by attac.
         smash_eq n n0.
-        bullshit.
-      + bullshit.
+        bs.
+      + bs.
     - exfalso.
       apply H0.
       intros ? ?.
       specialize (H1 v0).
-      bullshit.
+      bs.
   Qed.
 
 
@@ -260,7 +260,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     - ltac1:(autounfold with LTS_get in * ).
       assert (NetMod.get m MN1 = NetMod.get m MN0) by eauto using NV_stay, eq_sym with LTS.
       rewrite `(NetMod.get m MN1 = _) in *.
-      bullshit.
+      bs.
   Qed.
 
 
@@ -277,9 +277,9 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       exists v. auto.
     - assert (NoRecvQ_from n (get_MQ N0' m) \/ ~ NoRecvQ_from n (get_MQ N0' m)) as [|] by eauto using NoRecvQ_from_dec.
       + eapply net_vis_TrRecvQ_pop in H2; eauto.
-        hsimpl in *. destruct v; bullshit.
+        hsimpl in *. destruct v; bs.
       + eapply net_vis_TrRecvQ_pop in H3; eauto.
-        hsimpl in *. destruct v; bullshit.
+        hsimpl in *. destruct v; bs.
   Qed.
 
 
@@ -755,7 +755,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         smash_eq n n0.
         - kill H3.
           specialize (pq_lock_recv `(pq_lock [m0] (NetMod.get n N0)) `(NetMod.get n N0 =(send (n', t0) v)=> &S)) as ?.
-          bullshit.
+          bs.
         - assert (NetMod.get n N0 = NetMod.get n N0') by eauto using NV_stay.
           rewrite <- `(NetMod.get n N0 = _) in *.
           auto.
@@ -813,7 +813,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       eattac 3.
       consider (exists c', SRPC_pq (Lock c' m) (NetMod.get n0 N1)) by eauto with LTS.
       consider (Lock c' m = Lock c n1) by eauto with LTS.
-      bullshit (List.In (n1, R, v) I1).
+      bs (List.In (n1, R, v) I1).
     }
     hsimpl in *.
 
@@ -822,7 +822,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       exfalso.
       hsimpl in *.
       smash_eq n0 n.
-      2: unfold net_lock_on, net_lock in *; hsimpl in *; bullshit.
+      2: unfold net_lock_on, net_lock in *; hsimpl in *; bs.
 
       rewrite `(NetMod.get n0 N0 = _) in *.
       hsimpl in *.
@@ -846,11 +846,11 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           -- apply HRecv in H.
              absurd (Work c0 = Lock c n1); eauto with LTS.
              intros Hx; kill Hx.
-      + bullshit.
+      + bs.
       + kill Hsrpc.
         * apply HQueryOnly in H.
           hsimpl in *.
-          bullshit.
+          bs.
         * apply HTau in H.
           absurd (Work c0 = Lock c n1); eauto with LTS.
           intros Hx; kill Hx.
@@ -869,13 +869,13 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           compat_hsimpl in *.
           absurd (exists v, (List.In (n1, Q, v) ((n2, R, p) :: O2))).
           -- intros ?; hsimpl in *.
-             smash_eq n0 n2; hsimpl in *; bullshit.
+             smash_eq n0 n2; hsimpl in *; bs.
           -- kill H.
              specialize (H_Sane_SRPC n0) as [? ?].
              kill H.
              smash_eq n0 n2; hsimpl in *.
              ++ assert (x = Lock c n1) by eauto with LTS. subst.
-                bullshit.
+                bs.
              ++ assert (x = Lock c n1) by eauto with LTS. subst.
                 specialize (H_lock_Q _ _ eq_refl).
                 clear - H_lock_Q.
@@ -915,7 +915,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       consider (NActCorr a (@NComm PAct _ n0 n1 Q _)) by (apply NActCorr_MNAct_to_PNAct; eauto).
     - unfold net_lock_on in *.
       replace ('' N1) with ('' N0) in H1 by eauto using eq_sym with LTS.
-      bullshit.
+      bs.
   Qed.
 
 
@@ -934,7 +934,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       smash_eq n0 n.
       + hsimpl in *.
         exfalso.
-        eapply pq_lock_recv in H2; eauto; bullshit.
+        eapply pq_lock_recv in H2; eauto; bs.
       + hsimpl in |- *.
         replace (NetMod.get n0 N1) with (NetMod.get n0 N0) by eauto using NV_stay.
         eauto.
@@ -984,7 +984,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       consider (NActCorr a (@NComm PAct _ n1 n0 R _)) by (apply NActCorr_MNAct_to_PNAct; eauto).
     - unfold net_lock_on in *.
       replace ('' N1) with ('' N0) in H1 by eauto using eq_sym with LTS.
-      bullshit.
+      bs.
   Qed.
 
 
@@ -1022,7 +1022,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       eauto using SRPC_net_new_lock_uniq.
     - unfold net_lock_on in *.
       replace ('' N1) with ('' N0) in H4 by eauto using eq_sym with LTS.
-      bullshit.
+      bs.
   Qed.
 
 
@@ -1036,7 +1036,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     - intros HL.
       unfold net_lock_on, net_lock in *.
       hsimpl in *.
-      kill H0; compat_hsimpl in *; bullshit.
+      kill H0; compat_hsimpl in *; bs.
     - eapply SRPC_net_query_new_lock; eauto.
   Qed.
 
@@ -1312,8 +1312,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
              rewrite `(NetMod.get n0 MN0 = _) in *.
              hsimpl in *. hsimpl in *.
              smash_eq n0 t1; compat_hsimpl in *; compat_hsimpl in *.
-             ++ bullshit (NComm m1 m1 Q v0 <> NComm m1 m1 Q v0).
-             ++ bullshit (NComm n0 m1 Q v0 <> NComm n0 m1 Q v0).
+             ++ bs (NComm m1 m1 Q v0 <> NComm m1 m1 Q v0).
+             ++ bs (NComm n0 m1 Q v0 <> NComm n0 m1 Q v0).
           -- enough (Some m0 = Some t1) by attac.
              enough (_of lock MN0 n = _of lock N0' n)
                by (rewrite `(_of lock MN0 n = _) in *;
@@ -1328,7 +1328,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           eapply M_vis_preserve_steady_lock;
           eauto with LTS.
           intros ? ?. hsimpl in *.
-          destruct v; bullshit.
+          destruct v; bs.
       + exfalso.
         ltac1:(autounfold with LTS_get in * ).
         destruct (NetMod.get n N0') as [MQ0' [h0' s0'] S0'] eqn:?.
@@ -1351,7 +1351,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     destruct (_of lock MN1 n) eqn:?; auto.
     assert (forall v, na <> NComm n t1 Q (MValP v)) by auto.
     assert (t0 = t1) by eauto using M_preserve_steady_lock.
-    bullshit.
+    bs.
   Qed.
 
 
@@ -1383,7 +1383,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       assert (NetMod.get n MN0 = NetMod.get n MN1) by eauto using NV_stay with LTS.
       rewrite `(NetMod.get n MN1 = _) in *.
       compat_hsimpl in *. compat_hsimpl in *.
-      bullshit.
+      bs.
   Qed.
 
 
@@ -1398,7 +1398,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     intros.
     consider (MN0 =(_)=> MN1).
     - consider (exists v, a = send (n', Q) (MValP v)) by eauto using M_vis_set_lock.
-      bullshit.
+      bs.
     - enough (exists v', n0 = n /\ n'0 = n' /\ t0 = Q /\ v = MValP v') by (hsimpl in *; exists v'; f_equal; eattac).
       assert (_of lock N0' n = _of lock MN1 n).
       {
@@ -1446,7 +1446,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       assert (NetMod.get n MN0 = NetMod.get n MN1) by eauto using NV_stay with LTS.
       rewrite `(NetMod.get n MN1 = _) in *.
       compat_hsimpl in *. compat_hsimpl in *.
-      bullshit.
+      bs.
   Qed.
 
 
@@ -1466,9 +1466,9 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       destruct (_of lock N0' n) eqn:?.
       + assert (Rad_net N0') by eauto with LTS.
         consider (exists v', recv (n0, t0) v = MActP (Recv (t1, R) v') /\ n'0 = n) by eauto using M_vis_unlock.
-        destruct v; bullshit.
+        destruct v; bs.
       + consider (exists v', send (n'0, t0) v = MActP (Recv (n', R) v') /\ n0 = n) by eauto using M_vis_unlock.
-        destruct v; bullshit.
+        destruct v; bs.
   Qed.
 
 
@@ -1517,7 +1517,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       specialize (H0 []).
       destruct H, H0.
       1: left; attac.
-      all: right; intros ?; hsimpl in *; destruct l0, l1; bullshit.
+      all: right; intros ?; hsimpl in *; destruct l0, l1; bs.
     - intros.
       destruct H1.
       + hsimpl in *.
@@ -1533,7 +1533,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         * right.
           intros Hx; apply H1; clear H1; hsimpl in *.
           specialize (snoc_inv _ l1) as [|]; hsimpl in *.
-          -- bullshit.
+          -- bs.
           -- exists l0, l'.
              rewrite app_assoc in Hx.
              apply app_inj_tail in Hx.
@@ -1541,7 +1541,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         * right.
           intros Hx; apply H1; clear H1; hsimpl in *.
           specialize (snoc_inv _ l1) as [|]; hsimpl in *.
-          -- bullshit.
+          -- bs.
           -- exists l0, l'.
              rewrite app_assoc in Hx.
              apply app_inj_tail in Hx.
@@ -1549,7 +1549,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         * right.
           intros Hx; apply H1; clear H1; hsimpl in *.
           specialize (snoc_inv _ l1) as [|]; hsimpl in *.
-          -- bullshit.
+          -- bs.
           -- exists l0, l'.
              rewrite app_assoc in Hx.
              apply app_inj_tail in Hx.
@@ -1565,7 +1565,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     - specialize (H []).
       destruct H.
       1: left; attac.
-      all: right; intros ?; hsimpl in *; destruct l0, l1; bullshit.
+      all: right; intros ?; hsimpl in *; destruct l0, l1; bs.
     - intros.
       destruct H0.
       + hsimpl in *.
@@ -1581,7 +1581,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         * right.
           intros Hx; apply H0; clear H0; hsimpl in *.
           specialize (snoc_inv _ l1) as [|]; hsimpl in *.
-          -- bullshit.
+          -- bs.
           -- exists l0, l'.
              rewrite app_assoc in Hx.
              apply app_inj_tail in Hx.
@@ -1647,16 +1647,16 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     split; subst init_case prop_case; clear.
     - induction MQ.
-      1: right; intros Hx; hsimpl in Hx; bullshit.
+      1: right; intros Hx; hsimpl in Hx; bs.
 
       destruct a.
       + right; intros ?; hsimpl in *; destruct MQ'; attac.
       + destruct (lock state0) eqn:?.
-        2: right; intros Hx; hsimpl in *; bullshit.
+        2: right; intros Hx; hsimpl in *; bs.
         destruct (Name.eq_dec (init p) (self state0)).
-        2: right; intros Hx; hsimpl in *; bullshit.
+        2: right; intros Hx; hsimpl in *; bs.
         destruct (PeanoNat.Nat.eq_dec (index p) (lock_id state0)).
-        2: right; intros Hx; hsimpl in *; bullshit.
+        2: right; intros Hx; hsimpl in *; bs.
         hsimpl in * |-.
 
         destruct (NChan_eq_dec n0 (n, Q)); subst.
@@ -1674,7 +1674,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
              ++ right.
                 intros Hx; hsimpl in Hx.
                 destruct MQ'0; kill Hx4.
-                specialize (Hx v). bullshit.
+                specialize (Hx v). bs.
              ++ left.
                 exists (TrRecv n0 v :: MQ'), MQ'', n', v0.
                 eattac.
@@ -1685,7 +1685,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
              hsimpl in * |-.
              repeat split; auto.
              intros ? ?.
-             specialize (Hx v1). bullshit.
+             specialize (Hx v1). bs.
       + destruct IHMQ.
         * hsimpl in * |- .
           left.
@@ -1699,9 +1699,9 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           specialize (Hx v0). eapply Hx. eattac.
 
     - destruct (lock state0) eqn:?.
-      2: right; intros Hx; hsimpl in *; bullshit.
+      2: right; intros Hx; hsimpl in *; bs.
       destruct (Name.eq_dec (init p) (self state0)) as [|Heqi].
-      1: right; intros Hx; hsimpl in *; bullshit.
+      1: right; intros Hx; hsimpl in *; bs.
 
       pose (my_prop :=
               fun MQ => NoRecvR_from t0 MQ
@@ -1717,16 +1717,16 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         intros.
         simpl in *.
         destruct (NoRecvR_from_dec t0 MQ).
-        2: right; intros Hx; hsimpl in *; bullshit.
+        2: right; intros Hx; hsimpl in *; bs.
         destruct (NoSends_dec MQ).
-        2: right; intros Hx; hsimpl in *; bullshit.
+        2: right; intros Hx; hsimpl in *; bs.
 
         assert (forall T (l : list T), l = [] \/ exists l' a, l = l' ++ [a]) as snoc_inv.
         {
           clear. induction l; attac. destruct IHl; attac. exists [], a; attac.
         }
         specialize (snoc_inv _ MQ) as [|]; hsimpl in *.
-        1: right; intros Hx; hsimpl in *; bullshit.
+        1: right; intros Hx; hsimpl in *; bs.
         destruct (Event_eq_dec a (EvRecv (t0, R) p)); subst.
         2: right; intros Hx; hsimpl in *; apply app_inj_tail in Hx4; attac.
         destruct (in_dec Name.eq_dec n (waitees state0)).
@@ -1744,7 +1744,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           - left; exists v; attac.
           - right; attac.
         }
-        1,2: unfold NoRecvR_from in *; bullshit.
+        1,2: unfold NoRecvR_from in *; bs.
         unfold NoRecvR_from in *.
         hsimpl in *.
         assert ((exists v : Locks.Val, List.In (TrRecv (n, Q) v) l') \/ ~ exists v : Locks.Val, List.In (TrRecv (n, Q) v) l') as [|].
@@ -1757,7 +1757,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         }
         - left; eattac.
           specialize (H v).
-          hsimpl in *. bullshit.
+          hsimpl in *. bs.
         - right; eattac.
       }
 
@@ -1767,7 +1767,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         left.
         exists MQ', l1, t0.
         eattac.
-        specialize (H0 v). bullshit.
+        specialize (H0 v). bs.
       + right.
         intros ?; apply H; subst my_prop; hsimpl in *.
         exists (MQ' ++ [EvRecv (n', R) p]), MQ''.
@@ -1818,7 +1818,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     unfold net_lock_on, net_lock, no_sends_in, NoTrSend in *.
     kill H0.
     hsimpl in *.
-    bullshit.
+    bs.
   Qed.
 
 
@@ -2024,7 +2024,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     apply lock_singleton in H2. 2: attac.
     unfold net_lock in *.
     compat_hsimpl in *.
-    bullshit.
+    bs.
   Qed.
 
 
@@ -2102,7 +2102,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         enough (Forall (eq n0) L /\ n1 = n0) as Hx. 1: destruct Hx; eauto.
         eauto using lock_self_lock_chain_uniq with LTS.
       }
-      bullshit.
+      bs.
     }
 
     destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
@@ -2123,12 +2123,12 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         smash_eq m0 n0.
         2: right; right; left; eattac.
         consider (n1 = n0') by eauto using SRPC_net_no_immediate_relock with LTS.
-        bullshit.
+        bs.
       + smash_eq m0 n0.
         2: right; right; right; repeat split; auto; eattac.
 
         consider (m1 = n0') by eauto using SRPC_net_no_immediate_relock with LTS.
-        bullshit.
+        bs.
     - consider (exists v, na = NComm n0 n0' Q v) by eauto using SRPC_net_new_lock_query.
       eexists _,_,_; split; eauto.
 
@@ -2147,7 +2147,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         exfalso.
         assert (net_sane N1) by eauto with LTS.
         hsimpl in *.
-        bullshit (List.In m1 (L0 ++ m0 :: m1 :: L1)).
+        bs (List.In m1 (L0 ++ m0 :: m1 :: L1)).
   Qed.
 
 
@@ -2265,7 +2265,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     smash_eq n0 n1.
     {
       assert (deadlocked n0 N0) by eauto using dep_self_deadlocked with LTS.
-      bullshit (net_lock_on N1 n0 n0).
+      bs (net_lock_on N1 n0 n0).
     }
 
     apply dep_lock_chain in H3 as [L' [? ?]].
@@ -2309,7 +2309,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         by (re_have eauto using lock_chain_unlock_tip with LTS).
       strip_exists @H5.
       destruct H5; hsimpl in H5. (* TODO performance *)
-      destruct `(_ \/ _); bullshit.
+      destruct `(_ \/ _); bs.
   Qed.
 
 
@@ -2372,7 +2372,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       eauto.
     - assert ('' N0 = '' N1) by eauto using net_deinstr_act_skip.
       rewrite `('' N0 = _) in *.
-      bullshit.
+      bs.
   Qed.
 
 
@@ -2394,7 +2394,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     assert (exists v', na = NComm n0 n1 Q v') by eauto using SRPC_net_new_lock_query.
     assert (exists v', na = NComm m1 m0 R v') by eauto using SRPC_net_unlock_reply.
     hsimpl in *.
-    bullshit.
+    bs.
   Qed.
 
 
@@ -2433,7 +2433,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     assert (exists v', na = NComm n1 n0 R v') by eauto using SRPC_net_unlock_reply.
     assert (exists v', na = NComm m0 m1 Q v') by eauto using SRPC_net_new_lock_query.
     hsimpl in *.
-    bullshit.
+    bs.
   Qed.
 
 
@@ -2451,7 +2451,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     hsimpl in *.
     generalize dependent m0.
     induction L; intros; hsimpl in *.
-    - assert (~ net_lock_on N0 m0 m1) by (intros ?; apply `(~ dep_on N0 m0 m1); bullshit).
+    - assert (~ net_lock_on N0 m0 m1) by (intros ?; apply `(~ dep_on N0 m0 m1); bs).
       absurd (net_lock_on N1 m0 m1); eauto using SRPC_net_unlock_no_new_lock with LTS.
 
     - rename a into m0'.
@@ -2473,7 +2473,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     intros ?; apply `(~ dep_on _ _ _).
     clear H2.
     consider (dep_on N n0 n2).
-    - bullshit (n1 = n2).
+    - bs (n1 = n2).
     - assert (n1 = n3) by eauto with LTS. (* TODO consider doesn't subst here *)
       (* hsimpl in H3. (* TODO THIS doesn't subst *) *)
       compat_hsimpl in H3.
@@ -2534,9 +2534,9 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
              intros Hx.
              consider (dep_on N1 n0 n1).
              ++ assert (n0' = n1) by eauto 4 using SRPC_net_no_immediate_relock with LTS.
-                bullshit.
+                bs.
              ++ assert (n0' = n2) by eauto 4 using SRPC_net_no_immediate_relock with LTS.
-                bullshit.
+                bs.
         * right.
           assert (net_lock_on N1 n0 n0' \/ ~ net_lock_on N1 n0 n0')
             as [|] by eauto using net_sane_lock_dec with LTS.
@@ -2546,9 +2546,9 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           intros ?.
           consider (dep_on N1 n0 n1).
              ++ assert (n0' = n1) by eauto 4 using SRPC_net_no_immediate_relock with LTS.
-                bullshit.
+                bs.
              ++ assert (n0' = n2) by eauto 4 using SRPC_net_no_immediate_relock with LTS.
-                bullshit.
+                bs.
     -
       assert ((exists m0 m1 v, a = @NComm PAct _ m0 m1 Q v) \/ ~ (exists m0 m1 v, a = @NComm PAct _ m0 m1 Q v)) as [|].
       {
@@ -2581,9 +2581,9 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           hsimpl in H10.
           remember (NComm _ _ _ _) as na; clear Heqna.
           destruct `(_ \/ _); subst.
-          1: bullshit.
+          1: bs.
           hsimpl in H9.
-          bullshit.
+          bs.
         * destruct `(dep_on N0 n0 m1 \/ ~ dep_on N0 n0 m1).
           -- assert (dep_on N1 n0 m1) by eauto 2 using SRPC_net_new_lock_no_unlock_dep with LTS.
              destruct `(dep_on N0 m1 n1 \/ ~ dep_on N0 m1 n1).
@@ -2604,9 +2604,9 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           hsimpl in H11.
           remember (NComm _ _ _ _) as na; clear Heqna.
           destruct `(_ \/ _); subst.
-          1: bullshit.
+          1: bs.
           hsimpl in H10.
-          bullshit.
+          bs.
           -- destruct (net_sane_lock_dec N0 n0 n1); eauto 4 using SRPC_net_new_lock_no_unlock with LTS.
              destruct (net_sane_lock_dec N1 n0 n1); eauto 2 with LTS.
 
@@ -2630,7 +2630,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                   strip_exists @H14.
                   do 2 (destruct `(_ /\ _)). hsimpl in H13.
                   remember (NComm _ _ _ _) as na; clear Heqna.
-                  do 2 (destruct `(_ \/ _)); hsimpl in *; bullshit.
+                  do 2 (destruct `(_ \/ _)); hsimpl in *; bs.
                 }
 
                 clear - HEq HEq0 H3 H4 H5 H6 H H0 H9 H10.
@@ -2647,7 +2647,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                 induction L; intros; hsimpl in *.
                 ** destruct (net_sane_lock_dec N0 n0 m0); eauto 2 with LTS.
                    absurd (n0 = m0 /\ m0 = m1); eauto using SRPC_net_new_lock_uniq.
-                   bullshit.
+                   bs.
                 ** rename a into n0'.
                    kill H8.
                    specialize (IHL ltac:(auto) ltac:(auto) n0').
@@ -2656,14 +2656,14 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                        absurd (n0 = m0 /\ n0' = m1); eauto using SRPC_net_new_lock_uniq.
                        intros Hx; hsimpl in Hx.
 
-                       bullshit.
+                       bs.
                    --- destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
                        absurd (n0 = m0 /\ n0' = m1); eauto using SRPC_net_new_lock_uniq.
-                       bullshit.
+                       bs.
                    --- subst.
                        destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
                        absurd (n0 = m0 /\ n0' = n0'); eauto using SRPC_net_new_lock_uniq.
-                       bullshit.
+                       bs.
              ++
 
                right.
@@ -2682,7 +2682,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           hsimpl in H11.
 
           remember (NComm _ _ _ _) as na; clear Heqna.
-          destruct `(_ \/ _), `(_ \/ _); hsimpl in *; bullshit.
+          destruct `(_ \/ _), `(_ \/ _); hsimpl in *; bs.
 
       + right.
         intros Hx.
@@ -2848,7 +2848,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         hsimpl in *.
         absurd (List.In (n1, R, v) ((I1 ++ [(n1, R, v)]) ++ MQ_r MQ0)); attac.
     - consider (exists v, na = NComm n0 n1 Q (MValP v)) by eauto using SRPC_M_net_new_lock_query.
-      (* TODO fix this shit *)
+      (* TODO fix this disgrace *)
       kill H2. hsimpl in *.
       assert (h = Rad_handle) by eauto with LTS.
       smash_eq n0 n1; hsimpl in *; hsimpl in |- *; attac.
@@ -2967,7 +2967,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     - kill H.
       destruct S1.
       hsimpl in *.
-      bullshit.
+      bs.
     - attac.
     - hsimpl in *.
       destruct n, t0, s; auto; destruct lock0; simpl; auto.
@@ -3003,14 +3003,14 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     consider (mq MQ0 _ _ =(_)=> _); compat_hsimpl in *; attac 4; hsimpl in |- *;
       rewrite `(MQ_s _ = _) in *; attac.
     - destruct n0 as [? [|]].
-      2: bullshit.
+      2: bs.
       assert (~ List.In (n1, R, v0) [(n0, Q, v)]) by (intros ?; attac).
       assert (~ List.In (n1, R, v) (I1 ++ MQ_r MQ0)) by attac.
-      apply in_app_or in H5 as [|]. bullshit.
-      apply in_app_or in H5 as [|]. bullshit.
-      bullshit.
+      apply in_app_or in H5 as [|]. bs.
+      apply in_app_or in H5 as [|]. bs.
+      bs.
     - rewrite <- app_assoc in *.
-      bullshit.
+      bs.
     - kill TP; attac.
   Qed.
 
@@ -3095,14 +3095,14 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       kill H2.
       - smash_eq n n0.
         + destruct a; doubt.
-          eapply deadlocked_vis_preserve_M_lock_id; eauto; bullshit.
-          eapply deadlocked_vis_preserve_M_lock_id; eauto; bullshit.
+          eapply deadlocked_vis_preserve_M_lock_id; eauto; bs.
+          eapply deadlocked_vis_preserve_M_lock_id; eauto; bs.
         + ltac1:(autounfold with LTS_get).
           replace (NetMod.get n MN1) with (NetMod.get n MN0); attac.
       - transitivity '(_of lock_id N0' n).
         + smash_eq n n0.
           * eapply deadlocked_vis_preserve_M_lock_id; eauto. intros.
-            destruct v; bullshit.
+            destruct v; bs.
           * ltac1:(autounfold with LTS_get).
             replace (NetMod.get n N0') with (NetMod.get n MN0); attac.
         + smash_eq n n0.
@@ -3192,7 +3192,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         smash_eq n t0; attac.
       - kill H.
         destruct S1.
-        bullshit.
+        bs.
       - attac.
       - hsimpl in *.
 
@@ -3292,14 +3292,14 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       kill H2.
       - smash_eq n n0.
         + destruct a; doubt.
-          eapply deadlocked_vis_preserve_in_waitees; eauto; bullshit.
-          eapply deadlocked_vis_preserve_in_waitees; eauto; bullshit.
+          eapply deadlocked_vis_preserve_in_waitees; eauto; bs.
+          eapply deadlocked_vis_preserve_in_waitees; eauto; bs.
         + ltac1:(autounfold with LTS_get).
           replace (NetMod.get n MN1) with (NetMod.get n MN0); attac.
       - assert (List.In m (_of waitees N0' n)).
         + smash_eq n n0.
           * eapply deadlocked_vis_preserve_in_waitees; eauto. intros.
-            destruct v; bullshit.
+            destruct v; bs.
           * ltac1:(autounfold with LTS_get).
             replace (NetMod.get n N0') with (NetMod.get n MN0); attac.
         + smash_eq n n0.
@@ -3446,7 +3446,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                  rewrite `(NetMod.get n MN0 = _ ) in *.
                  kill H3.
                  destruct P0.
-                 bullshit.
+                 bs.
                }
                ltac1:(autounfold with LTS_get in * ).
                smash_eq n n' n1; hsimpl in |- *; auto; doubt; hsimpl in *; destruct t0; doubt.
@@ -3511,7 +3511,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         assert (net_lock_on N n0 n') by eattac.
         assert (dep_on N n0 n') as HD' by attac.
         apply HL in HD'.
-        bullshit.
+        bs.
       }
 
       specialize (deadset_dep_set_deadset HDS HL HLnil HIn) as HDSL.
@@ -3774,10 +3774,10 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
             assert (NoRecvR_from n' MQ0) by (intros ? ?; apply (H v1); eattac).
             destruct t0; smash_eq n0 n; destruct p; attac.
             smash_eq n0 n'; eattac.
-            1: specialize (H v); bullshit.
+            1: specialize (H v); bs.
             smash_eq n n'; attac.
             1: econstructor 1; eattac.
-            specialize (H v); bullshit.
+            specialize (H v); bs.
         + destruct MQ0; kill H7.
 
           smash_eq n n0.
@@ -3793,7 +3793,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
             assert (NoRecvR_from n' MQ0) by (intros ? ?; apply (H v0); eattac).
             destruct t0; smash_eq n n'.
-            3: specialize (H v); bullshit.
+            3: specialize (H v); bs.
             econstructor 4; eattac. 1: right; eattac.
             econstructor 2; eattac.
             econstructor 4; eattac. 1: right; eattac.
@@ -3814,14 +3814,14 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
             assert (NoRecvR_from n' MQ0) by (intros ? ?; apply (H v0); eattac).
             destruct t0; smash_eq n n'.
-            3: specialize (H v); bullshit.
+            3: specialize (H v); bs.
             econstructor 4; eattac.
             econstructor 2; eattac. destruct `(_ \/ _); attac.
             econstructor 2; eattac.
             hsimpl.
             econstructor 2; eattac.
       - kill H1.
-        all: destruct MQ0; hsimpl in *; bullshit.
+        all: destruct MQ0; hsimpl in *; bs.
       - destruct M1; attac.
       - kill H.
         destruct M1; hsimpl in *; eattac.
@@ -3832,14 +3832,14 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           * destruct MQ0; kill H7.
             hsimpl in *.
             econstructor 1; eattac.
-            specialize (H v0). bullshit.
+            specialize (H v0). bs.
           * destruct MQ0; kill H7.
             hsimpl in *.
             econstructor 2; destruct H4; eattac.
-            specialize (H v); bullshit.
-            specialize (H v); bullshit.
+            specialize (H v); bs.
+            specialize (H v); bs.
         + destruct lock0.
-          2: kill H1; bullshit.
+          2: kill H1; bs.
           smash_eq n t0; hsimpl in |- *.
           * destruct p, msg; hsimpl in *.
             smash_eq init1 self0; hsimpl in *.
@@ -3847,18 +3847,18 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                ++ {
                     kill H1; hsimpl in *.
                     -- destruct MQ0; kill H7; hsimpl in *; econstructor 1; eattac.
-                       specialize (H v0); bullshit.
+                       specialize (H v0); bs.
                     -- destruct MQ0; kill H7; hsimpl in *; econstructor 2; kill H4; eattac.
-                       specialize (H v); bullshit.
-                       specialize (H v); bullshit.
+                       specialize (H v); bs.
+                       specialize (H v); bs.
                   }
                ++ {
                     kill H1; hsimpl in *.
                     -- destruct MQ0; kill H7; hsimpl in *; econstructor 1; eattac.
-                       specialize (H v0); bullshit.
+                       specialize (H v0); bs.
                     -- destruct MQ0; kill H7; hsimpl in *; econstructor 2; kill H4; eattac.
-                       specialize (H v); bullshit.
-                       specialize (H v); bullshit.
+                       specialize (H v); bs.
+                       specialize (H v); bs.
                   }
             -- destruct nc.
                remember {|
@@ -3875,10 +3875,10 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                2: subst; apply sends_probe_skip_neq; attac.
                2: kill H1.
                2: destruct MQ0; kill H8; econstructor 1; eattac.
-               2: specialize (H v0); bullshit.
+               2: specialize (H v0); bs.
                2: destruct MQ0; kill H8; doubt; econstructor 2; kill H4; eattac.
-               2: specialize (H v); bullshit.
-               2: specialize (H v); bullshit.
+               2: specialize (H v); bs.
+               2: specialize (H v); bs.
 
                hsimpl in e.
 
@@ -3889,11 +3889,11 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                   kill H1.
                   ** destruct MQ0; kill H8; hsimpl in *.
                      econstructor 1; eattac.
-                  ** destruct MQ0; kill H8; hsimpl in *. 1: bullshit.
+                  ** destruct MQ0; kill H8; hsimpl in *. 1: bs.
                      econstructor 2; eattac.
-                     specialize (H v0); bullshit.
+                     specialize (H v0); bs.
                }
-               destruct t0. 1: bullshit.
+               destruct t0. 1: bs.
 
                smash_eq n0 a.
                1: econstructor 3.
@@ -3918,10 +3918,10 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
             destruct p; simpl in *; subst.
             kill H1; hsimpl in *.
             ++ destruct MQ0; kill H7; econstructor 1; eattac.
-               specialize (H v0); bullshit.
+               specialize (H v0); bs.
             ++ destruct MQ0; kill H7; econstructor 2; kill H4; eattac.
-               specialize (H v); bullshit.
-               specialize (H v); bullshit.
+               specialize (H v); bs.
+               specialize (H v); bs.
     Qed.
 
 
@@ -3938,7 +3938,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       - kill H0.
         consider (a = send (n1, &t) p) by (eapply mq_sends_probe_sent; eattac).
       - replace (NetMod.get n0 MN1) with (NetMod.get n0 MN0) by eauto using NV_stay.
-        bullshit.
+        bs.
     Qed.
 
 
@@ -3953,7 +3953,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       intros.
       kill H0.
       - consider (_ /\ a0 = send (n1, &t) p) by (eauto using vis_sends_probe_sent).
-        bullshit.
+        bs.
       - assert (Rad_net N0').
         {
           unfold Rad_net. intros.
@@ -3972,7 +3972,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         }
         destruct (sends_probe_dec (n1, &t) p (NetMod.get n0 N0')); eauto with LTS.
         + consider (_ /\ recv (n, t0) v = send (n1, &t) p) by eauto using vis_sends_probe_sent.
-          destruct v; bullshit.
+          destruct v; bs.
         + clear H2.
           consider (n = n0 /\ send (n', t0) v = send (n1, &t) p) by eauto using vis_sends_probe_sent.
           destruct v; kill H6.
@@ -4110,7 +4110,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
             intros ? ?.
             consider (List.In (TrRecv (n0, Q) v) MQ \/ List.In _ [EvRecv (n2, R) p])
               by eauto using in_app_or.
-            bullshit.
+            bs.
           }
           hsimpl in *.
           intros ? ?.
@@ -4150,7 +4150,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
             intros ? ?.
             consider (List.In (TrRecv (n0, Q) v0) MQ \/ List.In _ [EvRecv (n2, R) p])
               by eauto using in_app_or.
-            bullshit.
+            bs.
           }
           hsimpl in *.
           intros ? ?.
@@ -4217,13 +4217,13 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       {
         destruct (net_sane_lock_dec MN1 n0 n1); auto.
         assert (exists v, NComm n2 n1 R p = NComm n1 n0 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
-        hsimpl in *; bullshit.
+        hsimpl in *; bs.
       }
       assert (net_lock_on '' MN1 n1 n2).
       {
         destruct (net_sane_lock_dec MN1 n1 n2); auto.
         assert (exists v, NComm n2 n1 R p = NComm n2 n1 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
-        hsimpl in *; bullshit.
+        hsimpl in *; bs.
       }
 
       assert (NoRecvR_MQ (get_MQ MN1 n1)) by eauto using locked_M_NoRecvR with LTS.
@@ -4293,13 +4293,13 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         enough (NoRecvQ_from n0 (MQ ++ [EvRecv (n2, R) p])) by eauto.
         intros ? ?.
         apply in_app_or in H20 as [|].
-        2: bullshit.
+        2: bs.
 
         eattac.
 
       * enough (NoRecvQ_from n0 (MQ ++ [EvRecv (n2, R) p])) by eauto.
         enough (NoRecvQ_from n0 MQ)
-          by (intros ? ?; apply in_app_or in H21 as [|]; bullshit).
+          by (intros ? ?; apply in_app_or in H21 as [|]; bs).
         (* clear - H16 H17 H H10 H20. *)
         hsimpl in *.
         intros ?.
@@ -4335,7 +4335,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
       * enough (NoRecvQ_from n0 (MQ ++ [EvRecv (n2, R) p])) by eauto.
         enough (NoRecvQ_from n0 MQ)
-          by (intros ? ?; apply in_app_or in H21 as [|]; bullshit).
+          by (intros ? ?; apply in_app_or in H21 as [|]; bs).
         hsimpl in *.
         intros ?.
 
@@ -4428,7 +4428,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                 smash_eq m0 m'; attac.
                 rewrite H. attac.
              -- destruct `(m = m0 \/ dep_on '' MN0 m m0).
-                1: bullshit.
+                1: bs.
 
                 assert (deadlocked m0 '' MN0) by eauto 3 with LTS.
                 assert (deadlocked m '' MN0) by eauto 3 with LTS.
@@ -4498,7 +4498,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
                intros Hx. clear - Hx.
                unfold no_sends_in, NoTrSend in *.
-               compat_hsimpl in *. bullshit.
+               compat_hsimpl in *. bs.
 
             -- simpl in *.
                assert (self s = m).
@@ -4512,7 +4512,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                }
                (* clear - H6 H9 H11 H13 H15. *)
                destruct l1.
-               1: bullshit.
+               1: bs.
 
                consider ((e :: _) ++ _ = TrRecv _ _ :: _).
                econstructor 3; eauto.
@@ -5314,7 +5314,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           ltac1:(autounfold with LTS_get in H_lock_C).
           rewrite `(NetMod.get n MN1 = _) in H_lock_C.
           simpl in *.
-          bullshit.
+          bs.
         }
         assert (n = self0).
         {
@@ -5325,7 +5325,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           auto.
         }
 
-        destruct lock0. 2: bullshit.
+        destruct lock0. 2: bs.
         subst.
 
         attac.
@@ -5430,7 +5430,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                 intros ? Hx.
                 kill Hx.
                 apply in_app_or in H17 as [|].
-                1: specialize (H16 v0); bullshit.
+                1: specialize (H16 v0); bs.
                 clear - H17 H10.
                 unfold MQ_Clear in *.
                 eapply Forall_forall in H10; eauto. eauto.
@@ -5536,7 +5536,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           -- exfalso.
              unfold hot, get_MQ, _of, get_Mc, get_M in *.
              hsimpl in *.
-             bullshit.
+             bs.
 
         * enough (exists MN3 mpath1 MQn',
                      (MN2 =[ mpath1 ]=> MN3) /\
@@ -5577,7 +5577,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           clear - waitees0 H18.
           generalize dependent MN1 MQ'.
           induction waitees0; intros.
-          1: bullshit.
+          1: bs.
           simpl in *.
 
           assert (exists MQ3 MN2 MQn',
@@ -6059,7 +6059,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           ltac1:(autounfold with LTS_get in * ).
           f_equal.
           auto.
-        }  (* todo shit *)
+        }  (* todo disgrace *)
         rewrite <- `(p = _).
         rewrite `(get_MQ _ _ = _).
         auto with datatypes.
@@ -6157,7 +6157,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           ltac1:(autounfold with LTS_get in H_lock_C).
           rewrite `(NetMod.get n MN1 = _) in H_lock_C.
           simpl in *.
-          bullshit.
+          bs.
         }
         assert (n = self0).
         {
@@ -6168,7 +6168,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           auto.
         }
 
-        destruct lock0. 2: bullshit.
+        destruct lock0. 2: bs.
         subst.
 
         attac.

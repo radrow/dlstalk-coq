@@ -134,8 +134,8 @@ Module Thomas.
 
 
   Inductive Handler (state_t : Set) :=
-  | handle_end (reply : Val) (next_state : state_t) : Handler state_t
-  | handle_call (to : string) (arg : Val) (cont : Val -> Handler state_t) : Handler state_t
+  | h_reply (reply : Val) (next_state : state_t) : Handler state_t
+  | h_call (to : string) (arg : Val) (cont : Val -> Handler state_t) : Handler state_t
   .
 
 
@@ -155,9 +155,9 @@ Module Thomas.
               fun from arg =>
                 run_gen_server {|gs_state:=GSHandle _ from (gsh from arg gss); gs_handler:=gsh|}
             )
-      | {|gs_state:=GSHandle _ client (handle_end _ reply next_state); gs_handler:=gsh|} =>
+      | {|gs_state:=GSHandle _ client (h_reply _ reply next_state); gs_handler:=gsh|} =>
           PSend (client, R) reply (run_gen_server {|gs_state := GSReady _ next_state; gs_handler := gsh|})
-      | {|gs_state:=GSHandle _ client (handle_call _ to arg handler_cont); gs_handler:=gsh|} =>
+      | {|gs_state:=GSHandle _ client (h_call _ to arg handler_cont); gs_handler:=gsh|} =>
           call to arg (fun v =>
                          run_gen_server {|gs_state:=GSHandle _ client (handler_cont v); gs_handler := gsh|}
             )
@@ -200,11 +200,11 @@ Module Thomas.
     intros.
     constructor; intros.
     - eapply SRPC_recvr_h; auto.
-    - kill H0; bullshit.
-    - kill H0; bullshit.
+    - kill H0; bs.
+    - kill H0; bs.
     - kill H0.
       blast_cases; attac.
-    - kill H0; bullshit.
+    - kill H0; bs.
   Qed.
 
   Lemma SRPC_call client cont :
@@ -337,9 +337,10 @@ Module Thomas.
     run_gen_server {|gs_state:=GSReady _ init; gs_handler:=handle_call|}.
 
 
-  Arguments handle_end {state_t} reply next_state.
+  Arguments h_call {state_t} reply next_state.
+  Arguments h_reply {state_t} reply next_state.
 
-  Definition Echo := gen_server tt (fun _ v st => handle_end v st).
+  Definition Echo := gen_server tt (fun _ v st => h_reply v st).
 
   Definition Finger name i to arg :=
     match i with
@@ -369,7 +370,7 @@ Module Thomas.
         fun n => match n with
               | Worker name =>
                   match workers conf name with
-                    worker_conf init_call_ handle_call_ => pq [] (gen_server init_call_ handle_call_) []
+                    worker_conf init_call_ handle_call => pq [] (gen_server init_call_ handle_call) []
                   end
               | Initiator name i =>
                   match inits conf name with
@@ -557,10 +558,10 @@ Module Thomas.
     rewrite NetMod.init_get in *.
     blast_cases.
     kill H.
-    assert (SRPC Free (gen_server &init handle_call0)) by eauto using SRPC_gen_server.
+    assert (SRPC Free (gen_server &init handle_call)) by eauto using SRPC_gen_server.
     apply lock_SRPC_Lock in H1.
     - attac.
-      bullshit (Lock c other = Free).
+      bs (Lock c other = Free).
     - eexists; eauto.
   Qed.
 
@@ -589,9 +590,9 @@ Module Thomas.
     unfold make_net in *.
     rewrite NetMod.init_get in *.
     kill H; blast_cases; doubt; attac.
-    assert (SRPC Free (gen_server &init handle_call0)) by apply SRPC_gen_server.
+    assert (SRPC Free (gen_server &init handle_call)) by apply SRPC_gen_server.
     consider (proc_client _ _).
-    bullshit (Busy _ = Free).
+    bs (Busy _ = Free).
   Qed.
 
 
@@ -602,12 +603,12 @@ Module Thomas.
   Proof.
     intros.
     destruct n0 as [name0 [|i0] | name0].
-    - apply make_net_lock_init in H; bullshit.
+    - apply make_net_lock_init in H; bs.
     - assert (net_lock_on (make_net conf) (Initiator name0 (S i0)) (Initiator name0 i0)) by
         eauto using make_net_lock_finger.
       assert (n1 = Initiator name0 i0) by (eapply SRPC_net_lock_uniq; eauto using make_net_SRPC).
       attac.
-    - apply make_net_lock_worker in H; bullshit.
+    - apply make_net_lock_worker in H; bs.
   Qed.
 
 
@@ -629,9 +630,9 @@ Module Thomas.
         kill H0.
         eassert (Busy x = Lock _ (Initiator s _)) by attac.
         attac.
-    - assert (SRPC Free (gen_server &init handle_call0)) by eauto using SRPC_gen_server.
+    - assert (SRPC Free (gen_server &init handle_call)) by eauto using SRPC_gen_server.
       kill H0.
-      bullshit (Busy x = Free).
+      bs (Busy x = Free).
   Qed.
 
 
@@ -852,7 +853,7 @@ Module Thomas.
       destruct m0.
       simpl in *.
       blast_cases; simpl in *; kill Heqm; kill Heqm0; simpl in *.
-      all: bullshit.
+      all: bs.
     -  unfold make_mnet in *.
        rewrite net_deinstr_instr.
 
@@ -865,7 +866,7 @@ Module Thomas.
        destruct m0.
        simpl in *.
        blast_cases; simpl in *; kill Heqm; kill Heqm0; simpl in *.
-       all: bullshit.
+       all: bs.
     -  unfold make_mnet in *.
        rewrite net_deinstr_instr.
 
@@ -878,6 +879,6 @@ Module Thomas.
        destruct m.
        simpl in *.
        blast_cases; simpl in *; kill Heqm; simpl in *.
-       all: bullshit.
+       all: bs.
   Qed.
 End Thomas.

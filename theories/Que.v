@@ -103,7 +103,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
     inversion H.
   Qed.
 
-  #[export] Hint Resolve Deq_nil : LTS bullshit.
+  #[export] Hint Resolve Deq_nil : LTS bs.
 
 
   (** Decidability of arbitrary deque *)
@@ -179,7 +179,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
 
   Proof.
     induction Q0; intros.
-    1: bullshit.
+    1: bs.
 
     destruct a as [n' v'].
     destruct (NChan_eq_dec n' n); kill H; subst.
@@ -206,7 +206,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
       hsimpl in *; consider (Deq _ _ _ _); attac.
   Qed.
 
-  #[export] Hint Resolve Deq_not_In : bullshit.
+  #[export] Hint Resolve Deq_not_In : bs.
 
 
   (** Finding the dequed element *)
@@ -250,11 +250,11 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
   (*   attac. *)
 
   (*   assert (~ (In (n, v') Q0 /\ v <> v')) by eauto. *)
-  (*   bullshit. *)
+  (*   bs. *)
   (*   hsimpl in *. *)
 
   (*   simpl in *; *)
-  (*     try (ltac1:(autorewrite with bullshit in * )); *)
+  (*     try (ltac1:(autorewrite with bs in * )); *)
   (*     solve *)
   (*       [ contradiction *)
   (*       | congruence *)
@@ -268,17 +268,17 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
   (*             | not _ => *)
   (*                 exfalso; *)
   (*                 apply $hh; *)
-  (*                 solve [eauto 3 with bullshit LTS datatypes] *)
+  (*                 solve [eauto 3 with bs LTS datatypes] *)
   (*             | _ => *)
   (*                 absurd $p > [| exact $hh ]; *)
-  (*                 solve [eauto 4 with bullshit LTS datatypes] *)
+  (*                 solve [eauto 4 with bs LTS datatypes] *)
   (*             end *)
   (*         end *)
   (*       ]. *)
 
   (* Qed. *)
 
-  (* #[export] Hint Resolve Deq_split_bs : bullshit. *)
+  (* #[export] Hint Resolve Deq_split_bs : bs. *)
 
 
   (** Dequeing two different things is interchangable *)
@@ -376,7 +376,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
     ltac1:(lia).
   Qed.
 
-  #[export] Hint Resolve Deq_length : LTS bullshit.
+  #[export] Hint Resolve Deq_length : LTS bs.
 
 
   (** Deq changes length *)
@@ -392,7 +392,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
     ltac1:(lia).
   Qed.
 
-  #[export] Hint Resolve Deq_length_neq : LTS bullshit.
+  #[export] Hint Resolve Deq_length_neq : LTS bs.
 
 
   (** Que after Deq is a subque of the original one *)

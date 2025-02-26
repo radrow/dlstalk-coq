@@ -441,7 +441,7 @@ Lemma app_self_r [A] (l0 l1 : list A) : (l0 = l1 ++ l0) <-> l1 = [].
     rewrite H in *.
 
     apply IHl0 in H1.
-    bullshit.
+    bs.
   - attac.
 Qed.
 
@@ -500,7 +500,7 @@ Proof.
   induction l0; attac.
 Qed.
 
-#[export] Hint Rewrite -> cons_self_l cons_self_r using assumption : bullshit.
+#[export] Hint Rewrite -> cons_self_l cons_self_r using assumption : bs.
 
 
 Lemma nodup_one : forall [A] (l : list A),
@@ -510,7 +510,7 @@ Lemma nodup_one : forall [A] (l : list A),
 
 Proof.
   intros.
-  destruct l > [|destruct l]; simpl in *; try (bullshit).
+  destruct l > [|destruct l]; simpl in *; try (bs).
   eauto.
 Qed.
 
@@ -555,7 +555,7 @@ Lemma nodup_one_all_same : forall T a l (eq_dec : forall x0 x1 : T, {x0=x1}+{x0<
 
 Proof.
   intros.
-  induction l; simpl in *; try (bullshit).
+  induction l; simpl in *; try (bs).
 
   destruct (eq_dec a a0); subst.
   - constructor; auto.
@@ -566,7 +566,7 @@ Proof.
     constructor.
   - destruct (in_dec eq_dec a0 l); auto.
     + specialize (IHl H); clear H H0.
-      enough (a = a0) by bullshit.
+      enough (a = a0) by bs.
       specialize (Forall_forall (eq a) l) as [H _].
       apply H; auto.
     + kill H.
@@ -579,10 +579,10 @@ Proof.
   2: contradiction.
   intros. induction l; simpl in *.
   - discriminate.
-  - bullshit.
+  - bs.
 Qed.
 
-#[export] Hint Rewrite -> append_bs using spank : bullshit.
+#[export] Hint Rewrite -> append_bs using spank : bs.
 
 
 #[export] Hint Rewrite -> app_self_l app_self_r app_self_l' app_self_r' using assumption : LTS LTS_concl.

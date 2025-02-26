@@ -65,15 +65,15 @@ Module Tag_ <: UsualDecidableSet.
   Lemma eqb_eq : forall x y : t, eqb x y = true <-> eq x y.
   Proof.
     intros x y. split; intros H.
-    - destruct x; destruct y; unfold eqb in H; try (bullshit); apply eq_refl.
+    - destruct x; destruct y; unfold eqb in H; try (bs); apply eq_refl.
     - destruct x; destruct y; unfold eqb; simpl; kill H.
   Qed.
 
   Lemma eqb_neq : forall x y : t, eqb x y = false <-> x <> y.
   Proof.
     intros x y. split; intros H.
-    - destruct x; destruct y; unfold eqb in H; try (bullshit); apply eq_refl.
-    - destruct x; destruct y; unfold eqb; simpl; try (bullshit); auto.
+    - destruct x; destruct y; unfold eqb in H; try (bs); apply eq_refl.
+    - destruct x; destruct y; unfold eqb; simpl; try (bs); auto.
   Qed.
 End Tag_.
 
@@ -180,7 +180,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
       constructor.
       Guarded.
       assumption.
-    - split; try (bullshit).
+    - split; try (bs).
     Qed.
   End Examples.
 
@@ -299,9 +299,9 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     destruct n as [n t].
     consider ((In n L <-> handle (n, R) <> None) /\ handle (n, Q) = None).
     destruct `(Tag).
-    - cbv in *; bullshit.
+    - cbv in *; bs.
     - enough (handle (n, R) <> None) by eattac.
-      cbv in *; bullshit.
+      cbv in *; bs.
   Qed.
 
   #[export] Hint Resolve proc_lock_recv : LTS.
@@ -356,7 +356,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   Proof.
     intros.
     kill H.
-    destruct (&handle (n, Q)) eqn:HEq; try (bullshit).
+    destruct (&handle (n, Q)) eqn:HEq; try (bs).
     apply HDecQ in HEq.
     apply HEq.
   Qed.
@@ -371,7 +371,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   Proof.
     intros.
     kill H.
-    destruct (&handle (n, R)) eqn:HEq; try (bullshit).
+    destruct (&handle (n, R)) eqn:HEq; try (bs).
     apply HDecR in HEq.
     apply HEq.
   Qed.
@@ -386,7 +386,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   Proof.
     intros.
     kill H. hsimpl in *.
-    destruct (&handle (n, Q)) eqn:HEq; try (bullshit).
+    destruct (&handle (n, Q)) eqn:HEq; try (bs).
     apply HDecQ in HEq.
     apply HEq.
   Qed.
@@ -401,7 +401,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   Proof.
     intros.
     kill H. hsimpl in *.
-    destruct (&handle (n, R)) eqn:HEq; try (bullshit).
+    destruct (&handle (n, R)) eqn:HEq; try (bs).
     apply HDecR in HEq.
     apply HEq.
   Qed.
@@ -435,17 +435,17 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     unfold proc_lock.
     unfold trans_invariant.
     intros N0 N1 a T HL0 Ha.
-    destruct N0; try (bullshit).
+    destruct N0; try (bs).
     unfold not_unlocking_msg in Ha. unfold unlocking_msg in Ha.
     kill T.
     destruct n.
     destruct (HL0 n).
     destruct t.
-    - cbv in *; bullshit.
+    - cbv in *; bs.
     - assert (handle (n, R) <> None).
       {
         unfold not. intros.
-        cbv in *; bullshit.
+        cbv in *; bs.
       }
       absurd (Some P = None)...
   Qed.
@@ -467,10 +467,10 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     rename H0 into HL.
     rename H1 into HUnl.
 
-    destruct P; try (bullshit).
+    destruct P; try (bs).
 
     kill T...
-    bullshit (In (n0, R, v0) &I).
+    bs (In (n0, R, v0) &I).
   Qed.
 
 
@@ -496,7 +496,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     specialize (pq_lock_recv HL0 T) as H.
 
     kill HL0.
-    kill T; try (bullshit).
+    kill T; try (bs).
     attac.
 
     unfold not; intros.
@@ -520,7 +520,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     unfold proc_lock.
     intros HL0 HL1.
 
-    destruct P; try (bullshit).
+    destruct P; try (bs).
 
     unfold incl.
     intros n HIn.
@@ -556,7 +556,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     unfold proc_lock.
     intros HL HIncl0 HIncl1.
 
-    destruct P; try (bullshit).
+    destruct P; try (bs).
 
     intro n.
     specialize (HL n) as [Hh HNeq].
@@ -686,7 +686,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     consider (pq_lock _ _).
 
     eattac.
-    bullshit (~ In (n0, R, v0) (I0 ++ [(n, R, v)])).
+    bs (~ In (n0, R, v0) (I0 ++ [(n, R, v)])).
   Qed.
 
   Lemma pq_recv_no_new_lock [S0 S1 nc v L] :
@@ -700,7 +700,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     consider (_ =(_)=> _); simpl in *.
     consider (pq_lock _ _).
     eattac.
-    bullshit (~ In (n, R, v0) (I0 ++ [(nc, v)])).
+    bs (~ In (n, R, v0) (I0 ++ [(nc, v)])).
   Qed.
 
   Lemma pq_recv_Q_derive_lock [S0 S1 n v L] :
@@ -713,7 +713,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     consider (_ =(_)=> _); simpl in *.
     consider (pq_lock _ _).
     eattac.
-    bullshit (~ In (n0, R, v0) (I0 ++ [(n, Q, v)])).
+    bs (~ In (n0, R, v0) (I0 ++ [(n, Q, v)])).
   Qed.
 End LOCKS_F.
 

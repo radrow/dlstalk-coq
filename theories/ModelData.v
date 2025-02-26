@@ -93,7 +93,7 @@ Module Type CHANNEL_F(Import Conf : CHANNEL_CONF)(Import Params : CHANNEL_PARAMS
       (n0, t0) <> (n1, t1).
   Proof. attac. Qed.
 
-  #[export] Hint Resolve NChan_neq_Name_inv NChan_neq_Tag_inv : core. (* fuck coq *)
+  #[export] Hint Resolve NChan_neq_Name_inv NChan_neq_Tag_inv : core. (* fsck coq *)
 
 
   Class gen_Act (Act : Set) :=

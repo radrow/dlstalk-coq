@@ -309,7 +309,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
       unfold net_lock in *.
       hsimpl in *.
       rewrite pq_lock_recv_inv in T; eauto.
-      hsimpl in *. bullshit.
+      hsimpl in *. bs.
     Qed.
 
 
@@ -369,15 +369,15 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
       destruct a; simpl in HInP.
       - destruct HInP; auto; subst.
         eapply deadset_no_tau in T; eauto.
-        bullshit.
-        bullshit.
+        bs.
+        bs.
       - destruct HInP; auto; subst.
 
         eapply deadset_no_send in T; eauto.
-        bullshit.
+        bs.
 
         destruct H; subst; eauto.
-        bullshit.
+        bs.
     Qed.
 
 
@@ -828,7 +828,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         + exists (n1::L); split...
           constructor; auto.
           unfold not; intros.
-          kill H0; bullshit.
+          kill H0; bs.
     Qed.
 
 
@@ -1011,7 +1011,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         + exists n1, Lc1...
         + kill HIn; doubt.
           kill H_x.
-          1: bullshit.
+          1: bs.
           apply HLIn in H0.
           eapply HNL in H0; doubt.
           destruct H0.
@@ -1135,7 +1135,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
             auto.
           + intros HIn.
             apply H in HIn.
-            bullshit.
+            bs.
         - specialize (partition_first_find _ _ HEqn1) as HEqn.
           apply NAME.eqb_eq in HEqn.
           subst.
@@ -1153,7 +1153,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
             }
             intros HIn.
             apply H in HIn.
-            bullshit.
+            bs.
       }
 
       generalize dependent n1.
@@ -1194,7 +1194,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           kill HIn; doubt.
           eapply Forall_forall in Hn0.
           eapply NAME_H.eqb_neq_inv in Hn0.
-          bullshit.
+          bs.
           auto.
         + specialize (partition_last_find _ _ HEqn0) as HEqL.
           apply NAME.eqb_eq in HEqL. subst.
@@ -1206,7 +1206,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           intros HIn.
           eapply Forall_forall in Hn0.
           eapply NAME_H.eqb_neq_inv in Hn0.
-          bullshit.
+          bs.
           auto.
 
       - intros a L L0 L1 Hpart HI n0 n1 HLc.
@@ -1304,7 +1304,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           apply HDepIn in H0.
           destruct H0; subst; eauto with datatypes.
           apply H in HL.
-          bullshit.
+          bs.
     Qed.
 
     #[export] Hint Immediate deadset_dep_set : LTS.
@@ -1547,11 +1547,11 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Hint Resolve lock_uniq lock_neq_nil : LTS.
 
         Local Lemma lock_nil_bs [n] : net_lock N [] n -> False.
-        Proof. unfold lock_neq_nil_type in *. bullshit. Qed.
+        Proof. unfold lock_neq_nil_type in *. bs. Qed.
 
-        Hint Immediate lock_nil_bs : bullshit.
+        Hint Immediate lock_nil_bs : bs.
 
-        Hint Unfold lock_neq_nil_type : LTS bullshit.
+        Hint Unfold lock_neq_nil_type : LTS bs.
         Lemma net_get_lock [L n0] :
           net_lock N L n0 ->
           exists n1, net_lock N [n1] n0.
@@ -1871,7 +1871,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
             specialize (lock_chain_break H0 H2) as [HEq' | [L [HEq' HLc]]]; subst.
             { rewrite app_nil_r in *.
               rewrite (lock_chain_target H0 H2) in *.
-              bullshit.
+              bs.
             }
             clear H2.
 
@@ -2020,8 +2020,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
               assert (dep_on N a m) as HD.
               {
                 consider (dep_on _ n0 _).
-                - bullshit (a = m) by attac.
-                - bullshit (a = n2) by attac.
+                - bs (a = m) by attac.
+                - bs (a = n2) by attac.
               }
 
               smash_eq a n1.
@@ -2057,14 +2057,14 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
               kill H.
               * consider (m = n1) by attac.
               * consider (n1 = n2) by attac.
-                consider (dep_on _ n2 _); bullshit.
+                consider (dep_on _ n2 _); bs.
             + kill HLc.
               smash_eq a m; auto.
 
               assert (dep_on N a m) as HD.
               {
                 consider (dep_on _ _ _).
-                - bullshit (a = m).
+                - bs (a = m).
                 - consider (a = n2) by attac.
               }
 
@@ -2240,7 +2240,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
             assert (exists n1 L, lock_chain N n0 L n1) as [n1 [L HL]].
             {
               destruct D.
-              1: bullshit.
+              1: bs.
               assert (List.In n (n :: D)) as HIn by attac.
               apply HD in HIn as HDep.
               exists n.
@@ -2313,7 +2313,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
                   apply lock_chain_seq1'; auto.
               + exists a, La.
                 split; eauto.
-                intros; bullshit.
+                intros; bs.
             - specialize (lock_chain_target HL HLa) as HEq; subst.
               destruct (Hlock_dec a ltac:(attac)) as [[b Ha]|?].
               + smash_eq a b.
@@ -2330,7 +2330,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
                   apply lock_chain_seq1'; auto.
               + exists a, L.
                 split; eauto.
-                intros; bullshit.
+                intros; bs.
             - apply lock_chain_split in HL as [HL0 HL1].
               rewrite (lock_chain_target HL0 HLa) in *; clear HL0.
               specialize (IHD (La ++ a :: L')).
@@ -2391,7 +2391,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
               assert (net_lock_on N n0 n') by attac.
               assert (dep_on N n0 n') as HD' by attac.
               apply HL in HD'.
-              bullshit.
+              bs.
             }
 
             specialize (deadset_dep_set_deadset HDS HL HLnil HIn) as HDSL.
@@ -2443,7 +2443,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           consider (exists S, NetMod.get n0 N0 =(send (n1, &t) v)=> S) by (consider (_ =(_)=> _); eattac).
           destruct (NetMod.get n0 N0) as [I0 P0 O0] eqn:?.
           consider (pq_lock _ _).
-          bullshit.
+          bs.
         Qed.
 
 
@@ -2553,7 +2553,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           compat_hsimpl in *.
           consider (pq_lock _ _).
 
-          bullshit (In (n1, R, v0) (&I ++ [(n1, R, v0)])).
+          bs (In (n1, R, v0) (&I ++ [(n1, R, v0)])).
         Qed.
 
 
@@ -2870,7 +2870,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           smash_eq n1 n.
           2: { eauto using net_lock_on_bad_sender_preserve. }
 
-          bullshit (n1 <> n1) by eauto using net_lock_on_no_send.
+          bs (n1 <> n1) by eauto using net_lock_on_no_send.
         Qed.
 
 
@@ -2925,7 +2925,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           intros.
 
           assert (net_lock_on N1 n0 n1) by eauto using net_unlock_on_tip.
-          intros ?; bullshit.
+          intros ?; bs.
         Qed.
 
 
@@ -2940,7 +2940,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           intros.
 
           assert (net_lock_on N1 n0 n1) by eauto using net_unlock_on_dep_tip.
-          intros ?; bullshit.
+          intros ?; bs.
         Qed.
 
 
@@ -2955,7 +2955,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           intros.
 
           assert (dep_on N1 n0 n1) by eauto using net_undep_lock_on_tip.
-          intros ?; bullshit.
+          intros ?; bs.
         Qed.
 
 
@@ -2970,7 +2970,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           intros.
 
           assert (dep_on N1 n0 n1) by eauto using net_undep_tip.
-          intros ?; bullshit.
+          intros ?; bs.
         Qed.
 
 
@@ -3004,7 +3004,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           destruct t.
           1: { absurd (dep_on N1 n0 n2); eauto using net_dep_Q_preserve with LTS. }
 
-          assert (~ net_lock_on N1 n1 n2) by (intros ?; bullshit).
+          assert (~ net_lock_on N1 n1 n2) by (intros ?; bs).
 
           eauto using net_unlock_on_recv_inv.
         Qed.
@@ -3036,7 +3036,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Proof.
           intros.
           induction `(dep_on N0 n0 n1).
-          -  assert (~ net_lock_on N1 n0 n1) by (intros ?; bullshit).
+          -  assert (~ net_lock_on N1 n0 n1) by (intros ?; bs).
              consider (exists v, a = NComm n1 n0 R v) by eauto using net_unlock_on_reply.
              eattac.
           - smash_eq n0 n1.
@@ -3113,7 +3113,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         dep_reloop
         dep_set_reloop
         net_unlock_send_inv
-        net_lock_reply_unlock (* TODO FIXME why the fuck this causes a loop *)
+        net_lock_reply_unlock (* TODO FIXME why the fsck this causes a loop *)
         : LTS.
 
       #[export] Hint Rewrite -> lock_self_dep_uniq using assumption : LTS.

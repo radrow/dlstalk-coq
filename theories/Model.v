@@ -1106,7 +1106,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     eapply Forall_forall with (P := is_EvRecv) in H; eauto.
   Qed.
 
-  #[export] Hint Resolve MQ_Clear_send_in_bs : bullshit.
+  #[export] Hint Resolve MQ_Clear_send_in_bs : bs.
 
 
   Lemma MQ_Clear_recv_in_bs [Q n v] :
@@ -1118,7 +1118,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     eapply Forall_forall with (P := is_EvRecv) in H; eauto.
   Qed.
 
-  #[export] Hint Resolve MQ_Clear_recv_in_bs : bullshit.
+  #[export] Hint Resolve MQ_Clear_recv_in_bs : bs.
 
 
   Lemma MQ_Clear_NoSends : forall MQ, MQ_Clear MQ -> NoSends_MQ MQ.
@@ -1715,7 +1715,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   #[export] Hint Resolve path_corr_cons path_corr_app path_corr_app_nil_l path_corr_app_nil_r path_corr_cons_nil_l : LTS.
 
-  (* auto somehow fails to solve obvious bullshit eg Send <> Tau *)
+  (* auto somehow fails to solve obvious bs eg Send <> Tau *)
   #[export] Hint Extern 4 (_ <> _) => solve [congruence | discriminate] : LTS.
 
 

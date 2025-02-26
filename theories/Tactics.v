@@ -202,21 +202,22 @@ Create HintDb LTS_concl.
 Create HintDb LTS_early.
 Create HintDb LTS_concl_early.
 Create HintDb rew.
-Create HintDb bullshit.
+Create HintDb bs.
 
 (* https://github.com/coq/coq/issues/14028 *)
 Lemma hintdb_teaser : 21 + 16 = 37. simpl. auto. Qed.
 Hint Rewrite hintdb_teaser : LTS LTS_concl.
 
 
-Ltac2 bullshit_ (on : (constr * (unit -> unit) option) option) :=
+(** "bad statement" --- tactic to brutally find contradictions *)
+Ltac2 bs_ (on : (constr * (unit -> unit) option) option) :=
   repeat (intros ?);
   match on with
   | None => ()
   | Some (c, s) =>
       let s :=
         (match s with
-                | None => fun () => subst; eauto with LTS bullshit datatypes
+                | None => fun () => subst; eauto with LTS bs datatypes
                 | Some s => s
                end)
       in
@@ -224,7 +225,7 @@ Ltac2 bullshit_ (on : (constr * (unit -> unit) option) option) :=
   end;
 
   simpl in *;
-  try (ltac1:(autorewrite with bullshit in * ));
+  try (ltac1:(autorewrite with bs in * ));
   solve
     [ contradiction
     | congruence
@@ -238,47 +239,27 @@ Ltac2 bullshit_ (on : (constr * (unit -> unit) option) option) :=
           | not _ =>
               exfalso;
               apply $hh;
-              solve [eauto 3 with bullshit LTS datatypes]
+              solve [eauto 3 with bs LTS datatypes]
           | _ =>
               absurd $p > [| exact $hh ];
-              solve [eauto 3 with bullshit LTS datatypes]
+              solve [eauto 3 with bs LTS datatypes]
           end
       end
     ].
 
-  (* simpl in *; *)
-  (* try (ltac1:(autorewrite with bullshit in * )); *)
-  (* match! goal with *)
-  (*  | [h : ?p |- _] => *)
-  (*      if (Constr.equal (Constr.type p) 'Prop) then () else fail; *)
-  (*      lazy_match! p with *)
-  (*      | not _ => *)
-  (*          exfalso; *)
-  (*          apply $h; *)
-  (*          eauto 3 with LTS *)
-  (*      | _ => *)
-  (*          try (solve [kill $h]); *)
-  (*      solve *)
-  (*        [ assumption *)
-  (*        | simpl in *; lia *)
-  (*        | congruence *)
-  (*        | contradiction *)
-  (*        | eauto with bullshit LTS datatypes *)
-         (* ]. *)
-
-Ltac2 bullshit_or
+Ltac2 bs_or
   (on : (constr * (unit -> unit) option) option)
   (or_catch : unit -> unit) :=
-  orelse (fun () => bullshit_ on) (fun _ => or_catch ()).
+  orelse (fun () => bs_ on) (fun _ => or_catch ()).
 
 
-Ltac2 Notation "bullshit"
+Ltac2 Notation "bs"
   on(opt(seq(
              open_constr,
              opt(seq("by", thunk(tactic)))
   ))) :=
-  Control.enter (fun () => bullshit_or on
-                          (fun () => Control.zero (Init.Tactic_failure (Some (Message.of_string "Nothing to bullshit about"))))
+  Control.enter (fun () => bs_or on
+                          (fun () => Control.zero (Init.Tactic_failure (Some (Message.of_string "Nothing to bs about"))))
     ).
 
 
@@ -287,7 +268,7 @@ Ltac2 Notation "doubt"
              open_constr,
              opt(seq("by", thunk(tactic)))
   ))) :=
-  Control.enter (fun () => Control.once (fun () => try (bullshit_ on))).
+  Control.enter (fun () => Control.once (fun () => try (bs_ on))).
 
 
 Ltac2 ssubst_ () : unit :=
@@ -485,7 +466,7 @@ Ltac2 introsmash () :=
     using assumption : LTS LTS_concl.
 
 
-Ltac2 debullshit (h : ident) :=
+Ltac2 debs (h : ident) :=
   let hh := hyp h in
   let ht := Constr.type hh in
   let equiv := Fresh.in_goal @EQUIV in
@@ -571,7 +552,7 @@ Ltac2 rec split_hyp (h : ident) : ident list :=
           clear $h;
           collect ()
         else
-          let i := Fresh.in_goal @BULLSHIT in
+          let i := Fresh.in_goal @BS in
           assert False as $i by kill $h;
           clear - $i;
           [i]
@@ -635,13 +616,13 @@ Notation "n |: p" := (exists n : p, True) (at level 80) : type_scope.
 
 Lemma Falsify_inv P : False -> P <-> False.
 Proof. ltac1:(intuition). Qed.
-Hint Rewrite -> Falsify_inv using assumption : bullshit.
+Hint Rewrite -> Falsify_inv using assumption : bs.
 
 
 Ltac autorewrite_hyp_LTS h :=
   rewrite_strat choice
     (
-      hints bullshit
+      hints bs
     )
     (
       topdown progress hints LTS
@@ -659,7 +640,7 @@ Ltac autorewrite_hyp_LTS h :=
 Ltac autorewrite_concl_LTS :=
   rewrite_strat choice
     (
-      hints bullshit
+      hints bs
     )
     (
       topdown progress hints LTS_concl
@@ -686,9 +667,9 @@ Ltac2 autorewrite_LTS (h : ident option) :=
 Ltac2 autorewrite_LTS_lite (h : ident option) :=
   match h with
   | Some h =>
-      ltac1:(h |- rewrite_strat choice (hints bullshit) (topdown progress hints LTS) in h) (Ltac1.of_ident h)
+      ltac1:(h |- rewrite_strat choice (hints bs) (topdown progress hints LTS) in h) (Ltac1.of_ident h)
   | None =>
-      ltac1:(rewrite_strat choice (hints bullshit) (topdown progress hints LTS_concl))
+      ltac1:(rewrite_strat choice (hints bs) (topdown progress hints LTS_concl))
   end.
 
 
@@ -719,7 +700,7 @@ Ltac2 rec hammer_prep_hyp_iter hs (rewriter : ident -> unit) :=
                )
                (fun _ =>
                   simpl in $h;
-                  Control.progress (fun _ => repeat (debullshit h); split_hyp h)
+                  Control.progress (fun _ => repeat (debs h); split_hyp h)
                )
            in
            match Control.numgoals () with
@@ -833,7 +814,7 @@ Ltac2 hammer solver :=
         repeat (first [split | progress intros]);
         try (solve
                [ simpl; eauto 5 with datatypes LTS
-               | bullshit
+               | bs
                | solver ()
                ]
           )

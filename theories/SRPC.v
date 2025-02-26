@@ -232,7 +232,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
                >
                  [ ssubst;
                    first
-                     [ bullshit
+                     [ bs
                      | match htr with
                        | None => ()
                        | Some htr =>
@@ -246,7 +246,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
                  | ssubst;
                    first
-                     [ bullshit
+                     [ bs
                      | destruct_SRPC hb htr;
                        Control.enter
                          (fun () =>
@@ -289,7 +289,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
                  [ ssubst;
 
                    first
-                     [ bullshit
+                     [ bs
                      | let n := Fresh.in_goal @n in
                        let s := Fresh.in_goal @s in
                        let t := Fresh.in_goal @t in
@@ -315,13 +315,13 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
                            try (specialize ($hq_h _ _ _ $htr_h); rename n into s);
                            try (specialize ($hr_h _ _ _ $htr_h); subst $n);
                            try (specialize ($ht_h _ $htr_h));
-                           try (inversion $htr_h; bullshit)
+                           try (inversion $htr_h; bs)
                        end
                      ]
 
                  | ssubst;
                    first
-                     [ bullshit
+                     [ bs
                      | let v := Fresh.in_goal @v in
                        let htr_h := match htr with
                                     | None =>
@@ -687,14 +687,14 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
       kill HBusy.
       + kill T.
       + specialize (HReplyOnly _ _ T) as [v HEq].
-        bullshit.
+        bs.
     - kill Hsrpc1.
       + specialize (HQueryAll some_name some_val) as [P1 T].
         kill HBusy.
         1: kill T.
         apply HReplyOnly in T.
         destruct T.
-        bullshit.
+        bs.
 
       + assert (c = c0).
         {
@@ -851,7 +851,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   Lemma SRPC_Work_PRecv_bs h c :
     SRPC (Work c) (PRecv h) <-> False.
-  Proof. split; intros. consider (SRPC _ _). consider (SRPC_Handling _ _). bullshit.  contradiction. Qed.
+  Proof. split; intros. consider (SRPC _ _). consider (SRPC_Handling _ _). bs.  contradiction. Qed.
 
   Lemma SRPC_Free_PSend_bs n v P1 :
     SRPC Free (PSend n v P1) <-> False.
@@ -876,7 +876,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     SRPC_Lock_PSend_bs
     SRPC_Lock_PTau_bs
     using spank
-    : bullshit.
+    : bs.
 
   Lemma SRPC_Work_recv_bs P0 P1 n v c :
     (P0 =(Recv n v)=> P1) ->
@@ -923,7 +923,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
          kill HBusy; doubt. specialize (HReplyOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. hsimpl in *.
          Set Printing All.
          change Tag with Tag_ in *. (* TODO THIS SHOULD NOT BE *)
-         bullshit. bullshit.
+         bs. bs.
   Qed.
 
   #[export] Hint Rewrite ->
@@ -939,7 +939,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     SRPC_Lock_recv_other_None_bs
     SRPC_Lock_recv_other_Some_bs
     using spank
-    : bullshit.
+    : bs.
 
 
   (** SRPC process can be locked only on one thing *)
@@ -956,9 +956,9 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
       specialize (HL some_name) as [[HNoQ HNoIn] HYesR].
       specialize (HQueryAll some_name some_val) as [P1 T].
-      bullshit.
+      bs.
 
-    - destruct P; bullshit.
+    - destruct P; bs.
     - destruct P; try (kill HL).
 
       enough (Forall (eq s) L) as HAll.
@@ -969,7 +969,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
         hsimpl in *.
         exfalso.
         apply HYesR.
-        bullshit.
+        bs.
       }
 
       apply (Forall_forall (eq s) L).
@@ -978,7 +978,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
       destruct (handle (x, R)) eqn:Hx.
       + specialize (HReplyOnly (Recv (x, R) some_val) (p some_val)) as [v' HEq]; ssubst; attac.
       + specialize (HL x) as [[HL _] _].
-        bullshit.
+        bs.
   Qed.
 
 
@@ -1095,7 +1095,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
       kill HL.
       assert (List.In s [s]) by attac.
       apply H in H1.
-      bullshit.
+      bs.
     - destruct P; doubt.
     - exists c.
       destruct P; doubt.
@@ -1153,11 +1153,11 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     destruct SRPC H H2.
     - absurd (exists c', SRPC (Lock c' n1) P1).
       + intros Hx; hsimpl in Hx.
-        bullshit (Lock c' n1 = Work c) by attac.
+        bs (Lock c' n1 = Work c) by attac.
       + eapply lock_SRPC_Lock; eattac.
     - absurd (exists c', SRPC (Lock c' n1) P1).
       + intros Hx; hsimpl in Hx.
-        bullshit (Lock c' n1 = Work c) by attac.
+        bs (Lock c' n1 = Work c) by attac.
       + eapply lock_SRPC_Lock; eattac.
   Qed.
 
@@ -1232,7 +1232,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
         kill Hsrpc.
         specialize (HQueryAll c v) as [P' T].
         eapply HReplyOnly in T as [v' E].
-        bullshit.
+        bs.
 
       + (* Tau *)
         specialize (HTau0 _ (ltac:(constructor))) as Hsrpc1_B.
@@ -1273,7 +1273,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
                 [|ltac1:(dependent destruction HBusy)].
       + specialize (HQueryAll some_name some_val) as [P1 T].
         kill T.
-      + bullshit.
+      + bs.
       + specialize (HReplyAll some_val) as [P1 T].
         kill T.
     - constructor; eattac.
@@ -1286,7 +1286,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
         * destruct (handle (m, R)) eqn:HH; auto.
           assert (PRecv handle =(Recv (m, R) some_val)=> p some_val) as T by attac.
           apply HQueryOnly in T as (c & v & HEq & _).
-          bullshit.
+          bs.
         * assert (PRecv handle =(Recv (n, Q) v)=> P v) as T by attac.
           apply HQueryOnly in T as (c & _ & _ & Hsrpc_n).
           apply C; eattac.
@@ -1294,17 +1294,17 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
         kill T.
       + assert (PRecv handle =(Recv (n, Q) some_val)=> P some_val) as T by attac.
         apply HReplyOnly in T as (v & HEq).
-        bullshit.
+        bs.
       + assert (PRecv handle =(Recv (n, R) some_val)=> P some_val) as T by attac.
         apply HQueryOnly in T as (c & v & HEq & _).
-        bullshit.
+        bs.
       + assert (PRecv handle =(Recv (n, R) some_val)=> P some_val) as T by attac.
         kill T.
       + split; intros.
         * destruct (handle (m, Q)) eqn:HH; auto.
           assert (PRecv handle =(Recv (m, Q) some_val)=> p some_val) as T by attac.
           apply HReplyOnly in T as (v & HEq).
-          bullshit.
+          bs.
         * assert (PRecv handle =(Recv (n, R) v)=> P v) as T by attac.
           apply HRecv in T as Hsrpc_n.
           apply C; eattac.
@@ -1337,11 +1337,11 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     consider (_ =(_)=> _); consider (pq_lock _ _); doubt; simpl in *.
     - destruct n as [n [|]].
       + assert (SRPC (Work n) P1) by eauto using SRPC_inv_recv_Q_r.
-        bullshit (Work n = Lock c s) by attac.
+        bs (Work n = Lock c s) by attac.
       + consider (exists c', SRPC (Work c') P1) by eauto using SRPC_inv_recv_R_r.
-        bullshit (Work c' = Lock c s) by attac.
+        bs (Work c' = Lock c s) by attac.
     - consider (exists c', SRPC (Work c') P1) by eauto using SRPC_inv_tau_r.
-      bullshit (Work c' = Lock c s) by attac.
+      bs (Work c' = Lock c s) by attac.
   Qed.
 
 End SRPC_F.

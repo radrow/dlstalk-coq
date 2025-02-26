@@ -501,12 +501,12 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       + destruct p; doubt.
         specialize (H n).
         hsimpl in *.
-        bullshit (MQ_Clear (TrRecv n0 v :: MQ)) by attac.
+        bs (MQ_Clear (TrRecv n0 v :: MQ)) by attac.
 
     - destruct p; attac.
       + destruct n0 as [n0 t0].
         smash_eq n n0.
-        1: specialize (HNoself t0 (MValP v)); bullshit.
+        1: specialize (HNoself t0 (MValP v)); bs.
 
         remember (mq MQ {| handle := h; state := h (TrSend (n0, t0) v) s |} P) as S.
 
@@ -525,12 +525,12 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         * hsimpl in *. hsimpl in *.
           assert (flushed_in n N0) by auto.
           unfold flushed_in, Flushed in *.
-          hsimpl in *. bullshit.
+          hsimpl in *. bs.
     - destruct a; attac.
       + destruct n0 as [n0 t0].
 
         smash_eq n n0.
-        1: now (specialize (HNoself t0 (MValM v)); bullshit).
+        1: now (specialize (HNoself t0 (MValM v)); bs).
 
         assert (exists N1 : MNet, N0 =( NComm n n0 t0 ^ v)=> N1) as [N1 na]
           by (eapply send_comm_available; rewrite `(NetMod.get n N0 = _); eattac).
@@ -648,7 +648,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     - hsimpl in *.
       smash_eq n m; ltac1:(autorewrite with LTS ); attac.
     - hsimpl in *.
-      bullshit.
+      bs.
     - hsimpl in *.
       specialize (H n).
       unfold flushed_in, Flushed in *.
@@ -664,9 +664,9 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     destruct_ma &a; simpl.
     all: try (solve [left; intros t0 v0; destruct v0; eattac]); smash_eq n n0; eattac.
     - right. eexists t, (MValP v). eattac.
-    - left; intros t0 v0; destruct v0; bullshit.
+    - left; intros t0 v0; destruct v0; bs.
     - right. eexists t, (MValM v). eattac.
-    - left; intros t0 v0; destruct v0; bullshit.
+    - left; intros t0 v0; destruct v0; bs.
   Qed.
 
 
@@ -875,7 +875,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       { apply Forall_app; split; auto.
         unshelve eapply (Forall_impl _ _ HNS0'').
         intros. simpl in *. destruct a; auto.
-        bullshit.
+        bs.
       }
 
       ltac1:(guess MN0' IHmpath).
@@ -1020,7 +1020,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       destruct n0 as [n0 t].
       destruct (NAME.eq_dec n0 n); subst.
       (right; exists t, (MValM v); simpl; auto).
-      (left; intros; simpl; destruct v0). bullshit. bullshit.
+      (left; intros; simpl; destruct v0). bs. bs.
     }
 
     destruct H.

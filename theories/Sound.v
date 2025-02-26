@@ -100,9 +100,9 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       destruct (Deq_dec' I0 (c, Q)); hsimpl in *.
       - rename Q' into I0'.
         assert (Deq (c, Q) v0 (I0 ++ (c, Q, v) :: I1) (I0' ++ (c, Q, v) :: I1)) by attac.
-        bullshit (~ List.In (c, Q, v) (I0' ++ (c, Q, v) :: I1)).
+        bs (~ List.In (c, Q, v) (I0' ++ (c, Q, v) :: I1)).
       - assert (Deq (c, Q) v ((c, Q, v) :: I1) I1) by attac.
-        bullshit (Deq (c, Q) v (I0 ++ (c, Q, v) :: I1) (I0 ++ I1)) by eauto using Deq_app_l_not_Deq.
+        bs (Deq (c, Q) v (I0 ++ (c, Q, v) :: I1) (I0 ++ I1)) by eauto using Deq_app_l_not_Deq.
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_in_M0 [N n c v v' MQ0 MQ1 M S] :
@@ -182,10 +182,10 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       destruct (Deq_dec' I0 (s, R)); hsimpl in *.
       - rename Q' into I0'.
         assert (Deq (s, R) v0 (I0 ++ (s, R, v) :: I1) (I0' ++ (s, R, v) :: I1)) by attac.
-        bullshit (~ List.In (s, R, v) (I0' ++ (s, R, v) :: I1)).
+        bs (~ List.In (s, R, v) (I0' ++ (s, R, v) :: I1)).
       - assert (Deq (s, R) v ((s, R, v) :: I1) I1) by attac.
         assert (Deq (s, R) v (I0 ++ (s, R, v) :: I1) (I0 ++ I1)) by eauto using Deq_app_l_not_Deq.
-        bullshit (~ List.In (s', R, v) (I0 ++ I1)).
+        bs (~ List.In (s', R, v) (I0 ++ I1)).
     Qed.
 
     Lemma SRPC_M_net_in_net_R_in_M0 [N n s s' v v' MQ0 MQ1 M S] :
@@ -292,10 +292,10 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       destruct (Deq_dec' O0 (c, R)); hsimpl in *.
       - rename Q' into O0'.
         assert (Deq (c, R) v0 (O0 ++ (c, R, v) :: O1) (O0' ++ (c, R, v) :: O1)) by attac.
-        bullshit (~ List.In (c, R, v) (O0' ++ (c, R, v) :: O1)).
+        bs (~ List.In (c, R, v) (O0' ++ (c, R, v) :: O1)).
       - assert (Deq (c, R) v ((c, R, v) :: O1) O1) by attac.
         assert (Deq (c, R) v (O0 ++ (c, R, v) :: O1) (O0 ++ O1)) by eauto using Deq_app_l_not_Deq.
-        bullshit (~ List.In (c, R, v) (O0 ++ O1)).
+        bs (~ List.In (c, R, v) (O0 ++ O1)).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_M0 [N n c v v' MQ0 MQ1 M S] :
@@ -342,9 +342,9 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       - rename Q' into O1'.
         assert (Deq (c, R) v0 (O1 ++ &O) (O1' ++ &O)) by attac.
         assert (~ List.In (c, R, v) (O1' ++ &O)) by attac.
-        bullshit (List.In (c, R, v) &O) by attac.
+        bs (List.In (c, R, v) &O) by attac.
       - assert (Deq (c, R) v (O1 ++ &O) (O1 ++ O')) by eauto using Deq_app_l_not_Deq.
-        bullshit (~ List.In (c, R, v) (O1 ++ O')).
+        bs (~ List.In (c, R, v) (O1 ++ O')).
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_PM [N n c v v' MQ M I P O O'] :
@@ -795,8 +795,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     - destruct (NChan_eq_dec to (n, R)); subst.
       destruct (MProbe_eq_dec msg p); subst.
       left; constructor 1; attac.
-      + right; bullshit.
-      + right; bullshit.
+      + right; bs.
+      + right; bs.
   Qed.
 
 
@@ -814,7 +814,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     sends_to_mon (MRecv state) n p <-> False.
   Proof. split; attac. Qed.
 
-  Hint Resolve -> sends_to_mon_bs_inv : bullshit.
+  Hint Resolve -> sends_to_mon_bs_inv : bs.
   Hint Rewrite -> sends_to_mon_bs_inv using eassumption : LTS LTS_concl.
 
   Lemma sends_to_mon_last_inv state nc n p0 p1 :
@@ -1207,7 +1207,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   (*     clear - Hx. *)
   (*     induction O; intros; auto. *)
   (*     destruct a as [[n t] v]. *)
-  (*     bullshit (List.In (n, &t, v) ((n, &t, v)::&O)). *)
+  (*     bs (List.In (n, &t, v) ((n, &t, v)::&O)). *)
   (*   } *)
   (*   intros n t v'. *)
   (*   destruct t. *)
@@ -1218,11 +1218,11 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   (*       assert (exists c, srpc = Lock c n) by eauto with LTS. *)
   (*       attac. *)
   (*     } *)
-  (*     bullshit. *)
+  (*     bs. *)
   (*   - consider (exists c, srpc = Lock c s) by eauto with LTS. *)
   (*     assert (&O = [] \/ &O <> []) as [|] by (destruct O; attac); subst; auto. *)
   (*     consider (exists v, List.In (s, Q, v) &O) by eauto with LTS. *)
-  (*     bullshit. *)
+  (*     bs. *)
   (* Qed. *)
 
 
@@ -1264,7 +1264,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     unfold net_deinstr, deinstr in *.
     hsimpl in *.
     destruct P1.
-    bullshit.
+    bs.
   Qed.
 
 
@@ -1280,7 +1280,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     assert (forall n t v, a <> NComm n0 n t (MValP v)).
     {
-      iattac; bullshit (n0 <> n0) by eauto using M_lock_no_send.
+      iattac; bs (n0 <> n0) by eauto using M_lock_no_send.
     }
 
     destruct_mna a;
@@ -1295,8 +1295,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       smash_eq n n1; eattac.
       destruct (NAME.eqb (init msg) &self); attac.
       destruct (&lock_id =? index msg); attac.
-    - bullshit (NComm n1' n1' Q # v <> NComm n1' n1' Q # v).
-    - bullshit (NComm n0 n1' Q # v <> NComm n0 n1' Q # v).
+    - bs (NComm n1' n1' Q # v <> NComm n1' n1' Q # v).
+    - bs (NComm n0 n1' Q # v <> NComm n0 n1' Q # v).
   Qed.
 
 
@@ -1341,7 +1341,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         unfold net_deinstr, deinstr in *.
         hsimpl in *.
         destruct P1.
-        bullshit.
+        bs.
     - consider (_ =(_)=> _).
       compat_hsimpl in *.
       unfold net_deinstr, deinstr in *.
@@ -1463,11 +1463,11 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     - assert (List.In n1 (n2::&waitees)) by (blast_cases; attac).
       attac.
     - assert (List.In n1 &waitees) by (blast_cases; attac).
-      bullshit.
+      bs.
     - assert (List.In n1 &waitees) by (blast_cases; attac).
-      bullshit.
-    - bullshit (List.In n1 &waitees /\ n1 <> n0) by eauto using in_remove.
-    - bullshit (List.In n1 &waitees /\ n1 <> n2) by eauto using in_remove.
+      bs.
+    - bs (List.In n1 &waitees /\ n1 <> n0) by eauto using in_remove.
+    - bs (List.In n1 &waitees /\ n1 <> n2) by eauto using in_remove.
   Qed.
 
 
@@ -1492,10 +1492,10 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     all: blast_cases; eattac.
     - smash_eq n1 n0; attac.
-      bullshit (List.In n1 (List.remove NAME.eq_dec n0 &waitees)) by eauto using in_in_remove.
+      bs (List.In n1 (List.remove NAME.eq_dec n0 &waitees)) by eauto using in_in_remove.
 
     - smash_eq n1 n2; attac.
-      bullshit (List.In n1 (List.remove NAME.eq_dec n2 &waitees)) by eauto using in_in_remove.
+      bs (List.In n1 (List.remove NAME.eq_dec n2 &waitees)) by eauto using in_in_remove.
   Qed.
 
 
@@ -1638,41 +1638,41 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         par: doubt.
 
         all: hsimpl in *.
-        * bullshit (~ In (TrRecv (n1, R) v) (MQ0 ++ [TrSend _ _])) by eauto.
-        * bullshit (~ In (TrRecv (n1, R) v) (MQ0 ++ [TrSend _ _])) by eauto.
-        * bullshit.
+        * bs (~ In (TrRecv (n1, R) v) (MQ0 ++ [TrSend _ _])) by eauto.
+        * bs (~ In (TrRecv (n1, R) v) (MQ0 ++ [TrSend _ _])) by eauto.
+        * bs.
         * destruct `(_ \/ _); hsimpl in *; doubt.
           consider (h = Rad.Rad_handle) by eauto with LTS.
           ltac1:(autounfold with LTS_get in * ).
           hsimpl in *.
           simpl in H1.
           destruct s.
-          hsimpl in *; bullshit.
-        * bullshit.
+          hsimpl in *; bs.
+        * bs.
         * assert (~ In (TrRecv (n1, R) v) MQ1) by eauto.
           consider (MN0 =(_)=> _); hsimpl in *.
-          hsimpl_net; bullshit.
+          hsimpl_net; bs.
         * assert (~ In (TrRecv (n1, R) v) MQ1) by eauto.
           consider (MN0 =(_)=> _); hsimpl in *.
-          hsimpl_net; bullshit.
+          hsimpl_net; bs.
         * assert (~ In (TrRecv (n1, R) v) MQ1) by eauto.
           consider (MN0 =(_)=> _); hsimpl in *.
-          hsimpl_net; bullshit.
+          hsimpl_net; bs.
         * assert (~ In (TrRecv (n1, R) v) MQ1) by eauto.
           consider (MN0 =(_)=> _); hsimpl in *.
-          hsimpl_net; bullshit.
+          hsimpl_net; bs.
         * assert (~ In (TrRecv (n1, R) v) MQ1) by eauto.
           consider (MN0 =(_)=> _); hsimpl in *.
-          hsimpl_net; bullshit.
+          hsimpl_net; bs.
         * assert (~ In (TrRecv (n1, R) v) MQ1) by eauto.
           consider (MN0 =(_)=> _); hsimpl in *.
-          hsimpl_net; bullshit.
+          hsimpl_net; bs.
         * assert (~ In (TrRecv (n1, R) v) MQ1) by eauto.
           consider (MN0 =(_)=> _); hsimpl in *.
-          hsimpl_net; bullshit.
+          hsimpl_net; bs.
         * assert (~ In (TrRecv (n1, R) v) MQ1) by eauto.
           consider (MN0 =(_)=> _); hsimpl in *.
-          hsimpl_net; bullshit.
+          hsimpl_net; bs.
 
       + enough (exists v, a = NComm n0 n1 Q (MValP v))
           by (hsimpl in *; consider (~ net_lock_on '' MN0 n0 n1 /\ net_lock_on '' MN1 n0 n1) by eauto using SRPC_M_net_query_new_lock).
@@ -1701,8 +1701,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       consider (h = Rad.Rad_handle) by eauto with LTS.
       destruct s.
       hsimpl_net.
-      + bullshit (~ List.In n0 (List.remove NAME.eq_dec n0 &waitees)) by eauto using remove_In.
-      + bullshit (~ List.In n0 (List.remove NAME.eq_dec n0 &waitees)) by eauto using remove_In.
+      + bs (~ List.In n0 (List.remove NAME.eq_dec n0 &waitees)) by eauto using remove_In.
+      + bs (~ List.In n0 (List.remove NAME.eq_dec n0 &waitees)) by eauto using remove_In.
 
     - rename n into Hn.
       assert (exists v, a = NTau n1 (MActP (Recv (n0, Q) v))) by eauto using M_wait_add with LTS.
@@ -1710,7 +1710,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       enough (net_lock_on '' MN0 n0 n1).
       {
         consider (exists v, a = NComm n1 n0 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
-        bullshit.
+        bs.
       }
 
       destruct (NetMod.get n1 '' MN0) as [I0' P0' O0'] eqn:?.
@@ -1813,7 +1813,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         enough (net_lock_on '' MN0 n0 n1).
         {
           consider (exists v', NTau n1 (MActP (Recv (n0, Q) v)) = NComm n1 n0 R (MValP v')) by (eapply SRPC_M_net_unlock_reply; attac; constructor; attac).
-          bullshit.
+          bs.
         }
 
         enough (pq_client n0 (NetMod.get n1 '' MN0)) by eauto with LTS.
@@ -1827,7 +1827,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
         blast_cases; attac.
 
-        par: unfold sends_to in *; ltac1:(autounfold with LTS_get in * ); hsimpl in *; bullshit.
+        par: unfold sends_to in *; ltac1:(autounfold with LTS_get in * ); hsimpl in *; bs.
   Qed.
 
 
@@ -1875,7 +1875,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         all: blast_cases; attac.
 
         consider (&self = n0) by eauto with LTS.
-        bullshit.
+        bs.
 
       + hsimpl in *.
 
@@ -1956,7 +1956,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       all: blast_cases; attac.
     - assert (a = NComm n1 n0 R ^ p) by eauto using  M_recv_ev_act.
       destruct (PeanoNat.Nat.eq_dec (_of lock_id MN1 (init p)) (_of lock_id MN0 (init p))).
-      2: consider (exists n1' v, a = NComm (init p) n1' Q (MValP v)) by (eauto using M_lock_id_update; hsimpl in * ); bullshit.
+      2: consider (exists n1' v, a = NComm (init p) n1' Q (MValP v)) by (eauto using M_lock_id_update; hsimpl in * ); bs.
       enough (sends_to MN0 n1 n0 p) by (rewrite `(_of lock_id MN1 _ = _) in *; eauto with LTS).
 
       subst.
@@ -2017,7 +2017,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         split; auto.
         destruct (net_sane_lock_dec '' MN1 n0 n1); eauto with LTS.
         consider (exists v, NComm n1 n0 R ^ (hot_of MN1 n2) = NComm n1 n0 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
-        bullshit.
+        bs.
       }
       assert (_of lock MN0 n2 <> None).
       {
@@ -2030,7 +2030,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         enough (_of lock_id MN1 n2 = _of lock_id MN0 n2) by (unfold hot_of; attac).
         destruct (PeanoNat.Nat.eq_dec (_of lock_id MN1 n2) (_of lock_id MN0 n2)); auto.
         consider (exists n3' v, NComm n1 n0 R ^ (hot_of MN1 n2) = NComm n2 n3' Q (MValP v)) by eauto using M_lock_id_update.
-        bullshit.
+        bs.
       }
       rewrite `(hot_of _ _ = _) in *.
 
@@ -2073,7 +2073,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         - enough (n3 = n3') by attac.
           eauto using M_lock_no_reset.
         - consider (exists v, a = NComm n2 n3 Q (MValP v)) by eauto using M_lock_set.
-          bullshit.
+          bs.
       }
       assert (dep_on '' MN0 n0 n2) by (assert (_of lock MN0 n2 <> None) by attac; eauto with LTS).
       assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|] by eauto with LTS; auto.
@@ -2093,10 +2093,10 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           destruct_mna a; doubt.
           attac.
         - replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
-          bullshit.
+          bs.
       }
 
-      bullshit (n2 <> n2) by eauto using M_lock_no_send.
+      bs (n2 <> n2) by eauto using M_lock_no_send.
   Qed.
 
 
@@ -2135,14 +2135,14 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         intros ?.
         destruct (_of lock MN1 n2) as [n3|] eqn:?; doubt.
         consider (exists v, a = NComm n2 n3 Q (MValP v)) by eauto using M_lock_set.
-        destruct `(_ \/ _); bullshit.
+        destruct `(_ \/ _); bs.
       }
       assert (hot_of MN1 n2 = hot_of MN0 n2).
       {
         enough (_of lock_id MN1 n2 = _of lock_id MN0 n2) by (unfold hot_of; attac).
         destruct (PeanoNat.Nat.eq_dec (_of lock_id MN1 n2) (_of lock_id MN0 n2)); auto.
         consider (exists n3' v, a = NComm n2 n3' Q (MValP v)) by eauto using M_lock_id_update.
-        destruct `(_ \/ _); bullshit.
+        destruct `(_ \/ _); bs.
       }
       rewrite `(hot_of _ _ = _) in *.
 
@@ -2150,7 +2150,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       {
         destruct (net_sane_lock_dec '' MN0 n0 n1); auto with LTS.
         consider (exists v, a = NComm n0 n1 Q (MValP v)) by eauto using SRPC_M_net_new_lock_query with LTS.
-        destruct `(_ \/ _); bullshit.
+        destruct `(_ \/ _); bs.
       }
 
       destruct `(_ \/ _).
@@ -2162,7 +2162,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         destruct &lock.
         consider (sends_to_mon _ _ _); attac 2.
         consider (sends_to_mon _ _ _).
-        bullshit.
+        bs.
       - assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|] by eauto with LTS; auto.
         assert (dep_on '' MN0 n0 n2).
         {
@@ -2183,11 +2183,11 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
             {
               eapply net_dep_on_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
             }
-            bullshit.
+            bs.
           - replace ('' MN1) with ('' MN0) by eauto using eq_sym, net_deinstr_act_skip.
-            bullshit.
+            bs.
         }
-        hsimpl in *; bullshit.
+        hsimpl in *; bs.
     }
 
     destruct (_of lock MN1 n2) as [n3|] eqn:?. 2: doubt.
@@ -2222,7 +2222,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         - enough (n3 = n3') by attac.
           eauto using M_lock_no_reset.
         - consider (exists v, a = NComm n2 n3 Q (MValP v)) by eauto using M_lock_set.
-          bullshit.
+          bs.
       }
       assert (dep_on '' MN0 n0 n2) by (assert (_of lock MN0 n2 <> None) by attac; eauto with LTS).
 
@@ -2243,10 +2243,10 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
             destruct_mna a; doubt.
           attac.
         - replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
-          bullshit.
+          bs.
       }
 
-      bullshit (n2 <> n2) by eauto using M_lock_no_send.
+      bs (n2 <> n2) by eauto using M_lock_no_send.
   Qed.
 
 
