@@ -360,7 +360,7 @@ Module Thomas.
     run_gen_server {|gs_state:=GSReady _ init; gs_handler:=handle_call|}.
 
 
-  Arguments h_call {state_t} reply next_state.
+  Arguments h_call {state_t} to arg cont.
   Arguments h_reply {state_t} reply next_state.
 
   Definition Echo := gen_server tt (fun _ v st => h_reply v st).
