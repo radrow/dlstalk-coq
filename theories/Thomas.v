@@ -918,70 +918,63 @@ Module Thomas.
   Notation reply := h_reply.
 
   Section Example.
+    Axiom valnat : (Net.Channel.Val = nat).
+    Definition valnat_trans (v : Net.Channel.Val) : nat. rewrite valnat in v. apply v. Defined.
+    Definition natval_trans (n : nat) : Net.Channel.Val. rewrite <- valnat in n. exact n. Defined.
+    Hint Rewrite valnat : LTS LTS_concl.
+    Coercion natval_trans : nat >-> Net.Channel.Val.
+    Lemma veq : forall x, valnat_trans (natval_trans x) = x. intros. unfold valnat_trans, natval_trans.
+                                                        rewrite valnat. auto.
+    Qed.
+    Hint Rewrite veq using assumption : LTS LTS_concl.
+
     Definition echo := worker_conf tt (fun _from msg st => reply msg st).
 
-    Definition proxy (target : string) :=
-      worker_conf tt (fun _from msg st => let? v' := target ! msg in reply v' st).
-
-    Definition endpoint (target : string) :=
-      let handle_call (from : Name) (msg : Val) st :=
-        match from with
-        | Initiator _ _ =>
-            let? v' := target ! msg in
-            reply v' st
-        | _ => reply msg st
+    Definition service (target : string) :=
+      let init_state := tt in
+      let handle_call (_from : Name) (msg : Val) st :=
+        match valnat_trans msg with
+        | 0 => reply msg st
+        | S msg' =>
+            let? x := target ! msg' in
+            reply x st
         end
-      in worker_conf tt handle_call.
-
-    Definition echo_proxy (target : string) :=
-      let init_state := false in
-      let handle_call (from : Name) (msg : Val) (activated : bool) :=
-        if activated
-        then
-          let? v' := target ! msg in
-          reply v' true
-        else
-          reply msg true
       in worker_conf init_state handle_call.
 
-    Variable some_msg : Payload.
 
-    Definition my_net_conf : NetConf :=
-      {| workers name :=
-          match name with
-          | "endpoint0" => endpoint "proxy1"
-          | "endpoint1" => endpoint "proxy0"
-          | "proxy0" => proxy "endpoint0"
-          | "proxy1" => proxy "endpoint1"
-          | _ => echo (* We default to echo *)
-          end;
+    Definition deadlocking_net : PNet := make_net
+                                           {| workers name :=
+                                               match name with
+                                               | "e10" => service "e01" | "e11" => service "e00"
+                                               | "e00" => service "e10" | "e01" => service "e11"
+                                               | _ => echo
+                                               end;
+                                             inits name :=
+                                               match name with
+                                               | "i0" => init_conf "e00" 2 | "i1" => init_conf "e01" 2
+                                               | _ => init_conf "" 0
+                                               end
+                                           |}.
 
-        inits name :=
-          match name with
-          | "0" => init_conf "endpoint0" (some_msg : Val)
-          | "1" => init_conf "endpoint1" (some_msg : Val)
-          | _ => init_conf "" (some_msg : Val) (* Default *)
-          end
-      |}.
 
-  Lemma ded : exists path N, (make_net my_net_conf =[path]=> N) /\ Deadlocked N.
+  Lemma ded : exists path N, (deadlocking_net =[path]=> N) /\ Deadlocked N.
   Proof.
     eexists ?[path], ?[N].
 
-    eassert ((make_net my_net_conf =[?path]=> ?N)).
+    eassert (deadlocking_net =[?path]=> ?N).
     {
       (* Session 0 *)
-      eapply path_seq1 with (act := NTau (Initiator "0" 0) Tau).
+      eapply path_seq1 with (act := NTau (Initiator "i0" 0) Tau).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         repeat econstructor.
         rewrite NetMod.init_get.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Initiator "0" 0) (Worker "endpoint0") Q some_msg).
+      eapply path_seq1 with (act := NComm (Initiator "i0" 0) (Worker "e00") Q _).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -992,9 +985,9 @@ Module Thomas.
           eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "endpoint0") Tau).
+      eapply path_seq1 with (act := NTau (Worker "e00") Tau).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
         simpl.
         repeat econstructor.
@@ -1002,18 +995,18 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "endpoint0") Tau).
+      eapply path_seq1 with (act := NTau (Worker "e00") Tau).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
         repeat econstructor.
         compat_hsimpl.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "endpoint0") (Worker "proxy1") Q some_msg).
+      eapply path_seq1 with (act := NComm (Worker "e00") (Worker "e10") Q _).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -1025,18 +1018,18 @@ Module Thomas.
       }
 
       (* Session 1 *)
-      eapply path_seq1 with (act := NTau (Initiator "1" 0) Tau).
+      eapply path_seq1 with (act := NTau (Initiator "i1" 0) Tau).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         repeat econstructor.
         compat_hsimpl.
         rewrite NetMod.init_get.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Initiator "1" 0) (Worker "endpoint1") Q some_msg).
+      eapply path_seq1 with (act := NComm (Initiator "i1" 0) (Worker "e01") Q _).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -1047,9 +1040,9 @@ Module Thomas.
           eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "endpoint1") Tau).
+      eapply path_seq1 with (act := NTau (Worker "e01") Tau).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
         simpl.
         repeat econstructor.
@@ -1057,18 +1050,18 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "endpoint1") Tau).
+      eapply path_seq1 with (act := NTau (Worker "e01") Tau).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
         repeat econstructor.
         compat_hsimpl.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "endpoint1") (Worker "proxy0") Q some_msg).
+      eapply path_seq1 with (act := NComm (Worker "e01") (Worker "e11") Q _).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -1080,29 +1073,28 @@ Module Thomas.
       }
 
       (* Cross *)
-      eapply path_seq1 with (act := NTau (Worker "proxy1") Tau).
+      eapply path_seq1 with (act := NTau (Worker "e11") Tau).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
         simpl.
         repeat econstructor.
         compat_hsimpl.
-        rewrite (unfold_Proc (gen_server _ _)). simpl.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "proxy1") Tau).
+      eapply path_seq1 with (act := NTau (Worker "e11") Tau).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
         repeat econstructor.
         compat_hsimpl.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "proxy1") (Worker "endpoint1") Q some_msg).
+      eapply path_seq1 with (act := NComm (Worker "e11") (Worker "e00") Q _).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -1112,9 +1104,9 @@ Module Thomas.
           repeat econstructor.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "proxy0") Tau).
+      eapply path_seq1 with (act := NTau (Worker "e10") Tau).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
         simpl.
         repeat econstructor.
@@ -1122,18 +1114,18 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "proxy0") Tau).
+      eapply path_seq1 with (act := NTau (Worker "e10") Tau).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
         repeat econstructor.
         compat_hsimpl.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "proxy0") (Worker "endpoint0") Q some_msg).
+      eapply path_seq1 with (act := NComm (Worker "e10") (Worker "e01") Q _).
       {
-        unfold make_net, my_net_conf, call, recvr, recvq.
+        unfold deadlocking_net, make_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -1156,13 +1148,13 @@ Module Thomas.
                                                     destruct (NetMod.get n N);
                                                     eauto).
       enough (SRPC_net N) by eauto.
-      enough (SRPC_net (make_net my_net_conf)) by eauto with LTS.
+      enough (SRPC_net deadlocking_net) by eauto with LTS.
       clear.
       eauto using make_net_SRPC.
     }
 
     split; eauto.
-    constructor 1 with (DL:=map Worker ["endpoint0"; "endpoint1"; "proxy0"; "proxy1"]).
+    constructor 1 with (DL:=map Worker ["e00"; "e01"; "e10"; "e11"]).
     constructor. 1: { clear; attac. }
     intros.
     unfold net_lock.
@@ -1170,28 +1162,28 @@ Module Thomas.
     specialize (H0 n).
     clear H.
     repeat (destruct `(_ \/ _)).
-    - exists [Worker "proxy1"].
+    - exists [Worker "e10"].
       subst.
       compat_hsimpl in *.
       split; attac.
       blast_cases. 2: bs.
       apply NAME.eqb_eq in Heqb.
       auto.
-    - exists [Worker "proxy0"].
+    - exists [Worker "e11"].
       subst.
       compat_hsimpl in *.
       split; attac.
       blast_cases. 2: bs.
       apply NAME.eqb_eq in Heqb.
       auto.
-    - exists [Worker "endpoint0"].
+    - exists [Worker "e01"].
       subst.
       compat_hsimpl in *.
       split; attac.
       blast_cases. 2: bs.
       apply NAME.eqb_eq in Heqb.
       auto.
-    - exists [Worker "endpoint1"].
+    - exists [Worker "e00"].
       subst.
       compat_hsimpl in *.
       split; attac.
