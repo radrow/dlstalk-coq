@@ -3820,7 +3820,6 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     consider (exists (n1 : Name) (L' : Names), lock_chain N n0 L' n1 /\ incl L (n1 :: L')).
     {
       eapply longest_lock_chain; eauto with LTS.
-      unfold locks_dec_in. intros; eauto using net_sane_lock_dec.
     }
 
     enough (dep_on N n1 n1) by eauto with LTS.
