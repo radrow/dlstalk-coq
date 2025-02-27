@@ -1201,4 +1201,5 @@ Module Thomas.
     - bs.
   Qed.
 
+  End Example.
 End Thomas.
