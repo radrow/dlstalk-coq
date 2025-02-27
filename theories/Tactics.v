@@ -209,7 +209,7 @@ Lemma hintdb_teaser : 21 + 16 = 37. simpl. auto. Qed.
 Hint Rewrite hintdb_teaser : LTS LTS_concl.
 
 
-(** "bad statement" --- tactic to brutally find contradictions *)
+(** "bogus statement" --- tactic to brutally find contradictions *)
 Ltac2 bs_ (on : (constr * (unit -> unit) option) option) :=
   repeat (intros ?);
   match on with

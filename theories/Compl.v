@@ -1419,6 +1419,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
+  (* TODO extract *)
   Lemma net_sane_lock_dec N n0 n1 :
     net_sane N ->
     net_lock_on N n0 n1 \/ ~ net_lock_on N n0 n1.
@@ -1428,6 +1429,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     enough (pq_client n0 (NetMod.get n1 N) \/ ~ pq_client n0 (NetMod.get n1 N)) as [|] by eattac.
     eauto using SRPC_pq_client_dec with LTS.
   Qed.
+
+  #[export] Hint Resolve net_sane_lock_dec : LTS.
 
 
   Theorem SRPC_net_tau_preserve_lock [N0 N1 : PNet] [n a] :
@@ -6616,26 +6619,23 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Proof.
     intros.
-    assert (net_sane '' MN0) by (kill H; hsimpl in *; auto). (* TODO to lemma... *)
 
-    assert (exists n, dep_on '' MN0 n n /\ In n DS) as [n [? ?]].
-    {
-      enough (exists n : Name, In n DS /\ dep_on '' MN0 n n) by attac.
-      eapply deadset_dep_self; eauto with LTS.
-      intros ? ?.
-      eauto using net_sane_lock_dec.
-    }
+    consider (exists n, In n DS /\ dep_on '' MN0 n n)
+      by auto 10 using deadset_dep_self with LTS.
 
-    consider (exists n', dep_on '' MN0 n n' /\ ac n' MN0) by consider (KIC _).
+    consider (exists n', dep_on '' MN0 n n' /\ ac n' MN0)
+      by consider (KIC _).
 
-    assert (dep_on '' MN0 n' n') by eauto using dep_reloop with LTS.
+    assert (dep_on '' MN0 n' n')
+      by eauto using dep_reloop with LTS.
 
-    consider (exists mpath MN1, (MN0 =[ mpath ]=> MN1) /\ _of alarm MN1 n' = true) by eauto using ac_to_alarm.
+    consider (exists mpath MN1, (MN0 =[ mpath ]=> MN1) /\ _of alarm MN1 n' = true)
+      by auto using ac_to_alarm.
 
-    assert (In n' DS) by eauto using deadset_dep_in.
+    assert (In n' DS)
+      by eauto using deadset_dep_in.
 
-    exists mpath, MN1, n'.
-    eattac.
+    now exists mpath, MN1, n'.
   Qed.
 
 
