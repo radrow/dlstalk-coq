@@ -860,8 +860,6 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     KIS_
       (* We are sane *)
       (H_sane_S : net_sane '' MN)
-      (* Dependency is decidable *)
-      (H_dep_dec_C : forall n0 n1, dep_on '' MN n0 n1 \/ ~ dep_on '' MN n0 n1)
       (* `self` is correct *)
       (H_self_S : forall n0, _of self MN n0 = n0)
       (* We are using the algorithm *)
@@ -886,9 +884,6 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
 
   Lemma KIS_sane [MN] : KIS MN -> net_sane '' MN.
-  Proof. intros; consider (KIS _). Qed.
-
-  Lemma KIS_dep_dec [MN] : KIS MN -> forall n0 n1, dep_on '' MN n0 n1 \/ ~ dep_on '' MN n0 n1.
   Proof. intros; consider (KIS _). Qed.
 
   Lemma KIS_self [MN] : KIS MN -> forall n0, _of self MN n0 = n0.
@@ -923,7 +918,6 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   #[export] Hint Immediate
     KIS_sane
-    KIS_dep_dec
     KIS_self
     KIS_Rad
     KIS_lock
@@ -1096,21 +1090,6 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
   Hint Immediate KIS_invariant_sane : LTS.
-
-
-  Lemma KIS_invariant_dep_dec [MN0 MN1 a] :
-    (MN0 =(a)=> MN1) ->
-    KIS MN0 ->
-    forall n0 n1, dep_on '' MN1 n0 n1 \/ ~ dep_on '' MN1 n0 n1.
-  Proof.
-    intros.
-    assert (net_sane '' MN0) by eauto with LTS.
-    destruct (MNAct_to_PNAct a) eqn:?.
-    - eauto using invariant_dep_dec1 with LTS.
-    - replace ('' MN1) with ('' MN0); eauto using net_deinstr_act_skip with LTS.
-  Qed.
-
-  Hint Immediate KIS_invariant_dep_dec : LTS.
 
 
   Lemma KIS_invariant_self [MN0 MN1 a] :
@@ -1966,6 +1945,49 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
+  Lemma dep_dec_after : forall N0 N1 a n0 n1,
+      net_sane N0 ->
+      dep_on N0 n0 n1 ->
+      (N0 =(a)=> N1) ->
+      dep_on N1 n0 n1 \/ ~ dep_on N1 n0 n1.
+
+  Proof.
+    intros.
+    apply dep_lock_chain in H0 as [L [? ?]].
+    generalize dependent n0.
+    induction L; intros; hsimpl in *.
+    - destruct (net_sane_lock_dec N1 n0 n1); eauto with LTS.
+      right; intros ?.
+      consider (dep_on N1 n0 _).
+      consider (n1 = n2) by eauto using SRPC_net_no_relock with LTS.
+    - specialize (IHL ltac:(auto) a0 ltac:(auto)) as [|].
+      + destruct (net_sane_lock_dec N1 n0 a0); eauto with LTS.
+        right; intros ?.
+        consider (dep_on N1 _ _).
+        * consider (a0 = n1) by eauto using SRPC_net_no_relock with LTS.
+        * consider (a0 = n2) by eauto using SRPC_net_no_relock with LTS.
+      + right; intros ?.
+        consider (dep_on N1 n0 n1).
+        * consider (a0 = n1) by eauto using SRPC_net_no_relock with LTS.
+        * consider (a0 = n2) by eauto using SRPC_net_no_relock with LTS.
+  Qed.
+
+  Lemma dep_dec_after_M : forall MN0 MN1 ma n0 n1,
+      net_sane '' MN0 ->
+      dep_on '' MN0 n0 n1 ->
+      (MN0 =(ma)=> MN1) ->
+      dep_on '' MN1 n0 n1 \/ ~ dep_on '' MN1 n0 n1.
+
+  Proof.
+    intros.
+    destruct (MNAct_to_PNAct ma) as [a|] eqn:?.
+    - assert ('' MN0 =(a)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
+      now eauto using dep_dec_after.
+    - replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
+      now left.
+  Qed.
+
+
   Lemma KIS_invariant_recvp_hot [MN0 MN1 a] :
     (MN0 =(a)=> MN1) ->
     KIS MN0 ->
@@ -2076,7 +2098,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           bs.
       }
       assert (dep_on '' MN0 n0 n2) by (assert (_of lock MN0 n2 <> None) by attac; eauto with LTS).
-      assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|] by eauto with LTS; auto.
+      assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|]; eauto using dep_dec_after_M with LTS.
 
       consider (exists n0' v, (n0 = n0' \/ dep_on '' MN1 n0 n0') /\ a = NComm n2 n0' R (MValP v)).
       {
@@ -2163,8 +2185,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         consider (sends_to_mon _ _ _); attac 2.
         consider (sends_to_mon _ _ _).
         bs.
-      - assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|] by eauto with LTS; auto.
-        assert (dep_on '' MN0 n0 n2).
+      - assert (dep_on '' MN0 n0 n2).
         {
           enough (dep_on '' MN0 n1 n2) by attac.
           enough (exists n', List.In (hot_ev_of MN0 n' n2) (get_MQ MN0 n1)) by (hsimpl in *; eauto with LTS).
@@ -2173,6 +2194,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           consider (_ =(_)=> _); compat_hsimpl in *.
           blast_cases; attac.
         }
+
+        assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|] by eauto using dep_dec_after_M with LTS; auto.
 
         assert (exists m0 m1 v, (n0 = m0 \/ dep_on '' MN0 n0 m0) /\ NTau n1 (MActM Tau) = NComm m1 m0 R (MValP v)).
         {
@@ -2226,7 +2249,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       }
       assert (dep_on '' MN0 n0 n2) by (assert (_of lock MN0 n2 <> None) by attac; eauto with LTS).
 
-      assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|] by eauto with LTS; auto.
+      assert (dep_on '' MN1 n0 n2 \/ ~ dep_on '' MN1 n0 n2) as [|] by eauto using dep_dec_after_M with LTS; auto.
 
       consider (exists n0' v, (n0 = n0' \/ dep_on '' MN1 n0 n0') /\ a = NComm n2 n0' R (MValP v)).
       {
@@ -2289,7 +2312,6 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     constructor;
       eauto using
         KIS_invariant_sane
-      , KIS_invariant_dep_dec
       , KIS_invariant_self
       , KIS_invariant_Rad
       , KIS_invariant_lock
@@ -2306,7 +2328,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Hint Extern 0 (KIS _) => solve_invariant : LTS.
 
 
-  Theorem detection_soundness [MN n] :
+  Lemma KIS_detection [MN n] :
     KIS MN ->
     _of alarm MN n = true ->
     exists DS, DeadSet DS '' MN /\ In n DS.
@@ -2319,36 +2341,140 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Corollary detection_soundness' [I0 N0 MN1 mpath n] :
-    KIS (net_instr I0 N0) ->
-    (net_instr I0 N0 =[mpath]=> MN1) ->
+  Theorem detection_soundness [i0 N0 MN1 mpath n] :
+    KIS (net_instr i0 N0) ->
+    (net_instr i0 N0 =[mpath]=> MN1) ->
     _of alarm MN1 n = true ->
-    deadlocked n '' MN1.
+    exists DS, DeadSet DS '' MN1 /\ In n DS.
 
   Proof.
     intros.
-    assert (KIS MN1) by eauto with LTS.
-    enough (dep_on '' MN1 n n) by eauto using dep_self_deadlocked with LTS.
-    consider (KIS MN1).
+    eauto using KIS_detection with LTS.
   Qed.
 
 
-  Corollary detection_soundness_instr [I0 N0 I1 N1 mpath n] :
-    KIS (net_instr I0 N0) ->
-    (net_instr I0 N0 =[mpath]=> net_instr I1 N1) ->
-    _of alarm (net_instr I1 N1) n = true ->
-    deadlocked n N1.
+  Lemma MNPath_do : forall mpath MN0 MN1,
+      (MN0 =[mpath]=> MN1) ->
+      (net_deinstr MN0 =[mpath]=> net_deinstr MN1).
+
+  Proof.
+    induction mpath; intros.
+    1: attac.
+    hsimpl in *.
+    destruct (MNAct_to_PNAct a) eqn:?.
+    - apply path_seq1 with (middle:=''N1).
+      2: eauto.
+      destruct a; kill Heqo; blast_cases; doubt; hsimpl in |- *.
+      + Print PQued_Transp_M.
+        Print MNAct_to_PNAct.
+        assert ('' MN0 =(p)=> '' N1). eapply net_deinstr_act_do. 2: eauto. simpl in *. eauto.
+        attac.
+        {
+          constructor. eauto with LTS.
+          unfold net_deinstr in *.
+          rewrite NetMod.put_map in *.
+          constructor.
+          rewrite NetMod.get_map in *.
+          hsimpl in *.
+          subst.
+          rewrite H.
+          attac.
+          kill H2.
+          kill H3.
+          hsimpl in *.
+          rewrite H in *.
+          unfold deinstr in *.
+          eauto.
+        }
+
+      + assert ('' MN0 =(p)=> '' N1). eapply net_deinstr_act_do. 2: eauto. simpl in *. eauto.
+        attac.
+        kill H2.
+        kill H1.
+        kill H3.
+        unfold net_deinstr in *.
+        smash_eq n n0; hsimpl in *.
+        * rewrite NetMod.put_map in *.
+          rewrite H7 in *.
+          eapply NComm_eq.
+          -- rewrite NetMod.get_map in *.
+             eapply H2.
+          -- eauto.
+             eattac.
+        * rewrite NetMod.put_map in *.
+          eapply NComm_neq; eauto.
+          -- rewrite NetMod.get_map in *.
+             eapply H2.
+          -- eauto.
+             eattac.
+    - replace ('' MN0) with ('' N1) by eauto using net_deinstr_act_skip, eq_sym.
+      eapply path_seq1 with (middle:=N1).
+      2: eauto.
+      destruct a; kill Heqo; blast_cases; doubt; hsimpl in |- *.
+      + eapply NTrans_Tau_inv.
+        kill H; hsimpl in *.
+        unfold net_deinstr.
+        rewrite NetMod.put_map in *.
+        hsimpl.
+        eexists; eattac.
+      + eapply NTrans_Tau_inv.
+        kill H; hsimpl in *.
+        unfold net_deinstr.
+        rewrite NetMod.put_map in *.
+        hsimpl.
+        eexists; eattac.
+      + eapply NTrans_Tau_inv.
+        kill H; hsimpl in *.
+        unfold net_deinstr.
+        rewrite NetMod.put_map in *.
+        hsimpl.
+        eexists; eattac.
+      + eapply NTrans_Tau_inv.
+        kill H; hsimpl in *.
+        unfold net_deinstr.
+        rewrite NetMod.put_map in *.
+        hsimpl.
+        eexists; eattac.
+      + smash_eq n n0.
+        * eapply NTrans_Comm_eq_inv.
+          kill H; hsimpl in *.
+          eexists _, _; eattac.
+        * eapply NTrans_Comm_neq_inv.
+          kill H; hsimpl in *.
+          eexists _, _; eattac.
+  Qed.
+  (* TODO: make it into a normal relation? *)
+
+
+  Corollary detection_soundness_instr [N0 i0 MN1 mpath0 n] :
+    KIS (net_instr i0 N0) ->
+    (net_instr i0 N0 =[ mpath0 ]=> MN1) ->
+    _of alarm MN1 n = true ->
+    exists mpath1 i1 N1 DS,
+      (MN1 =[mpath1]=> net_instr i1 N1)
+      /\ (N0 =[ mpath0 ++ mpath1 ]=> N1)
+      /\ In n DS
+      /\ DeadSet DS N1.
 
   Proof.
     intros.
-    assert (KIS (net_instr I1 N1)) by eauto with LTS.
-    assert (net_sane '' (net_instr I1 N1)) by eauto with LTS.
-    assert (net_sane N1) by (hsimpl in *; auto).
-    enough (dep_on N1 n n) by eauto using dep_self_deadlocked with LTS.
-    enough (dep_on '' (net_instr I1 N1) n n) by (hsimpl in *; auto).
-    consider (KIS (net_instr I1 N1)).
-  Qed.
 
+    consider (exists mpath1 path i2 N2, (MN1 =[ mpath1 ]=> net_instr i2 N2) /\ (N0 =[ path ]=> N2)) by eauto using Net_Transp_soundness.
+    assert ('' (net_instr i0 N0) =[mpath0 ++ mpath1]=> '' (net_instr i2 N2)) by eauto using MNPath_do with LTS.
+
+    hsimpl in *.
+
+    consider (exists DS, DeadSet DS '' MN1 /\ In n DS) by eauto using detection_soundness.
+
+    assert (DeadSet DS '' (net_instr i2 N2)).
+    {
+      consider (exists ppath, '' MN1 =[ppath]=> '' (net_instr i2 N2)) by eauto using Net_path_corr.
+      attac.
+    }
+
+    exists mpath1, i2, N2, DS.
+    eattac.
+  Qed.
 End SOUND_F.
 
 Module Type SOUND(Conf : DETECT_CONF) := Conf <+ DETECT_PARAMS(Conf) <+ SOUND_F.

@@ -919,8 +919,6 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       (H_wait_C : forall n0 n1, net_lock_on '' MN n0 n1 -> NoRecvQ_from n0 (get_MQ MN n1) -> List.In n0 (_of waitees MN n1))
       (* Self-dependency implies alarm condition *)
       (H_alarm_C : forall n0, dep_on '' MN n0 n0 -> exists n1, dep_on '' MN n0 n1 /\ ac n1 MN)
-      (* Dependency is decidable *)
-      (H_dep_dec_C : forall n0 n1, dep_on '' MN n0 n1 \/ ~ dep_on '' MN n0 n1)
     : KIC MN.
 
 
@@ -2762,250 +2760,6 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   (*   eauto with LTS. *)
   (* Qed. *)
 
-
-  Lemma invariant_dep_dec1 [N0 N1 : PNet] [a] :
-    net_sane N0 ->
-    (N0 =(a)=> N1) ->
-    (forall n0 n1, dep_on N0 n0 n1 \/ ~ dep_on N0 n0 n1) ->
-    (forall n0 n1, dep_on N1 n0 n1 \/ ~ dep_on N1 n0 n1).
-
-  Proof.
-    intros.
-    assert (net_sane N1) by attac.
-
-    destruct `(dep_on N0 n0 n1 \/ ~ dep_on N0 n0 n1).
-    - apply dep_lock_chain in H3. hsimpl in *.
-      generalize dependent n0.
-      induction L; intros; hsimpl in *.
-      + assert (net_lock_on N1 n0 n1 \/ ~ net_lock_on N1 n0 n1)
-          as [|] by eauto using net_sane_lock_dec with LTS.
-        1: eattac.
-
-        right; intros Hx.
-        consider (dep_on N1 n0 n1).
-        bs (n1 = n2) by (eauto using SRPC_net_no_relock with LTS).
-      + rename a0 into n0'.
-        specialize (IHL ltac:(auto) n0' ltac:(auto)).
-
-        smash_eq n0 n0'; eauto.
-        smash_eq n0 n1.
-        {
-          left.
-          assert (deadlocked n0 N0) by (eapply dep_self_deadlocked; eauto with LTS).
-          eauto 3 with LTS.
-        }
-
-        destruct IHL as [|].
-        * assert (net_lock_on N1 n0 n0' \/ ~ net_lock_on N1 n0 n0')
-            as [|] by eauto using net_sane_lock_dec with LTS.
-          -- left; eauto 3 with LTS.
-          -- right.
-             intros Hx.
-             consider (dep_on N1 n0 n1).
-             ++ assert (n0' = n1) by eauto 4 using SRPC_net_no_relock with LTS.
-                bs.
-             ++ assert (n0' = n2) by eauto 4 using SRPC_net_no_relock with LTS.
-                bs.
-        * right.
-          assert (net_lock_on N1 n0 n0' \/ ~ net_lock_on N1 n0 n0')
-            as [|] by eauto using net_sane_lock_dec with LTS.
-          1: { intros ?.
-               consider (dep_on N1 n0 n1).
-               1: { bs (n1 = n0') by (eapply SRPC_net_lock_uniq; eauto with LTS). }
-               consider (n2 = n0') by (eapply SRPC_net_lock_uniq; eauto with LTS).
-          }
-
-          intros ?.
-          consider (dep_on N1 n0 n1).
-          ++ assert (n0' = n1) by eauto 4 using SRPC_net_no_relock with LTS.
-             bs.
-          ++ assert (n0' = n2) by eauto 4 using SRPC_net_no_relock with LTS.
-             bs.
-    -
-      assert ((exists m0 m1 v, a = @NComm PAct _ m0 m1 Q v) \/ ~ (exists m0 m1 v, a = @NComm PAct _ m0 m1 Q v)) as [|].
-      {
-        destruct a.
-        - right; iattac.
-        - destruct &t.
-          + left; ieattac.
-          + right; ieattac.
-      }
-      + hsimpl in *.
-        consider (~ net_lock_on N0 m0 m1 /\ net_lock_on N1 m0 m1) by eauto using SRPC_net_query_new_lock with LTS.
-        remember (NComm _ _ _ _) as na; clear Heqna.
-        destruct `(dep_on N0 n0 m0 \/ ~ dep_on N0 n0 m0).
-        * assert (dep_on N1 n0 m0).
-          {
-            consider (exists v, na = NComm m0 m1 Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-            eauto using net_dep_Q_preserve.
-          }
-          destruct `(dep_on N0 m1 n1 \/ ~ dep_on N0 m1 n1).
-          1: eauto 4 using SRPC_net_new_lock_no_unlock_dep with LTS.
-
-          smash_eq m1 n1.
-          1: eauto 3 with LTS.
-
-          right; intros ?.
-
-          assert (exists v', na = NComm m0 m1 Q v') by eauto using net_sane_new_lock_send_Q with LTS.
-          assert (exists m0' m1' v', na = NComm m0' m1' Q v'
-                                     /\ (m0' = n0 \/ (m0' <> n0 /\ dep_on N0 n0 m0' /\ dep_on N1 n0 m0'))
-                                     /\ (m1' = n1 \/ (m1' <> n1 /\ dep_on N0 m1' n1 /\ dep_on N1 m1' n1)))
-            by eauto using net_dep_close with LTS.
-
-          hsimpl in H10.
-          hsimpl in H11.
-          remember (NComm _ _ _ _) as na; clear Heqna.
-          destruct `(_ \/ _); subst.
-          1: bs.
-          hsimpl in H10.
-          bs.
-        * destruct `(dep_on N0 n0 m1 \/ ~ dep_on N0 n0 m1).
-          -- assert (dep_on N1 n0 m1) by eauto 2 using SRPC_net_new_lock_no_unlock_dep with LTS.
-             destruct `(dep_on N0 m1 n1 \/ ~ dep_on N0 m1 n1).
-             1: eauto 4 using SRPC_net_new_lock_no_unlock_dep with LTS.
-
-             smash_eq m1 n1.
-             1: eauto 3 with LTS.
-
-             right; intros ?.
-
-             assert (exists v', na = NComm m0 m1 Q v') by eauto using net_sane_new_lock_send_Q with LTS.
-             assert (exists m0' m1' v', na = NComm m0' m1' Q v'
-                                        /\ (m0' = n0 \/ (m0' <> n0 /\ dep_on N0 n0 m0' /\ dep_on N1 n0 m0'))
-                                        /\ (m1' = n1 \/ (m1' <> n1 /\ dep_on N0 m1' n1 /\ dep_on N1 m1' n1)))
-               by eauto using net_dep_close with LTS.
-
-             hsimpl in H11.
-             hsimpl in H12.
-             remember (NComm _ _ _ _) as na; clear Heqna.
-             destruct `(_ \/ _); subst.
-             1: bs.
-             hsimpl in H11.
-             bs.
-          -- destruct (net_sane_lock_dec N0 n0 n1); eauto 4 using SRPC_net_new_lock_no_unlock with LTS.
-             destruct (net_sane_lock_dec N1 n0 n1); eauto 2 with LTS.
-
-             destruct `(dep_on N0 m1 n1 \/ ~ dep_on N0 m1 n1).
-             ++ assert (dep_on N1 m1 n1) by eauto 2 using SRPC_net_new_lock_no_unlock_dep with LTS.
-                smash_eq n0 m1.
-                smash_eq n0 m0.
-                1: eauto 3 with LTS.
-
-                enough (~ dep_on N1 n0 m0).
-                {
-                  right; intros ?. apply `(~ dep_on N1 n0 m0).
-
-                  assert (exists v', na = NComm m0 m1 Q v') by eauto using net_sane_new_lock_send_Q with LTS.
-                  assert (exists m0' m1' v', na = NComm m0' m1' Q v'
-                                             /\ (m0' = n0 \/ (m0' <> n0 /\ dep_on N0 n0 m0' /\ dep_on N1 n0 m0'))
-                                             /\ (m1' = n1 \/ (m1' <> n1 /\ dep_on N0 m1' n1 /\ dep_on N1 m1' n1)))
-                    by eauto using net_dep_close with LTS.
-
-                  hsimpl in H14.
-                  strip_exists @H15.
-                  do 2 (destruct `(_ /\ _)). hsimpl in H15.
-                  kill H14.
-                }
-
-                clear H1.
-                clear - HEq HEq0 H H0 H3 H4 H5 H6 H9 H10 H11.
-                (*
-                    N0, N1 : PNet
-                    H : net_sane N0
-                    m0, m1 : Name
-                    na : NAct (Act:=PAct)
-                    H0 : N0 =( na )=> N1
-                    n0, n1 : Name
-                    H3 : ~ dep_on N0 n0 n1
-                    H4 : ~ net_lock_on N0 m0 m1
-                    H5 : net_lock_on N1 m0 m1
-                    H6 : ~ dep_on N0 n0 m0
-                    H9 : ~ net_lock_on N1 n0 n1
-                    H10 : dep_on N0 m1 n1
-                    H11 : dep_on N1 m1 n1
-                    HEq : m1 <> n0
-                    HEq0 : m0 <> n0
-                 *)
-                intros Hx.
-
-                apply dep_lock_chain in Hx as [L' [? ?]].
-                consider (exists L,
-                             lock_chain N1 n0 L m0
-                             /\ NoDup L
-                             /\ not (List.In n0 L)
-                             /\ not (List.In m0 L)) by eauto using lock_chain_dedup.
-                clear L' H2 H1.
-                generalize dependent n0.
-                induction L; intros; hsimpl in *.
-                ** destruct (net_sane_lock_dec N0 n0 m0); eauto 2 with LTS.
-                   absurd (n0 = m0 /\ m0 = m1); eauto using SRPC_net_lock_uniq.
-                   bs.
-                   assert (exists v, na = NComm n0 m0 Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                   assert (exists v, na = NComm m0 m1 Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                   attac.
-                ** rename a into n0'.
-                   consider (NoDup (_ :: _)).
-                   specialize (IHL ltac:(auto) ltac:(auto) n0').
-                   apply IHL; try (intros ?); eauto 3 with LTS.
-                   --- destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
-                       assert (exists v, na = NComm m0 m1 Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                       assert (exists v, na = NComm n0 n0' Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                       attac.
-
-                   --- destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
-                       assert (exists v, na = NComm m0 m1 Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                       assert (exists v, na = NComm n0 n0' Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                       attac.
-
-                   --- destruct (net_sane_lock_dec N0 n0' n1); eauto 2 with LTS.
-                       +++ destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
-                           bs (dep_on N0 n0 n1).
-                           assert (exists v, na = NComm m0 m1 Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                           assert (exists v, na = NComm n0 n0' Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                           attac.
-                       +++ assert (exists v, na = NComm m0 m1 Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                           assert (exists v, na = NComm n0' n1 Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                           attac.
-
-                   --- subst.
-                       destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
-                       assert (exists v, na = NComm m0 n0' Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                       assert (exists v, na = NComm n0 n0' Q v) by eauto using net_sane_new_lock_send_Q with LTS.
-                       attac.
-
-             ++ right.
-                intros ?.
-
-
-                assert (exists v', na = NComm m0 m1 Q v') by eauto using net_sane_new_lock_send_Q with LTS.
-                assert (exists m0' m1' v', na = NComm m0' m1' Q v'
-                                           /\ (m0' = n0 \/ (m0' <> n0 /\ dep_on N0 n0 m0' /\ dep_on N1 n0 m0'))
-                                           /\ (m1' = n1 \/ (m1' <> n1 /\ dep_on N0 m1' n1 /\ dep_on N1 m1' n1)))
-                  by eauto using net_dep_close with LTS.
-
-                hsimpl in H12.
-                strip_exists @H13.
-                do 2 (destruct `(_ /\ _)).
-                hsimpl in H12.
-
-                remember (NComm _ _ _ _) as na; clear Heqna.
-                destruct `(_ \/ _), `(_ \/ _); hsimpl in *; bs.
-
-      + right.
-        intros Hx.
-        assert (exists m0' m1' v',
-                   a = NComm m0' m1' Q v' /\
-                     (m0' = n0 \/ m0' <> n0 /\ dep_on N0 n0 m0' /\ dep_on N1 n0 m0') /\
-                     (m1' = n1 \/ m1' <> n1 /\ dep_on N0 m1' n1 /\ dep_on N1 m1' n1)
-               ) by eauto using net_dep_close with LTS.
-        apply H4.
-        strip_exists @H5.
-        destruct `(_ /\ _).
-        eauto.
-  Qed.
-
-
   Lemma deadlocked_M_get_lock [MN0 n] :
     SRPC_net '' MN0 ->
     deadlocked n '' MN0 ->
@@ -4693,7 +4447,40 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     clear H1 n0 H4.
     rename n0' into n0.
 
-    assert (dep_on '' MN0 n0 n0 \/ ~ dep_on '' MN0 n0 n0) as [|] by consider (KIC MN0).
+    assert (dep_on '' MN0 n0 n0 \/ ~ dep_on '' MN0 n0 n0) as [|].
+    {
+      enough (forall n1, dep_on '' MN1 n0 n1 -> dep_on '' MN0 n0 n1 \/ ~ dep_on '' MN0 n0 n1) by eauto.
+      clear H5. (* dep_on *)
+      intros n1 ?.
+      apply dep_lock_chain in H1 as [L [? ?]].
+      generalize dependent n0.
+      induction L; intros; hsimpl in *.
+      - destruct (net_sane_lock_dec '' MN0 n0 n1); eauto with LTS.
+        consider (exists v, a = NComm n0 n1 Q # v) by eauto using SRPC_M_net_new_lock_query with LTS.
+        right; intros ?.
+        consider (dep_on '' MN0 n0 n1).
+        smash_eq n2 n1.
+        apply `(_ <> _).
+        eauto using SRPC_M_net_no_immediate_relock, eq_sym with LTS.
+      - specialize (IHL ltac:(auto) a0 ltac:(auto)) as [|].
+        + destruct (net_sane_lock_dec '' MN0 n0 a0); eauto with LTS.
+          consider (exists v, a = NComm n0 a0 Q # v) by eauto using SRPC_M_net_new_lock_query with LTS.
+          right; intros ?.
+          consider (dep_on '' MN0 n0 n1).
+          * assert (n1 = a0). eauto using SRPC_M_net_no_immediate_relock with LTS. bs.
+          * assert (n2 = a0). eauto using SRPC_M_net_no_immediate_relock with LTS. bs.
+        + destruct (net_sane_lock_dec '' MN0 n0 a0); eauto with LTS.
+          * right; intros ?.
+            eapply `(~ dep_on _ _ _).
+            consider (dep_on '' MN0 n0 n1).
+            -- assert (n1 = a0). eauto with LTS. eapply `(lock_uniq_type '' MN0); eauto. bs.
+            -- assert (n2 = a0). eauto with LTS. eapply `(lock_uniq_type '' MN0); eauto. bs.
+          * consider (exists v, a = NComm n0 a0 Q # v) by eauto using SRPC_M_net_new_lock_query with LTS.
+            right; intros ?.
+            consider (dep_on '' MN0 n0 n1).
+            -- assert (n1 = a0). eauto using SRPC_M_net_no_immediate_relock with LTS. bs.
+            -- assert (n2 = a0). eauto using SRPC_M_net_no_immediate_relock with LTS. bs.
+    }
     - consider (exists m, dep_on '' MN0 n0 m /\ ac m MN0) by (consider (KIC MN0); auto).
       assert (deadlocked n0 '' MN0) by eauto using dep_self_deadlocked with LTS.
       assert (dep_on '' MN1 n0 m) by eauto using deadlocked_M_dep_invariant1 with LTS.
@@ -5000,13 +4787,6 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     - eauto using KIC_invariant_H_lock with LTS.
     - eauto using KIC_invariant_H_wait with LTS.
     - eauto using KIC_invariant_H_alarm, dep_self_deadlocked with LTS.
-    - (* TODO to lemma *)
-      destruct (MNAct_to_PNAct a) eqn:?.
-      + assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do.
-        consider (KIC MN0).
-        eauto using invariant_dep_dec1 with LTS.
-      + replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip.
-        consider (KIC MN0).
   Qed.
 
   Hint Resolve KIC_invariant : LTS inv.
@@ -6965,13 +6745,14 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     auto.
   Qed.
 
-
-  Theorem detection_full_compl : forall i0 (N0 N1 : PNet) path (DS : Names),
+  Theorem detection_completeness : forall i0 (N0 N1 : PNet) path (DS : Names),
       KIC (net_instr i0 N0) ->
       (N0 =[path]=> N1) ->
       DeadSet DS N1 ->
       exists mpath i1 n,
-        (net_instr i0 N0 =[ mpath ]=> net_instr i1 N1) /\ In n DS /\ _of alarm (net_instr i1 N1) n = true.
+          (net_instr i0 N0 =[ mpath ]=> net_instr i1 N1)
+        /\ In n DS
+        /\ _of alarm (net_instr i1 N1) n = true.
 
   Proof.
     intros.
@@ -7037,91 +6818,6 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     eapply net_preserve_alarm; eauto with LTS.
     kill H15.
   Qed.
-
-
-
-  Theorem detection_completeness [MN0 DS] :
-    KIC MN0 ->
-    DeadSet DS '' MN0 ->
-    exists mpath MN1 n, (MN0 =[ mpath ]=> MN1) /\ In n DS /\ _of alarm MN1 n = true.
-
-  Proof.
-    intros.
-
-    consider (exists n, In n DS /\ dep_on '' MN0 n n)
-      by auto 10 using deadset_dep_self with LTS.
-
-    consider (exists n', dep_on '' MN0 n n' /\ ac n' MN0)
-      by consider (KIC _).
-
-    assert (dep_on '' MN0 n' n')
-      by eauto using dep_reloop with LTS.
-
-    consider (exists mpath MN1, (MN0 =[ mpath ]=> MN1) /\ _of alarm MN1 n' = true)
-      by auto using ac_to_alarm.
-
-    assert (In n' DS)
-      by eauto using deadset_dep_in.
-
-    now exists mpath, MN1, n'.
-  Qed.
-
-
-  Corollary detection_completeness_uni [N0 N1] [ppath] [I0] :
-    KIC (net_instr I0 N0) ->
-    (N0 =[ ppath ]=> N1) ->
-    Deadlocked N1 ->
-    forall mpath0 I1,
-      (net_instr I0 N0 =[ mpath0 ]=> net_instr I1 N1) ->
-      exists mpath1 MN2,
-        (net_instr I1 N1 =[ mpath1 ]=> MN2)
-        /\ exists n, _of alarm MN2 n = true.
-
-  Proof.
-    intros.
-    destruct `(Deadlocked _) as [DS ?].
-    assert (DeadSet DS '' (net_instr I1 N1)) by (rewrite net_deinstr_instr; eauto).
-    consider (exists mpath1 MN1 n, (net_instr I1 N1 =[ mpath1 ]=> MN1) /\ In n DS /\ _of alarm MN1 n = true)
-      by eauto using detection_completeness with LTS.
-    eattac.
-  Qed.
-
-
-  Corollary detection_completeness_exi [N0 N1] [ppath] [I0] :
-    KIC (net_instr I0 N0) ->
-    (N0 =[ ppath ]=> N1) ->
-    Deadlocked N1 ->
-    exists mpath0 I1 mpath1 MN2,
-      (net_instr I0 N0 =[ mpath0 ]=> net_instr I1 N1)
-      /\ (net_instr I1 N1 =[ mpath1 ]=> MN2)
-      /\ exists n, _of alarm MN2 n = true.
-  Proof.
-    intros.
-
-    consider (exists mpath0 I1, net_instr I0 N0 =[ mpath0 ]=> net_instr I1 N1)
-      by eauto using Net_Transp_completeness.
-
-    exists mpath0, I1.
-
-    destruct `(Deadlocked _) as [DS ?].
-    assert (DeadSet DS '' (net_instr I1 N1)) by (rewrite net_deinstr_instr; eauto).
-    consider (exists mpath1 MN2 n, (net_instr I1 N1 =[ mpath1 ]=> MN2)
-                              /\ In n DS
-                              /\ _of alarm MN2 n = true)
-      by eauto using detection_completeness with LTS.
-
-    eattac.
-  Qed.
-
-
-  Conjecture detection_completeness_path' : forall [N0 N1] [ppath] [I0],
-      net_sane '' N0 ->
-      KIC (net_instr I0 N0) ->
-      (N0 =[ ppath ]=> N1) ->
-      Deadlocked '' N1 ->
-      exists I1 mpath0,
-        (net_instr I0 N0 =[ mpath0 ]=> net_instr I1 N1)
-        /\ exists n, _of alarm (net_instr I1 N1) n = true.
 End COMPL_F.
 
 Module Type COMPL(Conf : DETECT_CONF) := Conf <+ DETECT_PARAMS(Conf) <+ COMPL_F.

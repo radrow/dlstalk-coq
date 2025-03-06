@@ -108,27 +108,6 @@ Module Thomas.
 
   Import SrpcNet.
 
-  Theorem correct : forall (N0 : PNet) (MN1 : MNet) mpath0 i0,
-      KIC (net_instr i0 N0) ->
-      KIS (net_instr i0 N0) ->
-      (net_instr i0 N0 =[mpath0]=> MN1) ->
-      (forall DS,
-          DeadSet DS '' MN1 ->
-          exists mpath1 MN2 n,
-            (MN1 =[mpath1]=> MN2) /\ In n DS /\ _of alarm MN2 n = true
-      ) /\
-      (forall n,
-          _of alarm MN1 n = true ->
-          exists DS, DeadSet DS '' MN1 /\ In n DS
-      ).
-
-  Proof.
-    split; intros.
-    - eauto using detection_completeness with LTS.
-    - eauto using detection_soundness with LTS.
-  Qed.
-
-
   Definition recvq (cont : Name -> Val -> Proc) : Proc :=
     PRecv (
         fun m =>
