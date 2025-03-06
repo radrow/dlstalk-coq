@@ -6837,7 +6837,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
                  (net_instr i1 N1 =[ mpath1 ]=> net_instr i2 _)
                  /\ _of alarm (net_instr i2 _) n' = true
              )
-      by eauto using ac_to_alarm', net_instr_flushed, net_instr_ready_net with LTS.
+      by eauto using ac_to_alarm, net_instr_flushed, net_instr_ready_net with LTS.
 
     exists (mpath0 ++ mpath1), i2, n'.
     now eauto using net_preserve_alarm_path with LTS.
