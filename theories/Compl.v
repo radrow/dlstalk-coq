@@ -6540,42 +6540,6 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     eattac.
   Qed.
 
-
-  Theorem ac_to_alarm [MN0 : MNet] [n] :
-    KIC MN0 ->
-    ac n MN0 ->
-    dep_on '' MN0 n n ->
-    exists DS mpath MN1, (MN0 =[mpath]=> MN1) /\ DeadSet DS MN0 /\ detect_path DS mpath /\ _of alarm MN1 n = true.
-
-  Proof.
-    intros.
-
-    assert (deadlocked n '' MN0) as [DS [? ?]] by eauto using dep_self_deadlocked with LTS.
-
-    exists DS.
-
-    destruct (_of alarm MN0 n) eqn:?.
-    1: { exists [], MN0. unfold detect_path; eattac. }
-
-    consider (ac n MN0).
-    - consider (n = m \/ dep_on '' MN0 n m).
-      + consider (exists mpath MN1, (MN0 =[ mpath ]=> MN1) /\ detect_path DS mpath /\ _of alarm MN1 m = true)
-          by eauto using propagation_finito, hot_hot_of with LTS.
-        exists mpath, MN1. split; eauto with LTS.
-      + consider (exists mpath MN1, (MN0 =[ mpath ]=> MN1) /\ detect_path DS mpath /\ _of alarm MN1 n = true)
-          by eauto using propagation_finito, hot_hot_of with LTS.
-        exists mpath, MN1. split; eauto with LTS.
-
-    - assert (deadlocked n '' MN0) by (exists DS; eauto).
-      consider (exists MN1 mpath, (MN0 =[mpath]=> MN1) /\ detect_path [n] mpath /\ _of alarm MN1 n = true)
-        by eauto using detection_finito with LTS.
-      exists mpath, MN1.
-      repeat (split; eauto).
-      eapply detect_path_incl; eauto.
-      ieattac.
-  Qed.
-
-
   Lemma KIC_AnySRPC_pq_instr [I N] : KIC (net_instr I N) ->
                                      forall n, AnySRPC_pq (NetMod.get n N).
   Proof.
@@ -6745,78 +6709,138 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     auto.
   Qed.
 
+
+  Lemma net_preserve_alarm_path
+    : forall mpath (MN0 MN1 : MNet) (n : Transp.Net.NAME.t'),
+      KIC MN0 -> MN0 =[ mpath ]=> MN1 -> _of alarm MN0 n = true -> _of alarm MN1 n = true.
+
+  Proof.
+    induction mpath; attac.
+    eapply IHmpath with (MN0:=N1); eauto with LTS.
+    eapply net_preserve_alarm; eauto.
+    consider (KIC _).
+  Qed.
+
+  Lemma KIC_instr_sane : forall i N, KIC (net_instr i N) -> net_sane N.
+  Proof.
+    intros.
+    consider (KIC _); hsimpl in *; auto.
+  Qed.
+  #[export] Hint Immediate KIC_instr_sane : LTS.
+
+
+  Lemma ac_to_alarm_DS [MN0 : MNet] [n] :
+    KIC MN0 ->
+    ac n MN0 ->
+    dep_on '' MN0 n n ->
+    exists DS mpath MN1, (MN0 =[mpath]=> MN1) /\ DeadSet DS MN0 /\ detect_path DS mpath /\ _of alarm MN1 n = true.
+
+  Proof.
+    intros.
+
+    assert (deadlocked n '' MN0) as [DS [? ?]] by eauto using dep_self_deadlocked with LTS.
+
+    exists DS.
+
+    destruct (_of alarm MN0 n) eqn:?.
+    1: { exists [], MN0. unfold detect_path; eattac. }
+
+    consider (ac n MN0).
+    - consider (n = m \/ dep_on '' MN0 n m).
+      + consider (exists mpath MN1, (MN0 =[ mpath ]=> MN1) /\ detect_path DS mpath /\ _of alarm MN1 m = true)
+          by eauto using propagation_finito, hot_hot_of with LTS.
+        exists mpath, MN1. split; eauto with LTS.
+      + consider (exists mpath MN1, (MN0 =[ mpath ]=> MN1) /\ detect_path DS mpath /\ _of alarm MN1 n = true)
+          by eauto using propagation_finito, hot_hot_of with LTS.
+        exists mpath, MN1. split; eauto with LTS.
+
+    - assert (deadlocked n '' MN0) by (exists DS; eauto).
+      consider (exists MN1 mpath, (MN0 =[mpath]=> MN1) /\ detect_path [n] mpath /\ _of alarm MN1 n = true)
+        by eauto using detection_finito with LTS.
+      exists mpath, MN1.
+      repeat (split; eauto).
+      eapply detect_path_incl; eauto.
+      ieattac.
+  Qed.
+
+
+
+  Lemma ac_to_alarm [MN0 : MNet] [n] :
+    KIC MN0 ->
+    ac n MN0 ->
+    dep_on '' MN0 n n ->
+    flushed MN0 ->
+    ready_net MN0 ->
+    exists mpath i0, (MN0 =[mpath]=> net_instr i0 MN0) /\ _of alarm (net_instr i0 MN0) n = true.
+
+  Proof.
+    intros.
+
+    consider (exists DS mpath0 MN1,
+                 (MN0 =[ mpath0 ]=> MN1)
+                 /\ DeadSet DS MN0
+                 /\ detect_path DS mpath0
+                 /\  _of alarm MN1 n = true
+             ) by eauto using ac_to_alarm_DS with LTS.
+
+    consider (exists mpath1 i1, (MN1 =[mpath1]=> net_instr i1 MN1)).
+    {
+      assert (flushed MN1).
+      {
+        assert (flushed MN0) by eauto using net_instr_flushed.
+        assert (net_sane '' MN0) by eauto 10 with LTS.
+        eauto using locked_flusheds.
+      }
+      assert (forall n'', not (In n'' (path_particip mpath0)) -> ready_in n'' MN1).
+      {
+        intros.
+        assert (ready_in n'' MN0) by eauto.
+        unfold ready_in, ready_q in *.
+        replace (NetMod.get n'' MN1) with (NetMod.get n'' MN0) by eauto using path_particip_stay.
+        blast_cases.
+        eauto using net_instr_ready.
+      }
+      eauto using to_instr.
+    }
+
+    replace (net_deinstr MN0) with (net_deinstr MN1)
+      by (symmetry; eapply locked_deinstrs; eauto with LTS).
+
+    exists (mpath0 ++ mpath1), i1.
+
+    assert (KIC MN1) by eauto with LTS.
+    eauto using net_preserve_alarm_path, deadset_dep_in with LTS.
+  Qed.
+
+
   Theorem detection_completeness : forall i0 (N0 N1 : PNet) path (DS : Names),
       KIC (net_instr i0 N0) ->
-      (N0 =[path]=> N1) ->
+      (N0 =[ path ]=> N1) ->
       DeadSet DS N1 ->
       exists mpath i1 n,
-          (net_instr i0 N0 =[ mpath ]=> net_instr i1 N1)
+        (net_instr i0 N0 =[ mpath ]=> net_instr i1 N1)
         /\ In n DS
         /\ _of alarm (net_instr i1 N1) n = true.
 
   Proof.
     intros.
-    consider (exists mpath0 i1, net_instr i0 N0 =[ mpath0 ]=> net_instr i1 N1) by eauto using Net_Transp_completeness.
-    assert (KIC (net_instr i1 N1)) by eauto with LTS.
-    assert (DeadSet DS (net_instr i1 N1)) by attac 2.
-
-    consider (exists n, In n DS /\ dep_on '' (net_instr i1 N1) n n)
-      by auto 10 using deadset_dep_self with LTS.
-
-    consider (exists n', dep_on '' (net_instr i1 N1) n n' /\ ac n' (net_instr i1 N1)).
-      consider (KIC _). eapply H_alarm_C. attac 2.
-
+    consider (exists mpath0 i1, net_instr i0 N0 =[ mpath0 ]=> net_instr i1 N1)
+      by eauto using Net_Transp_completeness.
+    consider (exists n, In n DS /\ dep_on N1 n n)
+      by (eapply deadset_dep_self; eauto with LTS).
+    consider (exists n', dep_on '' (net_instr i1 N1) n n' /\ ac n' (net_instr i1 N1))
+      by (consider (KIC (net_instr i1 N1)); attac).
     assert (dep_on '' (net_instr i1 N1) n' n')
-     by (rewrite net_deinstr_instr; eauto using dep_reloop with LTS; eapply dep_reloop; eauto with LTS; consider (KIC _); attac).
+      by (hsimpl; eauto using dep_reloop with LTS).
 
-    consider (exists DS' mpath1 MN2, (net_instr i1 N1 =[ mpath1 ]=> MN2) /\ DeadSet DS' (net_instr i1 N1) /\ detect_path DS' mpath1 /\  _of alarm MN2 n' = true)
-      by auto using ac_to_alarm.
+    consider (exists mpath1 i2,
+                 (net_instr i1 N1 =[ mpath1 ]=> net_instr i2 _)
+                 /\ _of alarm (net_instr i2 _) n' = true
+             )
+      by eauto using ac_to_alarm', net_instr_flushed, net_instr_ready_net with LTS.
 
-    assert (In n' DS)
-      by eauto using deadset_dep_in.
-
-    assert (net_deinstr (net_instr i1 N1) = net_deinstr MN2).
-    {
-      eapply locked_deinstrs.
-      3: eauto.
-      all: attac.
-    }
-
-    consider (exists mpath2 i2, (MN2 =[mpath2]=> net_instr i2 MN2)).
-    {
-      assert (forall n'', not (In n'' (path_particip mpath1)) -> ready_in n'' MN2).
-      {
-        intros.
-        assert (NetMod.get n'' (net_instr i1 N1) = NetMod.get n'' MN2) by eauto using path_particip_stay.
-        unfold ready_in, ready_q.
-        rewrite <- `(NetMod.get n'' _ = _).
-        blast_cases.
-        eauto using net_instr_ready.
-      }
-
-      assert (flushed MN2).
-      {
-        assert (flushed (net_instr i1 N1)) by eauto using net_instr_flushed.
-        assert (net_sane '' (net_instr i1 N1)) by eauto with LTS.
-        assert (DeadSet DS' (net_instr i1 N1)). eattac.
-        eauto using locked_flusheds.
-      }
-      eauto using to_instr.
-    }
-
-    exists (mpath0 ++ mpath1 ++ mpath2)%list, i2, n'.
-    attac.
-    assert (KIC MN2) by eauto with LTS.
-    remember (net_instr i2 '' MN2) as MN3.
-    clear HeqMN3.
-    clear - H15 H13 H16.
-    generalize dependent MN2.
-    induction mpath2; attac.
-    eapply IHmpath2.
-    2: eauto.
-    2: eauto with LTS.
-    eapply net_preserve_alarm; eauto with LTS.
-    kill H15.
+    exists (mpath0 ++ mpath1), i2, n'.
+    now eauto using net_preserve_alarm_path with LTS.
   Qed.
 End COMPL_F.
 
