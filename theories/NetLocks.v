@@ -43,7 +43,7 @@ Module Type NET_LOCKS_PARAMS(Conf : NET_LOCKS_CONF).
 End NET_LOCKS_PARAMS.
 
 Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_PARAMS(Conf)).
-  Notation PNet := (NetMod.t PQued).
+  Notation PNet := (NetMod.t Serv).
 
   (** Network is decisive when all services are *)
   Definition Decisive_net N := forall n, Decisive_q (NetMod.get n N).

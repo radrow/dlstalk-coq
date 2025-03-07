@@ -183,7 +183,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
           * enough (In n0 [n1]) by attac.
             enough (incl [n0] [n1]) by attac.
             attac.
-          * eapply (@act_particip_stay PQued PAct); attac.
+          * eapply (@act_particip_stay Serv PAct); attac.
     Qed.
 
 
@@ -263,7 +263,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
 
     (** [c] is the client of this service (not necessarily handled at the moment) *)
-    Inductive pq_client (c : Name) : PQued -> Prop  :=
+    Inductive pq_client (c : Name) : Serv -> Prop  :=
     | PQH_in [I P O v] :
       List.In (c, Q, v) I ->
       pq_client c (pq I P O)
@@ -299,19 +299,19 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     #[export] Hint Resolve pq_client_app_I_l pq_client_app_I_r pq_client_app_O_l pq_client_app_O_r : LTS.
 
 
-    Definition SRPC_sane_Q_in (S : PQued) := forall c v v' I', Deq (c, Q) v (pq_I S) I' -> ~ List.In (c, Q, v') I'.
-    Definition SRPC_sane_R_in (S : PQued) := forall s s' v v' I', Deq (s, R) v (pq_I S) I' -> ~ List.In (s', R, v') I'.
-    Definition SRPC_sane_R_in_lock (S : PQued) := forall s v, List.In (s, R, v) (pq_I S) -> exists c, SRPC_pq (Lock c s) S.
-    Definition SRPC_sane_Q_out_lock (S : PQued) := forall s v, List.In (s, Q, v) (pq_O S) -> exists c, SRPC_pq (Lock c s) S.
-    Definition SRPC_sane_Q_out_last (S : PQued) := forall s v, ~ List.In (s, Q, v) (List.removelast (pq_O S)).
-    Definition SRPC_sane_R_out_uniq (S : PQued) := forall c v v' O', Deq (c, R) v (pq_O S) O' -> ~ List.In (c, R, v') O'.
-    Definition SRPC_sane_R_Q (S : PQued) := forall s v v', List.In (s, R, v) (pq_I S) -> ~ List.In (s, Q, v') (pq_O S).
-    Definition SRPC_sane_Q_R (S : PQued) := forall s v v', List.In (s, Q, v) (pq_O S) -> ~ List.In (s, R, v') (pq_I S).
-    Definition SRPC_sane_lock_Q (S : PQued) := forall c s, SRPC_pq (Lock c s) S -> pq_O S <> [] -> exists v, List.In (s, Q, v) (pq_O S).
+    Definition SRPC_sane_Q_in (S : Serv) := forall c v v' I', Deq (c, Q) v (pq_I S) I' -> ~ List.In (c, Q, v') I'.
+    Definition SRPC_sane_R_in (S : Serv) := forall s s' v v' I', Deq (s, R) v (pq_I S) I' -> ~ List.In (s', R, v') I'.
+    Definition SRPC_sane_R_in_lock (S : Serv) := forall s v, List.In (s, R, v) (pq_I S) -> exists c, SRPC_pq (Lock c s) S.
+    Definition SRPC_sane_Q_out_lock (S : Serv) := forall s v, List.In (s, Q, v) (pq_O S) -> exists c, SRPC_pq (Lock c s) S.
+    Definition SRPC_sane_Q_out_last (S : Serv) := forall s v, ~ List.In (s, Q, v) (List.removelast (pq_O S)).
+    Definition SRPC_sane_R_out_uniq (S : Serv) := forall c v v' O', Deq (c, R) v (pq_O S) O' -> ~ List.In (c, R, v') O'.
+    Definition SRPC_sane_R_Q (S : Serv) := forall s v v', List.In (s, R, v) (pq_I S) -> ~ List.In (s, Q, v') (pq_O S).
+    Definition SRPC_sane_Q_R (S : Serv) := forall s v v', List.In (s, Q, v) (pq_O S) -> ~ List.In (s, R, v') (pq_I S).
+    Definition SRPC_sane_lock_Q (S : Serv) := forall c s, SRPC_pq (Lock c s) S -> pq_O S <> [] -> exists v, List.In (s, Q, v) (pq_O S).
 
-    Definition SRPC_sane_in_Q_no_client (S : PQued) := forall c v, List.In (c, Q, v) (pq_I S) -> ~ proc_client c (pq_P S).
-    Definition SRPC_sane_in_Q_no_out_R (S : PQued) := forall c v v', List.In (c, Q, v) (pq_I S) -> ~ List.In (c, R, v') (pq_O S).
-    Definition SRPC_sane_client_no_out_R (S : PQued) := forall c v, proc_client c (pq_P S) -> ~ List.In (c, R, v) (pq_O S).
+    Definition SRPC_sane_in_Q_no_client (S : Serv) := forall c v, List.In (c, Q, v) (pq_I S) -> ~ proc_client c (pq_P S).
+    Definition SRPC_sane_in_Q_no_out_R (S : Serv) := forall c v v', List.In (c, Q, v) (pq_I S) -> ~ List.In (c, R, v') (pq_O S).
+    Definition SRPC_sane_client_no_out_R (S : Serv) := forall c v, proc_client c (pq_P S) -> ~ List.In (c, R, v) (pq_O S).
 
 
     #[export] Hint Transparent SRPC_sane_Q_in SRPC_sane_R_in SRPC_sane_R_in_lock SRPC_sane_Q_out_lock SRPC_sane_Q_out_last SRPC_sane_R_out_uniq SRPC_sane_R_Q SRPC_sane_Q_R SRPC_sane_lock_Q SRPC_sane_in_Q_no_client SRPC_sane_in_Q_no_out_R SRPC_sane_client_no_out_R : LTS.
@@ -320,7 +320,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
 
     (** A much stronger version of SRPC_pq which holds in any network with the same premises *)
-    Inductive SRPC_sane (srpc : SRPC_State) (S : PQued) : Prop :=
+    Inductive SRPC_sane (srpc : SRPC_State) (S : Serv) : Prop :=
       SPRC_pq_net_
 
         (Hsrpc : SRPC_pq srpc S)

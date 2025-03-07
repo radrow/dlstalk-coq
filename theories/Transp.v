@@ -37,7 +37,7 @@ End TRANSP_PARAMS.
 Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Conf)).
 
   (** Not-monitored network *)
-  Notation PNet := (NetMod.t PQued).
+  Notation PNet := (NetMod.t Serv).
   (** Monitored network *)
   Notation MNet := (NetMod.t MQued).
 
@@ -138,7 +138,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
   Definition mon_assg := Name -> (MQ_clear * Mon_ready).
 
-  Definition net_instr_n (I : mon_assg) (n : Name) (S : PQued) :=
+  Definition net_instr_n (I : mon_assg) (n : Name) (S : Serv) :=
     let (MQ, M) := I n in
     instr MQ M S.
 
@@ -172,12 +172,12 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     unfold net_instr_n in H.
 
     assert (let (MQ, M) := &I n in instr MQ M (NetMod.get n N0) = let (MQ, M) := &I n in instr MQ M (NetMod.get n N1)).
-    - rewrite <- (@NetMod.get_map PQued MQued
-                    (fun (n : Name) (S : PQued) => let (MQ, M) := &I n in instr MQ M S)
+    - rewrite <- (@NetMod.get_map Serv MQued
+                    (fun (n : Name) (S : Serv) => let (MQ, M) := &I n in instr MQ M S)
         ).
       rewrite <- H.
-      rewrite -> (@NetMod.get_map PQued MQued
-                    (fun (n : Name) (S : PQued) => let (MQ, M) := &I n in instr MQ M S)
+      rewrite -> (@NetMod.get_map Serv MQued
+                    (fun (n : Name) (S : Serv) => let (MQ, M) := &I n in instr MQ M S)
         ).
       destruct (&I n) as [MQ M].
       reflexivity.

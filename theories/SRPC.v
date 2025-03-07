@@ -665,7 +665,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   #[export] Hint Immediate SRPC_work_inv : LTS.
 
 
-  Lemma SRPC_pq_work_inv [S : PQued] [c0 c1] [s0 : SRPC_Busy_State c0] [s1 : SRPC_Busy_State c1] :
+  Lemma SRPC_pq_work_inv [S : Serv] [c0 c1] [s0 : SRPC_Busy_State c0] [s1 : SRPC_Busy_State c1] :
     SRPC_pq (Busy s0) S ->
     SRPC_pq (Busy s1) S ->
     c0 = c1.
@@ -983,7 +983,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   (** SRPC service can be locked only on one thing *)
-  Lemma SRPC_pq_one_lock [S : PQued] [L] :
+  Lemma SRPC_pq_one_lock [S : Serv] [L] :
     AnySRPC_pq S ->
     pq_lock L S ->
     length (nodup NAME.eq_dec L) = 1%nat.
@@ -1022,7 +1022,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   (** If SRPC service is locked, then it is known on who *)
-  Lemma SRPC_pq_get_lock [S : PQued] [L] :
+  Lemma SRPC_pq_get_lock [S : Serv] [L] :
     AnySRPC_pq S ->
     pq_lock L S ->
     exists n, pq_lock [n] S.
@@ -1120,13 +1120,13 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   (** You can't judge locks of a service based on its SRPC-state, because the code may be in a *)
   (*   locked state, but there are messages to be sent *)
-  Example SRPC_Lock_pq_lock [S : PQued] [s c] :
+  Example SRPC_Lock_pq_lock [S : Serv] [s c] :
     SRPC_pq (Lock c s) S -> pq_lock [s] S.
   Abort.
 
 
   (** SRPC-lock state is complete for all SRPC services *)
-  Lemma lock_SRPC_Lock_pq [S : PQued] [s] :
+  Lemma lock_SRPC_Lock_pq [S : Serv] [s] :
     AnySRPC_pq S ->
     pq_lock [s] S -> (exists c, SRPC_pq (Lock c s) S).
 

@@ -160,8 +160,8 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
   #[export] Hint Rewrite -> @ProcTrans_PRecv_inv @ProcTrans_PSend_inv @ProcTrans_PTau_inv using assumption : LTS.
 
 
-  Inductive PQued := pq : Que Val -> Proc -> Que Val -> PQued.
-  #[export] Hint Constructors PQued : LTS.
+  Inductive Serv := pq : Que Val -> Proc -> Que Val -> Serv.
+  #[export] Hint Constructors Serv : LTS.
 
   Definition pq_I S := match S with pq I' _ _ => I' end.
   Definition pq_P S := match S with pq _ P _ => P end.
@@ -183,7 +183,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
   #[export] Hint Rewrite -> pq_I_inv pq_P_inv pq_O_inv using spank : LTS LTS_concl.
 
 
-  Inductive PTrans : PAct -> PQued -> PQued -> Prop :=
+  Inductive PTrans : PAct -> Serv -> Serv -> Prop :=
   | PTRecv [n v I0 I1 P O]
       (HEnq : Enq n v I0 I1)
     : PTrans (Recv n v) (pq I0 P O) (pq I1 P O)
@@ -211,7 +211,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
 
   #[export]
-    Instance trans_pqued : LTS PAct PQued  :=
+    Instance trans_pqued : LTS PAct Serv  :=
     {
       trans := PTrans
     }.
@@ -838,7 +838,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Proof. eattac. Qed.
 
 
-  Inductive MQued := mq : list Event -> Mon -> PQued -> MQued.
+  Inductive MQued := mq : list Event -> Mon -> Serv -> MQued.
   #[export] Hint Constructors MQued : LTS.
 
   Definition mq_MQ MS := match MS with mq MQ _ _ => MQ end.
@@ -1135,12 +1135,12 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Definition MQued_ready := {M : MQued | ready_q M}.
 
 
-  Definition instr_t := MQ_clear -> Mon_ready -> PQued -> MQued.
+  Definition instr_t := MQ_clear -> Mon_ready -> Serv -> MQued.
 
 
   (** Instrumentation function *)
   Definition instr : instr_t :=
-    fun (MQ : MQ_clear) (M : Mon_ready) (P : PQued) => mq (proj1_sig MQ) (proj1_sig M) P.
+    fun (MQ : MQ_clear) (M : Mon_ready) (P : Serv) => mq (proj1_sig MQ) (proj1_sig M) P.
 
   #[export] Hint Unfold instr : LTS.
   #[export] Hint Transparent instr : LTS.
@@ -1561,12 +1561,12 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   (** Deinstrumentation. Strips off monitoring and disassembles monitor's queue. *)
-  Definition deinstr (MS0 : MQued) : PQued :=
+  Definition deinstr (MS0 : MQued) : Serv :=
     match MS0 with
     | (mq MQ0 _ (pq I0 P0 O0)) => (pq (I0 ++ (MQ_r MQ0)) P0 (MQ_s MQ0 ++ O0))
     end.
 
-  #[reversible=no] Coercion deinstr : MQued >-> PQued.
+  #[reversible=no] Coercion deinstr : MQued >-> Serv.
 
 
   (** Deinstrumentation is inversion of instrumentation *)
@@ -2226,47 +2226,47 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Qed.
 
 
-  Instance PQued_Transp_M : LTS MAct PQued | 10 :=
+  Instance Serv_Transp_M : LTS MAct Serv | 10 :=
     {
-      trans := fun (ma : MAct) (S0 S1 : PQued) =>
+      trans := fun (ma : MAct) (S0 S1 : Serv) =>
                  match MAct_to_PAct ma with
                  | None => S1 = S0
-                 | Some a => @trans PAct PQued trans_pqued a S0 S1
+                 | Some a => @trans PAct Serv trans_pqued a S0 S1
                  end
     }.
 
 
-  Lemma PQued_Transp_act [ma : MAct] [a : PAct] [S0 S1 : PQued] :
+  Lemma Serv_Transp_act [ma : MAct] [a : PAct] [S0 S1 : Serv] :
     ma >:- a ->
     (S0 =(ma)=> S1) <-> (S0 =(a)=> S1).
 
   Proof.
-    unfold trans, PQued_Transp_M.
+    unfold trans, Serv_Transp_M.
     intros.
     attac.
   Qed.
 
 
-  Lemma PQued_Transp_skip [ma : MAct] [S0 S1 : PQued] :
+  Lemma Serv_Transp_skip [ma : MAct] [S0 S1 : Serv] :
     MAct_to_PAct ma = None ->
     (S0 =(ma)=> S1) <-> S1 = S0.
 
   Proof.
-    unfold trans, PQued_Transp_M.
+    unfold trans, Serv_Transp_M.
     intros.
     attac.
   Qed.
 
-  #[export] Hint Rewrite -> PQued_Transp_act PQued_Transp_skip using spank : LTS LTS_concl.
-  #[export] Hint Immediate PQued_Transp_act PQued_Transp_skip : LTS.
-  #[export] Hint Resolve <- PQued_Transp_act PQued_Transp_skip : LTS.
+  #[export] Hint Rewrite -> Serv_Transp_act Serv_Transp_skip using spank : LTS LTS_concl.
+  #[export] Hint Immediate Serv_Transp_act Serv_Transp_skip : LTS.
+  #[export] Hint Resolve <- Serv_Transp_act Serv_Transp_skip : LTS.
 
 
-  Lemma PQued_Transp_M_path : forall (mpath : list MAct) (S0 S1 : PQued),
+  Lemma Serv_Transp_M_path : forall (mpath : list MAct) (S0 S1 : Serv),
       (S0 =[mpath]=> S1) <-> (S0 =[MPath_to_PPath mpath]=> S1).
 
   Proof.
-    induction mpath; split; attac; unfold trans, PQued_Transp_M in *.
+    induction mpath; split; attac; unfold trans, Serv_Transp_M in *.
     - destruct (MAct_to_PAct a) eqn:?.
       + enough (N1 =[MPath_to_PPath mpath]=> S1) by attac.
         apply IHmpath; eattac.
@@ -2274,16 +2274,16 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     - destruct (MAct_to_PAct a) eqn:?; attac.
       + enough ((S0 =(a)=> N1) /\ (N1 =[mpath]=> S1)) by attac.
         split.
-        * unfold trans, PQued_Transp_M; attac.
+        * unfold trans, Serv_Transp_M; attac.
         * eapply IHmpath; eattac.
       + assert (S0 =(a)=> S0) by eattac.
         enough (S0 =[mpath]=> S1) by attac.
         eapply IHmpath; eattac.
   Qed.
 
-  #[export] Hint Rewrite -> PQued_Transp_M_path using spank : LTS LTS_concl.
-  #[export] Hint Immediate PQued_Transp_M_path : LTS.
-  #[export] Hint Resolve <- PQued_Transp_M_path : LTS.
+  #[export] Hint Rewrite -> Serv_Transp_M_path using spank : LTS LTS_concl.
+  #[export] Hint Immediate Serv_Transp_M_path : LTS.
+  #[export] Hint Resolve <- Serv_Transp_M_path : LTS.
 
 
   (** If a monitored process progresses over a path, then the unmonitored process can follow a

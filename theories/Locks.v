@@ -123,7 +123,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   #[export] Hint Constructors Decisive : LTS.
 
   (** Service decisiveness *)
-  Definition Decisive_q (S : PQued) := Decisive (pq_P S).
+  Definition Decisive_q (S : Serv) := Decisive (pq_P S).
 
   #[export] Hint Transparent Decisive_q : LTS.
 
@@ -148,7 +148,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 (*         We also consider only decisive processes here. *)
 (*    *)
-  Inductive pq_lock (L : Names) : PQued -> Prop :=
+  Inductive pq_lock (L : Names) : Serv -> Prop :=
   | PQ_Lock [I P] :
     Decisive P ->
     proc_lock L P ->

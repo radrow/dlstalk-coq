@@ -2365,7 +2365,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     - apply path_seq1 with (middle:=''N1).
       2: eauto.
       destruct a; kill Heqo; blast_cases; doubt; hsimpl in |- *.
-      + Print PQued_Transp_M.
+      + Print Serv_Transp_M.
         Print MNAct_to_PNAct.
         assert ('' MN0 =(p)=> '' N1). eapply net_deinstr_act_do. 2: eauto. simpl in *. eauto.
         attac.

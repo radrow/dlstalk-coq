@@ -64,4 +64,4 @@ Goal forall (T : Set) (N : NetMod.t T) S m n, (NetMod.put n S N) n = S \/ NetMod
   ltac1:(rewrite_strat bottomup (eval compute [NetGet]; hints LTS_concl)).
 
 
-Definition apply_net (N : PNet) : Name -> PQued := fun n => NetMod.get n N.
+Definition apply_net (N : PNet) : Name -> Serv := fun n => NetMod.get n N.
