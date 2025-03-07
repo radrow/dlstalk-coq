@@ -60,23 +60,23 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   #[export] Hint Resolve serv_i_net_inv' serv_p_net_inv' serv_o_net_inv' : LTS LTS_concl.
 
 
-  Lemma mq_MQ_net_inv : forall MQ M S n [N : MNet],
-      NetMod.get n N = mq MQ M S ->
-      mq_MQ (NetMod.get n N) = MQ.
+  Lemma mserv_i_net_inv : forall MQ M S n [N : MNet],
+      NetMod.get n N = mserv MQ M S ->
+      mserv_i (NetMod.get n N) = MQ.
   Proof. intros. rewrite H. attac. Qed.
 
-  Lemma mq_M_net_inv : forall MQ M S n [N : MNet],
-      NetMod.get n N = mq MQ M S ->
-      mq_M (NetMod.get n N) = M.
+  Lemma mserv_m_net_inv : forall MQ M S n [N : MNet],
+      NetMod.get n N = mserv MQ M S ->
+      mserv_m (NetMod.get n N) = M.
   Proof. intros. rewrite H. attac. Qed.
 
-  Lemma mq_S_net_inv : forall MQ M S n [N : MNet],
-      NetMod.get n N = mq MQ M S ->
-      mq_S (NetMod.get n N) = S.
+  Lemma mserv_s_net_inv : forall MQ M S n [N : MNet],
+      NetMod.get n N = mserv MQ M S ->
+      mserv_s (NetMod.get n N) = S.
   Proof. intros. rewrite H. attac. Qed.
 
-  #[export] Hint Rewrite -> mq_MQ_net_inv mq_M_net_inv mq_S_net_inv using spank : LTS LTS_concl.
-  #[export] Hint Resolve mq_MQ_net_inv mq_M_net_inv mq_S_net_inv : LTS LTS_concl.
+  #[export] Hint Rewrite -> mserv_i_net_inv mserv_m_net_inv mserv_s_net_inv using spank : LTS LTS_concl.
+  #[export] Hint Resolve mserv_i_net_inv mserv_m_net_inv mserv_s_net_inv : LTS LTS_concl.
 
 
   Definition PNAct := @NAct PAct gen_Act_PAct.
@@ -92,8 +92,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Proof. split; intros; rewrite H in *; auto. Qed.
 
   Lemma MNet_trans_simpl_inv a n N MQ M S MS :
-    NetMod.get n N = mq MQ M S ->
-    (NetMod.get n N =(a)=> MS) <-> (mq MQ M S =(a)=> MS).
+    NetMod.get n N = mserv MQ M S ->
+    (NetMod.get n N =(a)=> MS) <-> (mserv MQ M S =(a)=> MS).
   Proof. split; intros; rewrite H in *; auto. Qed.
 
   #[export] Hint Rewrite -> @PNet_trans_simpl_inv @MNet_trans_simpl_inv using spank : LTS_concl.
@@ -341,14 +341,14 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   Definition NoTrSend (MS : MServ) : Prop :=
-    match MS with (mq MQ _ _) => NoSends_MQ MQ end.
+    match MS with (mserv MQ _ _) => NoSends_MQ MQ end.
 
   Definition no_sends_in n N := NoTrSend (NetMod.get n N).
 
   Definition no_sends (N : MNet) := forall n, no_sends_in n N.
 
   Lemma no_sends_in_NoSendsMQ [n MN MQ M S] :
-    NetMod.get n MN = mq MQ M S ->
+    NetMod.get n MN = mserv MQ M S ->
     no_sends_in n MN ->
     NoSends_MQ MQ.
 
@@ -358,7 +358,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   Definition Flushed (MS : MServ) : Prop :=
-    match MS with (mq MQ _ _) => MQ_Clear MQ end.
+    match MS with (mserv MQ _ _) => MQ_Clear MQ end.
 
   Definition flushed_in n N := Flushed (NetMod.get n N).
 
@@ -372,7 +372,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   Lemma flushed_in_MQ_Clear [n MN MQ M S] :
-    NetMod.get n MN = mq MQ M S ->
+    NetMod.get n MN = mserv MQ M S ->
     flushed_in n MN ->
     MQ_Clear MQ.
 
@@ -384,8 +384,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Definition get_I N n := match NetMod.get n N with serv i _ _ => i end.
   Definition get_P N n := match NetMod.get n N with serv _ p _ => p end.
   Definition get_O N n := match NetMod.get n N with serv _ _ o => o end.
-  Definition get_MQ N n := match NetMod.get n N with mq MQ _ _ => MQ end.
-  Definition get_M N n := match NetMod.get n N with mq _ M _ => M end.
+  Definition get_MQ N n := match NetMod.get n N with mserv MQ _ _ => MQ end.
+  Definition get_M N n := match NetMod.get n N with mserv _ M _ => M end.
   Definition get_Mc N n := state (get_M N n).
   Definition get_H N n := handle (get_M N n).
 
@@ -444,7 +444,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   Lemma net_instr_clear : forall I N MQ M S n,
-      NetMod.get n (net_instr I N) = mq MQ M S ->
+      NetMod.get n (net_instr I N) = mserv MQ M S ->
       MQ_Clear MQ.
 
   Proof.
@@ -455,7 +455,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Qed.
 
   Lemma net_instr_ready : forall I N MQ M S n,
-      NetMod.get n (net_instr I N) = mq MQ M S ->
+      NetMod.get n (net_instr I N) = mserv MQ M S ->
       ready M.
 
   Proof.
@@ -508,7 +508,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         smash_eq n n0.
         1: specialize (HNoself t0 (MValP v)); bs.
 
-        remember (mq MQ {| handle := h; state := h (TrSend (n0, t0) v) s |} P) as S.
+        remember (mserv MQ {| handle := h; state := h (TrSend (n0, t0) v) s |} P) as S.
 
         assert (exists N0', NetMod.get n N0' = &S /\ NVTrans n (send (n0, t0) (MValP v)) N0 N0')
           as (N0' & HeqN0 & NT0)
@@ -554,7 +554,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         smash_eq n n0 n1; attac.
 
       + exists (NTau n (MActM Tau)).
-        exists (NetMod.put n (mq MQ {| handle := h; state := h (EvRecv n0 msg) s |} P) N0).
+        exists (NetMod.put n (mserv MQ {| handle := h; state := h (EvRecv n0 msg) s |} P) N0).
         eattac.
         1: econstructor; eattac.
 
@@ -572,11 +572,11 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   Lemma flush_act_available_self : forall [n : Name] t0 v [MQ M S] [N0 : MNet],
-      (NetMod.get n N0 =(send (n, t0) v)=> mq MQ M S) ->
+      (NetMod.get n N0 =(send (n, t0) v)=> mserv MQ M S) ->
       (
         exists na N1 MQ',
           (N0 =(na)=> N1)
-          /\ NetMod.get n N1 = mq (MQ ++ MQ') M S
+          /\ NetMod.get n N1 = mserv (MQ ++ MQ') M S
           /\  (forall m, no_sends_in m N0 -> no_sends_in m N1)
           /\  (forall m, flushed_in m N0 -> flushed_in m N1)
           /\ (forall m, not (ready_in n N0) -> [send (n, t0) v] >:~ [] -> ready_in m N0 -> ready_in m N1)
@@ -612,7 +612,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     - hsimpl in *.
       consider (M3 = M2) by (destruct M3, M2; attac).
       hsimpl in *.
-      assert (forall MQ nc m M S, deinstr (mq (MQ ++ [EvRecv nc m]) M S) = deinstr (mq MQ M S)) as Hreduce.
+      assert (forall MQ nc m M S, deinstr (mserv (MQ ++ [EvRecv nc m]) M S) = deinstr (mserv MQ M S)) as Hreduce.
       {
         clear.
         intros.
@@ -672,7 +672,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
   Lemma flush_exists : forall MQ0 M0 I0 P O,
     exists mpath M1 I1,
-      (mq MQ0 M0 (serv I0 P O) =[ mpath ]=> instr (exist _ [] (Forall_nil _)) M1 (serv (I0 ++ I1) P O))
+      (mserv MQ0 M0 (serv I0 P O) =[ mpath ]=> instr (exist _ [] (Forall_nil _)) M1 (serv (I0 ++ I1) P O))
       /\ Forall Flushing_act mpath.
 
   Proof.
@@ -704,7 +704,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
     remember (serv I0 P0 O0) as S0. clear HeqS0.
     remember (serv (I0 ++ I1) P0 O0) as S1. clear HeqS1 I0 I1 P0 O0.
-    remember (mq MQ0 M0 S0) as MS0. clear HeqMS0.
+    remember (mserv MQ0 M0 S0) as MS0. clear HeqMS0.
 
     remember (instr (exist _ [] _) M1 S1) as MS1.
     assert (NoTrSend MS1) as HNoSend1 by attac.
@@ -740,7 +740,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       destruct N1 as [MQ0' M0' S0'].
       eapply flush_act_available_self in TM
           as (na & MN0' & MQ' & TN0 & HEq & HPreserveNS0 & HPreserveF0 & _ & _ & HNS1); auto.
-      assert (NoTrSend (mq (MQ1 ++ MQ') (proj1_sig M1) S1)) as HNS1'.
+      assert (NoTrSend (mserv (MQ1 ++ MQ') (proj1_sig M1) S1)) as HNS1'.
       {
         apply Forall_app; split; auto.
         unshelve eapply (Forall_impl _ _ HNS1).
@@ -795,7 +795,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
     remember (serv I0 P0 O0) as S0. clear HeqS0.
     remember (serv (I0 ++ I1) P0 O0) as S1. clear HeqS1 I0 I1 P0 O0.
-    remember (mq MQ0 M0 S0) as MS0. clear HeqMS0.
+    remember (mserv MQ0 M0 S0) as MS0. clear HeqMS0.
 
     eremember (instr (exist _ [] _) M1 S1) as MS1; eauto.
     assert (Flushed MS1) as HNoSend1. subst. constructor.
@@ -827,8 +827,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     destruct MS0' as [MQ0' M0' S0'].
 
     destruct (send_self_dec a n).
-    - replace ( MTrans a (NetMod.get n MN0) (mq MQ0' M0' S0'))
-        with  ((NetMod.get n MN0) =(a)=> mq MQ0' M0' S0')
+    - replace ( MTrans a (NetMod.get n MN0) (mserv MQ0' M0' S0'))
+        with  ((NetMod.get n MN0) =(a)=> mserv MQ0' M0' S0')
         in TM0; auto.
 
       apply flush_act_available in TM0
@@ -871,7 +871,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       assert (no_sends MN0') as HNS0'.
       unfold no_sends. intros. apply HPreserveNS0. apply HNS0.
 
-      assert (Flushed (mq (MQ1 ++ MQ') (proj1_sig M1) S1)) as HF1'.
+      assert (Flushed (mserv (MQ1 ++ MQ') (proj1_sig M1) S1)) as HF1'.
       { apply Forall_app; split; auto.
         unshelve eapply (Forall_impl _ _ HNS0'').
         intros. simpl in *. destruct a; auto.
@@ -913,7 +913,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
   Lemma ready_exists : forall MQ M0 S,
     exists mpath M1,
-      (mq MQ M0 S =[mpath]=> mq MQ M1 S)
+      (mserv MQ M0 S =[mpath]=> mserv MQ M1 S)
       /\ Forall Flushing_act mpath
       /\ ready M1
       /\ mpath >:~ [].
@@ -1171,14 +1171,14 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
     assert (forall n, {MS : MServ | NetMod.get n MN = MS  /\
                                       match MS with
-                                      | mq MQ M _ =>
+                                      | mserv MQ M _ =>
                                           MQ_Clear MQ /\ ready M
                                       end
            }).
     {
       intros.
       destruct (NetMod.get n MN) as [MQ M S] eqn:HI.
-      unshelve eapply (exist _ (mq MQ M &S) _). repeat split.
+      unshelve eapply (exist _ (mserv MQ M &S) _). repeat split.
       specialize (HF n). rewrite HI in HF. apply HF.
       specialize (HR n). rewrite HI in HR. apply HR.
     }
@@ -1195,7 +1195,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     apply (exist _ l H1).  apply (exist _ m H2).
 
     assert ((NetMod.init (fun n => match NetMod.get n MN with
-                                   | mq _ _ s => s
+                                   | mserv _ _ s => s
                                    end
             )) = net_deinstr MN).
     {
@@ -1372,7 +1372,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     rewrite NetMod.put_map in *.
     kill TP.
 
-    assert (deinstr (mq MQ M (serv &I P ((n', t0, v) :: &O))) = deinstr (NetMod.get n MN0))
+    assert (deinstr (mserv MQ M (serv &I P ((n', t0, v) :: &O))) = deinstr (NetMod.get n MN0))
       by (rewrite <- H2; reflexivity).
 
     clear H2.
@@ -1388,7 +1388,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
     rewrite <- (NetMod.put_map (fun _ S =>
                                  match S with
-                                 | mq _ _ _ => _
+                                 | mserv _ _ _ => _
                                  end
       )).
     rewrite NetMod.put_get_eq.
@@ -1409,7 +1409,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     unfold net_deinstr in *.
     rewrite NetMod.put_map in *.
 
-    assert (deinstr (mq MQ M1 S1) = NetMod.get n (NetMod.map (fun _ S => deinstr S) MN0)).
+    assert (deinstr (mserv MQ M1 S1) = NetMod.get n (NetMod.map (fun _ S => deinstr S) MN0)).
 
     simpl in *.
 
@@ -1514,7 +1514,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     rewrite NetMod.put_map in *.
     destruct S as [MQ M S].
 
-    replace (deinstr (mq MQ M &S)) with (NetMod.get n (NetMod.map (fun _ S => deinstr S) MN0)); attac.
+    replace (deinstr (mserv MQ M &S)) with (NetMod.get n (NetMod.map (fun _ S => deinstr S) MN0)); attac.
 
     consider (_ =(_)=> _); hsimpl; eattac.
   Qed.
@@ -1826,11 +1826,11 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       [ma] [MQ0 M0 S0] [MQ1 M1 S1] n I0 N0,
       [ma] >:~ [] ->
       Flushing_act ma ->
-      (mq MQ0 M0 S0 =(ma)=> mq MQ1 M1 S1) ->
+      (mserv MQ0 M0 S0 =(ma)=> mserv MQ1 M1 S1) ->
       exists nmpath I1 MQ',
-        (NetMod.put n (mq MQ0 M0 S0) (net_instr I0 N0)
+        (NetMod.put n (mserv MQ0 M0 S0) (net_instr I0 N0)
          =[nmpath]=>
-           NetMod.put n (mq (MQ1 ++ MQ') M1 S1) (net_instr I1 N0)
+           NetMod.put n (mserv (MQ1 ++ MQ') M1 S1) (net_instr I1 N0)
         )
         /\ MQ_Clear MQ'.
 
@@ -1840,9 +1840,9 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     kill TM; kill HC; kill HF; try (destruct n0 as [n0 t0]).
     - unshelve eexists [NComm n n0 t0 _]. apply (MValM msg).
 
-      assert (NetMod.get n (NetMod.put n (mq MQ1 M0 S1) (net_instr I0 N0))
+      assert (NetMod.get n (NetMod.put n (mserv MQ1 M0 S1) (net_instr I0 N0))
               =(MActM (Send (n0, t0) msg))=>
-                (mq MQ1 M1 S1)
+                (mserv MQ1 M1 S1)
              ).
       repeat (rewrite NetMod.get_put_eq).
       constructor. assumption.
@@ -1850,12 +1850,12 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       rewrite NetMod.put_put_eq in H0.
       rename H0 into NT_send.
 
-      destruct (NetMod.get n0 (NetMod.put n (mq MQ1 M1 S1) (net_instr I0 N0)))
+      destruct (NetMod.get n0 (NetMod.put n (mserv MQ1 M1 S1) (net_instr I0 N0)))
         as [MQr Mr Sr] eqn:HeqR.
 
-      assert (NetMod.get n0 (NetMod.put n (mq MQ1 M1 S1) (net_instr I0 N0))
+      assert (NetMod.get n0 (NetMod.put n (mserv MQ1 M1 S1) (net_instr I0 N0))
               =(MActM (Recv (n, t0) msg))=>
-                (mq (MQr ++ [EvRecv (n, t0) msg]) Mr Sr)
+                (mserv (MQr ++ [EvRecv (n, t0) msg]) Mr Sr)
              ).
       rewrite HeqR.
       constructor.
@@ -1915,7 +1915,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
         specialize (NT_Comm NT_send NT_recv) as ?.
 
-        assert ( (net_instr I1 N0) = (NetMod.put n0 (mq (MQr ++ [EvRecv (n, t0) msg]) Mr Sr) (net_instr I0 N0))).
+        assert ( (net_instr I1 N0) = (NetMod.put n0 (mserv (MQr ++ [EvRecv (n, t0) msg]) Mr Sr) (net_instr I0 N0))).
         {
           unfold net_instr.
           specialize (conscious_replace n0
@@ -1962,9 +1962,9 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       constructor.
       constructor.
 
-      assert (NetMod.get n (NetMod.put n (mq (EvRecv (n0, t0) v :: MQ1) M0 S1) (net_instr I0 N0))
+      assert (NetMod.get n (NetMod.put n (mserv (EvRecv (n0, t0) v :: MQ1) M0 S1) (net_instr I0 N0))
               =(MActM Tau)=>
-                (mq MQ1 M1 S1)
+                (mserv MQ1 M1 S1)
              ).
       repeat (rewrite NetMod.get_put_eq).
       constructor. assumption.
@@ -1983,9 +1983,9 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       constructor.
       constructor.
 
-      assert (NetMod.get n (NetMod.put n (mq (MQ1) M0 S1) (net_instr I0 N0))
+      assert (NetMod.get n (NetMod.put n (mserv (MQ1) M0 S1) (net_instr I0 N0))
               =(MActM Tau)=>
-                (mq MQ1 M1 S1)
+                (mserv MQ1 M1 S1)
              ).
       repeat (rewrite NetMod.get_put_eq).
       constructor. assumption.
@@ -2004,9 +2004,9 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       constructor.
       constructor.
 
-      assert (NetMod.get n (NetMod.put n (mq (TrRecv (n0, t0) v :: MQ1) M0 S0) (net_instr I0 N0))
+      assert (NetMod.get n (NetMod.put n (mserv (TrRecv (n0, t0) v :: MQ1) M0 S0) (net_instr I0 N0))
               =(MActP (Recv (n0, t0) v))=>
-                (mq MQ1 M1 S1)
+                (mserv MQ1 M1 S1)
              ).
       repeat (rewrite NetMod.get_put_eq).
       constructor; assumption.
@@ -2023,11 +2023,11 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       [mpath] [MQ0 M0 S0] [MQ1 M1 S1] n I0 N0,
       mpath >:~ [] ->
       Forall Flushing_act mpath ->
-      (mq MQ0 M0 S0 =[mpath]=> mq MQ1 M1 S1) ->
+      (mserv MQ0 M0 S0 =[mpath]=> mserv MQ1 M1 S1) ->
       exists nmpath I1 MQ',
-        (NetMod.put n (mq MQ0 M0 S0) (net_instr I0 N0)
+        (NetMod.put n (mserv MQ0 M0 S0) (net_instr I0 N0)
          =[nmpath]=>
-           NetMod.put n (mq (MQ1 ++ MQ') M1 S1) (net_instr I1 N0)
+           NetMod.put n (mserv (MQ1 ++ MQ') M1 S1) (net_instr I1 N0)
         )
         /\ MQ_Clear MQ'.
 
@@ -2045,7 +2045,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     destruct (admin_path_available1' n I0 N0 HC0 HF0 TM0)
       as (nmpath0 & I0' & MQ'0' & TNM0 & HCMQ').
 
-    assert (mq (MQ0' ++ MQ'0') M0' S0' =[ mpath ]=> mq (MQ1 ++ MQ'0') M1 S1) by eauto using Flushing_cont.
+    assert (mserv (MQ0' ++ MQ'0') M0' S0' =[ mpath ]=> mserv (MQ1 ++ MQ'0') M1 S1) by eauto using Flushing_cont.
 
     specialize IHmpath with (MQ0 := MQ0' ++ MQ'0')(n := n)(I0:=I0')(N0:=N0).
     edestruct IHmpath as (nmpath1 & I1 & MQ1' & TNM1 & HMQ1); eauto.
@@ -2061,12 +2061,12 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       [ma] [MQ0 M0 S0] [MQ1 M1 S1] n MN0,
       [ma] >:~ [] ->
       Flushing_act ma ->
-      (mq MQ0 M0 S0 =(ma)=> mq MQ1 M1 S1) ->
+      (mserv MQ0 M0 S0 =(ma)=> mserv MQ1 M1 S1) ->
       flushed MN0 ->
       exists nmpath MQ' MN1,
-        (NetMod.put n (mq MQ0 M0 S0) MN0
+        (NetMod.put n (mserv MQ0 M0 S0) MN0
          =[nmpath]=>
-           NetMod.put n (mq (MQ1 ++ MQ') M1 S1) MN1
+           NetMod.put n (mserv (MQ1 ++ MQ') M1 S1) MN1
         )
         /\ flushed MN1
         /\ net_deinstr MN0 = net_deinstr MN1
@@ -2088,13 +2088,13 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       (* + eexists [], _. *)
       (* repeat split. TODO bug report? why does this instantiate evar? *)
       + destruct (NetMod.get n0 MN0) as [MQr0 Mr0 Sr0] eqn:?.
-        eexists [], (NetMod.put n0 (mq (MQr0 ++ [EvRecv (n, t0) msg]) Mr0 Sr0) MN0).
+        eexists [], (NetMod.put n0 (mserv (MQr0 ++ [EvRecv (n, t0) msg]) Mr0 Sr0) MN0).
         eattac.
         * destruct M1. hsimpl in |- *.
           eapply NTrans_Comm_neq_inv; auto.
           ltac1:(autorewrite with LTS in * ).
-          exists (mq MQ1 {| handle := handle0; state := state0 |} S1).
-          exists (mq (MQr0 ++ [EvRecv (n, t0) msg]) Mr0 Sr0).
+          exists (mserv MQ1 {| handle := handle0; state := state0 |} S1).
+          exists (mserv (MQr0 ++ [EvRecv (n, t0) msg]) Mr0 Sr0).
           eattac.
           rewrite NetMod.put_put_neq; eattac.
 
@@ -2136,12 +2136,12 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       [mpath] [MQ0 M0 S0] [MQ1 M1 S1] n MN0,
       mpath >:~ [] ->
       Forall Flushing_act mpath ->
-      (mq MQ0 M0 S0 =[mpath]=> mq MQ1 M1 S1) ->
+      (mserv MQ0 M0 S0 =[mpath]=> mserv MQ1 M1 S1) ->
       flushed MN0 ->
       exists nmpath MQ' MN1,
-        (NetMod.put n (mq MQ0 M0 S0) MN0
+        (NetMod.put n (mserv MQ0 M0 S0) MN0
          =[nmpath]=>
-           NetMod.put n (mq (MQ1 ++ MQ') M1 S1) MN1
+           NetMod.put n (mserv (MQ1 ++ MQ') M1 S1) MN1
         )
         /\ flushed MN1
         /\ net_deinstr MN0 = net_deinstr MN1
@@ -2170,7 +2170,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
   Lemma Transp_completeness_send_old : forall [n v] [S0 S1] MQ0 M0,
       (S0 =( Send n v )=> S1) -> exists mpath M1,
-      (instr MQ0 M0 S0 =[MActP (Send n v) :: mpath ++ [MActT (Send n v)]]=> (mq [] M1 S1))
+      (instr MQ0 M0 S0 =[MActP (Send n v) :: mpath ++ [MActT (Send n v)]]=> (mserv [] M1 S1))
       /\ mpath >:~ []
       /\ Forall Flushing_act mpath.
 
@@ -2189,7 +2189,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       (NetMod.get n N0 =(send n' v)=> S1) ->
       exists mnpath I1 MQ1 M1 MN1,
         (net_instr I0 N0 =[mnpath]=> MN1)
-        /\ NVTrans n (send n' (MValP v)) MN1 (NetMod.put n (mq MQ1 M1 S1) (net_instr I1 N0))
+        /\ NVTrans n (send n' (MValP v)) MN1 (NetMod.put n (mserv MQ1 M1 S1) (net_instr I1 N0))
         /\ N0 = net_deinstr MN1
         /\ MQ_Clear MQ1.
 
@@ -2224,7 +2224,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     hsimpl in *.
 
     exists {|handle:=h; state:=h (TrSend n' v) s|}.
-    eexists (NetMod.put n (mq (TrSend n' v :: MQ') ({|handle:=h; state := MRecv s|}) _) (net_instr I1 N0)).
+    eexists (NetMod.put n (mserv (TrSend n' v :: MQ') ({|handle:=h; state := MRecv s|}) _) (net_instr I1 N0)).
 
     eattac.
     - eapply NVTrans_inv.
@@ -2248,7 +2248,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       MQ_Clear MQ0 ->
       (S0 =( Recv n v )=> S1) ->
       exists mpath M1,
-        (mq MQ0 M0 S0 =[MActT (Recv n v) :: mpath]=> mq [TrRecv n v] M1 S0)
+        (mserv MQ0 M0 S0 =[MActT (Recv n v) :: mpath]=> mserv [TrRecv n v] M1 S0)
         /\ mpath >:~ []
         /\ Forall Flushing_act mpath
         /\ ready M1.
@@ -2271,7 +2271,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       flushed MN0 ->
       exists mnpath MS0 MQ1 M1 MN1,
         NVTrans n (recv n' (MValP v)) MN0 (NetMod.put n MS0 MN0)
-        /\ ((NetMod.put n MS0 MN0) =[mnpath]=> (NetMod.put n (mq MQ1 M1 S1) MN1))
+        /\ ((NetMod.put n MS0 MN0) =[mnpath]=> (NetMod.put n (mserv MQ1 M1 S1) MN1))
         /\ net_deinstr MN0 = net_deinstr MN1
         /\ MQ_Clear MQ1
         /\ flushed MN1.
@@ -2299,7 +2299,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
     apply path_split1 in TM as ([MQ1' M1' S1'] & TM0 & TM1).
 
-    assert (NVTrans n (recv n' (MValP v)) MN0 (NetMod.put n (mq MQ1' M1' S1') MN0)) as TNM0.
+    assert (NVTrans n (recv n' (MValP v)) MN0 (NetMod.put n (mserv MQ1' M1' S1') MN0)) as TNM0.
     {
       eattac.
       hsimpl in *.
@@ -2309,7 +2309,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       attac.
     }
 
-    assert (exists M2, mq [TrRecv n' v] M1 (deinstr (NetMod.get n MN0)) =(MActP (Recv n' v))=> mq [] M2 S1)
+    assert (exists M2, mserv [TrRecv n' v] M1 (deinstr (NetMod.get n MN0)) =(MActP (Recv n' v))=> mserv [] M2 S1)
       as (M2 & TM2).
     {
       hsimpl in *.
@@ -2336,18 +2336,18 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     repeat (rewrite HEqS0 in * ). clear HEqS0.
 
     exists (mnpath ++ [NTau n (MActP (Recv n' v))]).
-    exists ((mq MQ1' M1' S1')).
+    exists ((mserv MQ1' M1' S1')).
     exists MQ2, M2.
     exists MN2.
 
     repeat split; eauto with LTS.
     - rewrite HEq0 in *.
       attac.
-    - apply path_seq1' with (middle := NetMod.put n (mq ([TrRecv n' v] ++ MQ2) M1 S0) MN2).
+    - apply path_seq1' with (middle := NetMod.put n (mserv ([TrRecv n' v] ++ MQ2) M1 S0) MN2).
       1: attac.
 
-      replace (mq ([TrRecv n' v] ++ MQ2) M1 S0)
-        with (NetMod.get n (NetMod.put n (mq ([TrRecv n' v] ++ MQ2) M1 S0)  MN2))
+      replace (mserv ([TrRecv n' v] ++ MQ2) M1 S0)
+        with (NetMod.get n (NetMod.put n (mserv ([TrRecv n' v] ++ MQ2) M1 S0)  MN2))
         in TM2 by attac.
       constructor. constructor.
 
@@ -2360,12 +2360,12 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Lemma put_instr : forall I0 N0 n [MQ M S],
       MQ_Clear MQ ->
       ready M ->
-      exists I1 : mon_assg, NetMod.put n (mq MQ M S) (net_instr I0 N0) = net_instr I1 (NetMod.put n S N0).
+      exists I1 : mon_assg, NetMod.put n (mserv MQ M S) (net_instr I0 N0) = net_instr I1 (NetMod.put n S N0).
 
   Proof.
     intros * HMQ HM.
 
-    assert (flushed (NetMod.put n (mq MQ M &S) (net_instr I0 N0))) as HFN.
+    assert (flushed (NetMod.put n (mserv MQ M &S) (net_instr I0 N0))) as HFN.
     {
       unfold flushed, flushed_in.
       intros n0.
@@ -2373,7 +2373,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       smash_eq n n0; attac.
     }
 
-    assert (ready_net (NetMod.put n (mq MQ M &S) (net_instr I0 N0))) as HRN.
+    assert (ready_net (NetMod.put n (mserv MQ M &S) (net_instr I0 N0))) as HRN.
     {
       unfold ready_net, ready_in.
       intros n0.
@@ -2417,7 +2417,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       destruct (prepare_send I0 T_send)
         as (mnpath0 & I1 & MQ_n & M_n & MN1 & TN0 & TN_send & HND1 & HMQ_n).
 
-      remember (NetMod.put n (mq MQ_n M_n Sn) (net_instr I1 N0)) as MN1'.
+      remember (NetMod.put n (mserv MQ_n M_n Sn) (net_instr I1 N0)) as MN1'.
 
       assert (flushed MN1') as HFN1'.
       specialize (net_instr_flushed I1 N0) as HFN0.
@@ -2431,7 +2431,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       {
         unfold net_deinstr.
         rewrite HeqMN1'.
-        assert (deinstr (mq MQ_n M_n Sn) = Sn).
+        assert (deinstr (mserv MQ_n M_n Sn) = Sn).
         unfold deinstr.
         destruct Sn. eattac.
         rewrite NetMod.put_map.
@@ -2451,7 +2451,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         as (mnpath1 & MS_m0 & MQ_m & M_m & MN3' & TN_recv & TN2 & HND2 & HMQ_m & HFN3').
 
       remember (NetMod.put m MS_m0 MN1') as MN2.
-      remember (NetMod.put m (mq MQ_m M_m Sm) MN3') as MN3.
+      remember (NetMod.put m (mserv MQ_m M_m Sm) MN3') as MN3.
 
       replace ( (MActT (Send (m, t) v)))
         with (send (m, t) (MValP v))
@@ -2518,13 +2518,13 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       rewrite <- HND2 in TN3.
       rewrite NetMod.put_map in TN3.
 
-      assert (deinstr (mq MQ_n M_n Sn) = Sn).
+      assert (deinstr (mserv MQ_n M_n Sn) = Sn).
       {
         unfold deinstr.
         destruct Sn. clear - HMQ_n. eattac.
       }
 
-      assert (deinstr (mq MQ_m M_m Sm) = Sm).
+      assert (deinstr (mserv MQ_m M_m Sm) = Sm).
       {
         unfold deinstr.
         destruct Sm. simpl. clear - HMQ_m. eattac.

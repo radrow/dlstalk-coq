@@ -86,7 +86,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_in_M [N n c v v' MQ0 MQ1 M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrRecv (c, Q) v :: MQ1) M (serv I P O) ->
+      NetMod.get n N = mserv (MQ0 ++ TrRecv (c, Q) v :: MQ1) M (serv I P O) ->
       ~ List.In (c, Q, v') (I ++ MQ_r (MQ0 ++ MQ1)).
 
     Proof.
@@ -107,7 +107,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_in_M0 [N n c v v' MQ0 MQ1 M S] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrRecv (c, Q) v :: MQ1) M S ->
+      NetMod.get n N = mserv (MQ0 ++ TrRecv (c, Q) v :: MQ1) M S ->
       ~ List.In (TrRecv (c, Q) v') MQ0.
     Proof. intros. destruct S as [I P O].
            assert (~ List.In (c, Q, v') (&I ++ MQ_r (MQ0 ++ MQ1))) by eauto using SRPC_M_net_in_net_Q_in_M.
@@ -116,7 +116,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_in_M1 [N n c v v' MQ0 MQ1 M S] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrRecv (c, Q) v :: MQ1) M S ->
+      NetMod.get n N = mserv (MQ0 ++ TrRecv (c, Q) v :: MQ1) M S ->
       ~ List.In (TrRecv (c, Q) v') MQ1.
     Proof. intros. destruct S as [I P O].
            assert (~ List.In (c, Q, v') (&I ++ MQ_r (MQ0 ++ MQ1))) by eauto using SRPC_M_net_in_net_Q_in_M.
@@ -125,7 +125,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_in_MP [N n c v v' MQ0 MQ1 M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrRecv (c, Q) v :: MQ1) M (serv I P O) ->
+      NetMod.get n N = mserv (MQ0 ++ TrRecv (c, Q) v :: MQ1) M (serv I P O) ->
       ~ List.In (c, Q, v') I.
     Proof. intros.
            assert (~ List.In (c, Q, v') (&I ++ MQ_r (MQ0 ++ MQ1))) by eauto using SRPC_M_net_in_net_Q_in_M.
@@ -134,7 +134,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_in_P [N n c v v' MQ M I I' P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       Deq (c, Q) v I I' ->
       ~ List.In (c, Q, v') (I' ++ MQ_r MQ).
 
@@ -149,7 +149,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_in_PP [N n c v v' MQ M I I' P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       Deq (c, Q) v I I' ->
       ~ List.In (c, Q, v') I'.
     Proof. intros.
@@ -158,7 +158,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_in_PM [N n c v v' MQ M I I' P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       Deq (c, Q) v I I' ->
       ~ List.In (TrRecv (c, Q) v') MQ.
     Proof. intros.
@@ -168,7 +168,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_in_M [N n s s' v v' MQ0 MQ1 M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrRecv (s, R) v :: MQ1) M (serv I P O) ->
+      NetMod.get n N = mserv (MQ0 ++ TrRecv (s, R) v :: MQ1) M (serv I P O) ->
       ~ List.In (s', R, v') (I ++ MQ_r (MQ0 ++ MQ1)).
 
     Proof.
@@ -190,7 +190,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_in_M0 [N n s s' v v' MQ0 MQ1 M S] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrRecv (s, R) v :: MQ1) M S ->
+      NetMod.get n N = mserv (MQ0 ++ TrRecv (s, R) v :: MQ1) M S ->
       ~ List.In (TrRecv (s', R) v') MQ0.
     Proof.
       intros. destruct S as [I P O].
@@ -199,7 +199,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_in_M1 [N n s s' v v' MQ0 MQ1 M S] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrRecv (s, R) v :: MQ1) M S ->
+      NetMod.get n N = mserv (MQ0 ++ TrRecv (s, R) v :: MQ1) M S ->
       ~ List.In (TrRecv (s', R) v') MQ1.
     Proof.
       intros. destruct S as [I P O].
@@ -208,7 +208,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_in_MP [N n s s' v v' MQ0 MQ1 M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrRecv (s, R) v :: MQ1) M (serv I P O) ->
+      NetMod.get n N = mserv (MQ0 ++ TrRecv (s, R) v :: MQ1) M (serv I P O) ->
       ~ List.In (s', R, v') I.
     Proof.
       intros.
@@ -218,7 +218,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_in_P [N n s s' v v' MQ M I I' P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       Deq (s, R) v I I' ->
       ~ List.In (s', R, v') (I' ++ MQ_r MQ).
 
@@ -232,7 +232,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_in_PP [N n s s' v v' MQ M I I' P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       Deq (s, R) v I I' ->
       ~ List.In (s', R, v') I'.
     Proof.
@@ -242,7 +242,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_in_PM [N n s s' v v' MQ M I I' P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       Deq (s, R) v I I' ->
       ~ List.In (TrRecv (s', R) v') MQ.
     Proof.
@@ -253,7 +253,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_in_lock [N n s v MQ M S] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M S ->
+      NetMod.get n N = mserv MQ M S ->
       List.In (TrRecv (s, R) v) MQ ->
       exists c, SRPC_serv (Lock c s) (NetMod.get n N).
     Proof.
@@ -265,7 +265,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_out_lock [N n s v MQ M S] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M S ->
+      NetMod.get n N = mserv MQ M S ->
       List.In (TrSend (s, Q) v) MQ ->
       exists c, SRPC_serv (Lock c s) (NetMod.get n N).
     Proof.
@@ -277,7 +277,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_M [N n c v v' MQ0 MQ1 M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrSend (c, R) v :: MQ1) M (serv I P O) ->
+      NetMod.get n N = mserv (MQ0 ++ TrSend (c, R) v :: MQ1) M (serv I P O) ->
       ~ List.In (c, R, v') (MQ_s (MQ0 ++ MQ1) ++ O).
 
     Proof.
@@ -300,7 +300,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_M0 [N n c v v' MQ0 MQ1 M S] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrSend (c, R) v :: MQ1) M S ->
+      NetMod.get n N = mserv (MQ0 ++ TrSend (c, R) v :: MQ1) M S ->
       ~ List.In (TrSend (c, R) v') MQ0.
     Proof.
       intros. destruct S as [I P O].
@@ -309,7 +309,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_out_uniq_M1 [N n c v v' MQ0 MQ1 M S] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrSend (c, R) v :: MQ1) M S ->
+      NetMod.get n N = mserv (MQ0 ++ TrSend (c, R) v :: MQ1) M S ->
       ~ List.In (TrSend (c, R) v') MQ1.
     Proof.
       intros. destruct S as [I P O].
@@ -318,7 +318,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_out_uniq_MP [N n c v v' MQ0 MQ1 M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq (MQ0 ++ TrSend (c, R) v :: MQ1) M (serv I P O) ->
+      NetMod.get n N = mserv (MQ0 ++ TrSend (c, R) v :: MQ1) M (serv I P O) ->
       ~ List.In (c, R, v') O.
     Proof.
       intros.
@@ -328,7 +328,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_P [N n c v v' MQ M I P O O'] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       Deq (c, R) v O O' ->
       ~ (List.In (c, R, v') (MQ_s MQ ++ O')).
     Proof.
@@ -349,7 +349,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_PM [N n c v v' MQ M I P O O'] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       Deq (c, R) v O O' ->
       ~ (List.In (TrSend (c, R) v') MQ).
     Proof.
@@ -359,7 +359,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_out_uniq_PP [N n c v v' MQ M I P O O'] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       Deq (c, R) v O O' ->
       ~ (List.In (c, R, v') O').
     Proof.
@@ -370,7 +370,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_Q_M [N n s v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (TrRecv (s, R) v) MQ ->
       ~ (List.In (s, Q, v') (MQ_s MQ ++ O)).
     Proof.
@@ -380,7 +380,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_Q_MM [N n s v v' MQ M S] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M S ->
+      NetMod.get n N = mserv MQ M S ->
       List.In (TrRecv (s, R) v) MQ ->
       ~ (List.In (TrSend (s, Q) v') MQ).
     Proof.
@@ -390,7 +390,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_Q_MP [N n s v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (TrRecv (s, R) v) MQ ->
       ~ (List.In (TrSend (s, Q) v') MQ).
     Proof.
@@ -401,7 +401,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_Q_P [N n s v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (s, R, v) I ->
       ~ (List.In (s, Q, v') (MQ_s MQ ++ O)).
     Proof.
@@ -411,7 +411,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_Q_PM [N n s v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (s, R, v) I ->
       ~ (List.In (TrSend (s, Q) v') MQ).
     Proof.
@@ -421,7 +421,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_Q_PP [N n s v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (s, R, v) I ->
       ~ (List.In (s, Q, v') O).
     Proof.
@@ -432,7 +432,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_R_M [N n s v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (TrSend (s, Q) v) MQ ->
       ~ (List.In (s, R, v') (I ++ MQ_r MQ)).
     Proof.
@@ -442,7 +442,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_R_MM [N n s v v' MQ M S] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M S ->
+      NetMod.get n N = mserv MQ M S ->
       List.In (TrSend (s, Q) v) MQ ->
       ~ (List.In (TrRecv (s, R) v') MQ).
     Proof.
@@ -452,7 +452,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_R_MP [N n s v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (TrSend (s, Q) v) MQ ->
       ~ (List.In (s, R, v') I).
     Proof.
@@ -463,7 +463,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_R_P [N n s v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (s, Q, v) O ->
       ~ (List.In (s, R, v') (I ++ MQ_r MQ)).
     Proof.
@@ -473,7 +473,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_R_PM [N n s v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (s, Q, v) O ->
       ~ (List.In (TrRecv (s, R) v') MQ).
     Proof.
@@ -483,7 +483,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_R_PP [N n s v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (s, Q, v) O ->
       ~ (List.In (s, R, v') I).
     Proof.
@@ -494,7 +494,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_excl_R_M [N n c v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (TrRecv (c, Q) v) MQ ->
       ~ List.In (c, R, v') (MQ_s MQ ++ O).
     Proof.
@@ -504,7 +504,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_excl_R_MM [N n c v v' MQ M S] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M S ->
+      NetMod.get n N = mserv MQ M S ->
       List.In (TrRecv (c, Q) v) MQ ->
       ~ List.In (TrSend (c, R) v') MQ.
     Proof.
@@ -514,7 +514,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_excl_R_MP [N n c v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (TrRecv (c, Q) v) MQ ->
       ~ List.In (c, R, v') O.
     Proof.
@@ -525,7 +525,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_excl_R_P [N n c v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (c, Q, v) I ->
       ~ List.In (c, R, v') (MQ_s MQ ++ O).
     Proof.
@@ -535,7 +535,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_excl_R_PM [N n c v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (c, Q, v) I ->
       ~ List.In (TrSend (c, R) v') MQ.
     Proof.
@@ -545,7 +545,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_Q_excl_R_PP [N n c v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (c, Q, v) I ->
       ~ List.In (c, R, v') O.
     Proof.
@@ -556,7 +556,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_excl_c_M [N n c v MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (TrRecv (c, Q) v) MQ ->
       ~ proc_client c P.
     Proof.
@@ -567,7 +567,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_Q_excl_c_P [N n c v MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (c, Q, v) I ->
       ~ proc_client c P.
     Proof.
@@ -578,7 +578,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_excl_Q_M [N n c v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (TrSend (c, R) v) MQ ->
       ~ List.In (c, Q, v') (I ++ MQ_r MQ).
     Proof.
@@ -588,7 +588,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_excl_Q_MM [N n c v v' MQ M S] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M S ->
+      NetMod.get n N = mserv MQ M S ->
       List.In (TrSend (c, R) v) MQ ->
       ~ List.In (TrRecv (c, Q) v') MQ.
     Proof.
@@ -598,7 +598,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_excl_Q_MP [N n c v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (TrSend (c, R) v) MQ ->
       ~ List.In (c, Q, v') I.
     Proof.
@@ -609,7 +609,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_excl_Q_P [N n c v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (c, R, v) O ->
       ~ List.In (c, Q, v') (I ++ MQ_r MQ).
     Proof.
@@ -619,7 +619,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_excl_Q_PM [N n c v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (c, R, v) O ->
       ~ List.In (TrRecv (c, Q) v') MQ.
     Proof.
@@ -629,7 +629,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Qed.
     Lemma SRPC_M_net_in_net_R_excl_Q_PP [N n c v v' MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (c, R, v) O ->
       ~ List.In (c, Q, v') I.
     Proof.
@@ -640,7 +640,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_excl_c_M [N n c v MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (TrRecv (c, Q) v) MQ ->
       ~ proc_client c P.
     Proof.
@@ -651,7 +651,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_R_excl_c_P [N n c v MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       List.In (c, Q, v) I ->
       ~ proc_client c P.
     Proof.
@@ -662,7 +662,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_c_excl_Q_M [N n c v MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       proc_client c P ->
       ~ List.In (TrRecv (c, Q) v) MQ.
     Proof.
@@ -674,7 +674,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_c_excl_Q_P [N n c v MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       proc_client c P ->
       ~ List.In (c, Q, v) (I).
     Proof.
@@ -686,7 +686,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_c_excl_R [N n c v MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       proc_client c P ->
       ~ List.In (c, R, v) (MQ_s MQ ++ O).
     Proof.
@@ -697,7 +697,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_c_excl_R_M [N n c v MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       proc_client c P ->
       ~ List.In (TrSend (c, R) v) MQ.
     Proof.
@@ -708,7 +708,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     Lemma SRPC_M_net_in_net_c_excl_R_P [N n c v MQ M I P O] :
       net_sane '' N ->
-      NetMod.get n N = mq MQ M (serv I P O) ->
+      NetMod.get n N = mserv MQ M (serv I P O) ->
       proc_client c P ->
       ~ List.In (c, R, v) O.
     Proof.
@@ -932,7 +932,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma KIS_self_get [MN n0] [MQ h s S] [self'] :
     KIS MN ->
-    NetMod.get n0 MN = mq MQ {|handle:=h; state:=s|} S ->
+    NetMod.get n0 MN = mserv MQ {|handle:=h; state:=s|} S ->
     self (next_state s) = self' ->
     self' = n0.
 
@@ -943,7 +943,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma KIS_Rad_get [MN n0] [MQ h s S] :
     KIS MN ->
-    NetMod.get n0 MN = mq MQ {|handle:=h; state:=s|} S ->
+    NetMod.get n0 MN = mserv MQ {|handle:=h; state:=s|} S ->
     h = Rad_handle.
 
   Proof. intros. assert (handle (get_M MN n0) = Rad_handle) by eauto with LTS.
@@ -953,7 +953,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma KIS_lock_get [MN n0 n1] [MQ h s S] :
     KIS MN ->
-    NetMod.get n0 MN = mq MQ {|handle:=h; state:=s|} S ->
+    NetMod.get n0 MN = mserv MQ {|handle:=h; state:=s|} S ->
     lock (next_state s) = Some n1 ->
     net_lock_on '' MN n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) MQ.
 
@@ -966,7 +966,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma KIS_wait_get [MN n0 n1] [MQ h s S] :
     KIS MN ->
-    NetMod.get n1 MN = mq MQ {|handle:=h; state:=s|} S ->
+    NetMod.get n1 MN = mserv MQ {|handle:=h; state:=s|} S ->
     List.In n0 (waitees (next_state s)) ->
     net_lock_on '' MN n0 n1.
 
@@ -979,8 +979,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma KIS_index_sendp_get [MN n0 n1 n2 p] [MQ0 MQ2 h0 h2 s0 s2 S0 S2] [index' lock_id'] :
     KIS MN ->
-    NetMod.get n0 MN = mq MQ0 {|handle:=h0; state:=s0|} S0 ->
-    NetMod.get n2 MN = mq MQ2 {|handle:=h2; state:=s2|} S2 ->
+    NetMod.get n0 MN = mserv MQ0 {|handle:=h0; state:=s0|} S0 ->
+    NetMod.get n2 MN = mserv MQ2 {|handle:=h2; state:=s2|} S2 ->
     sends_to_mon s0 n1 p ->
     index p = index' ->
     init p = n2 ->
@@ -998,8 +998,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma KIS_index_recvp_get [MN n0 n1 n2 p] [MQ0 MQ2 h0 h2 s0 s2 S0 S2] [index' lock_id'] :
     KIS MN ->
-    NetMod.get n0 MN = mq MQ0 {|handle:=h0; state:=s0|} S0 ->
-    NetMod.get n2 MN = mq MQ2 {|handle:=h2; state:=s2|} S2 ->
+    NetMod.get n0 MN = mserv MQ0 {|handle:=h0; state:=s0|} S0 ->
+    NetMod.get n2 MN = mserv MQ2 {|handle:=h2; state:=s2|} S2 ->
     List.In (EvRecv (n1, R) p) MQ0 ->
     index p = index' ->
     init p = n2 ->
@@ -1017,8 +1017,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma KIS_sendp_hot_get [MN n0 n1 n2 p] [MQ1 MQ2 h1 h2 s1 s2 S1 S2] [lock_id'] :
     KIS MN ->
-    NetMod.get n1 MN = mq MQ1 {|handle:=h1; state:=s1|} S1 ->
-    NetMod.get n2 MN = mq MQ2 {|handle:=h2; state:=s2|} S2 ->
+    NetMod.get n1 MN = mserv MQ1 {|handle:=h1; state:=s1|} S1 ->
+    NetMod.get n2 MN = mserv MQ2 {|handle:=h2; state:=s2|} S2 ->
     sends_to_mon s1 n0 p ->
     index p = lock_id (next_state s2) ->
     init p = n2 ->
@@ -1036,8 +1036,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma KIS_recvp_hot_get [MN n0 n1 n2 p] [MQ0 MQ2 h0 h2 s0 s2 S0 S2] [lock_id'] :
     KIS MN ->
-    NetMod.get n0 MN = mq MQ0 {|handle:=h0; state:=s0|} S0 ->
-    NetMod.get n2 MN = mq MQ2 {|handle:=h2; state:=s2|} S2 ->
+    NetMod.get n0 MN = mserv MQ0 {|handle:=h0; state:=s0|} S0 ->
+    NetMod.get n2 MN = mserv MQ2 {|handle:=h2; state:=s2|} S2 ->
     List.In (EvRecv (n1, R) p) MQ0 ->
     index p = lock_id (next_state s2) ->
     init p = n2 ->
@@ -1055,7 +1055,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma KIS_alarm_get [MN n0] [MQ h s S] :
     KIS MN ->
-    NetMod.get n0 MN = mq MQ {|handle:=h; state:=s|} S ->
+    NetMod.get n0 MN = mserv MQ {|handle:=h; state:=s|} S ->
     alarm (next_state s) = true ->
     dep_on '' MN n0 n0.
 
@@ -1334,7 +1334,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma M_R_in_no_send [MN0 n0 n1 v MQ M I P O] :
     KIS MN0 ->
-    NetMod.get n0 MN0 = mq MQ M (serv I P O) ->
+    NetMod.get n0 MN0 = mserv MQ M (serv I P O) ->
     List.In (n1, R, v) (I ++ MQ_r MQ)  ->
     (MQ_s MQ ++ O) = [].
 
@@ -1379,7 +1379,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
   Lemma M_R_in_no_send_MP [MN0 n0 n1 v MQ M I P O] :
     KIS MN0 ->
-    NetMod.get n0 MN0 = mq MQ M (serv I P O) ->
+    NetMod.get n0 MN0 = mserv MQ M (serv I P O) ->
     List.In (n1, R, v) (I ++ MQ_r MQ)  ->
     O = [].
   Proof.
@@ -1392,7 +1392,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
   Lemma M_R_in_no_send_PM [MN0 n0 n1 v MQ M I P O] :
     KIS MN0 ->
-    NetMod.get n0 MN0 = mq MQ M (serv I P O) ->
+    NetMod.get n0 MN0 = mserv MQ M (serv I P O) ->
     List.In (n1, R, v) (I ++ MQ_r MQ)  ->
     MQ_s MQ = [].
   Proof.
@@ -1405,7 +1405,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
   Lemma M_R_in_no_send_PP [MN0 n0 n1 v MQ M I P O] :
     KIS MN0 ->
-    NetMod.get n0 MN0 = mq MQ M (serv I P O) ->
+    NetMod.get n0 MN0 = mserv MQ M (serv I P O) ->
     List.In (n1, R, v) (I ++ MQ_r MQ)  ->
     O = [].
   Proof.

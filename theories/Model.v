@@ -191,13 +191,13 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
 
   #[export]
-    Instance trans_pqued : LTS PAct Serv  :=
+    Instance trans_Serv : LTS PAct Serv  :=
     {
       trans := STrans
     }.
 
-  #[export] Hint Unfold trans_pqued : LTS.
-  #[export] Hint Transparent trans_pqued : LTS.
+  #[export] Hint Unfold trans_Serv : LTS.
+  #[export] Hint Transparent trans_Serv : LTS.
 
 
   Section Inversions.
@@ -676,10 +676,11 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     | MSend _ _ next => next_state next
     end.
 
+  Coercion next_state : MProc >-> MState.
 
   Record Mon :=
     { handle : Event -> MState -> MProc
-    ; state : MProc
+    ; state :> MProc
     }.
 
   #[export] Hint Constructors Mon : LTS.
@@ -818,72 +819,63 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Proof. eattac. Qed.
 
 
-  Inductive MServ := mq : list Event -> Mon -> Serv -> MServ.
+  Inductive MServ := mserv { mserv_i : list Event; mserv_m :> Mon; mserv_s : Serv}.
   #[export] Hint Constructors MServ : LTS.
-
-  Definition mq_MQ MS := match MS with mq MQ _ _ => MQ end.
-  Definition mq_M MS := match MS with mq _ M _ => M end.
-  Definition mq_S MS := match MS with mq _ _ S' => S' end.
-  Definition mq_I MS := serv_i (mq_S MS).
-  Definition mq_P MS := serv_p (mq_S MS).
-  Definition mq_O MS := serv_o (mq_S MS).
-
-  #[export] Hint Transparent mq_MQ mq_M mq_S mq_I mq_P mq_O : LTS.
 
 
   Inductive MTrans : MAct -> MServ -> MServ -> Prop :=
   | MTSendM : forall {n msg MQ M0 M1 S},
       (M0 =(MonSend n msg)=> M1) ->
       MTrans (MActM (Send n msg))
-        (mq MQ M0 S)
-        (mq MQ M1 S)
+        (mserv MQ M0 S)
+        (mserv MQ M1 S)
 
   | MTRecvM : forall {n v MQ M S},
       MTrans (MActM (Recv n v))
-        (mq MQ M S)
-        (mq (MQ ++ [EvRecv n v]) M S)
+        (mserv MQ M S)
+        (mserv (MQ ++ [EvRecv n v]) M S)
 
   | MTPickM : forall {n v MQ M0 M1 S},
       (M0 =(MonRecv (EvRecv n v))=> M1) ->
       MTrans (MActM Tau)
-        (mq (EvRecv n v :: MQ) M0 S)
-        (mq MQ M1 S)
+        (mserv (EvRecv n v :: MQ) M0 S)
+        (mserv MQ M1 S)
 
   | MTTauM : forall {MQ M0 M1 S},
       (M0 =(MonTau)=> M1) ->
       MTrans (MActM Tau)
-        (mq MQ M0 S)
-        (mq MQ M1 S)
+        (mserv MQ M0 S)
+        (mserv MQ M1 S)
 
   | MTRecvT : forall {n v} {MQ M S},
       MTrans (MActT (Recv n v))
-        (mq MQ M S)
-        (mq (MQ ++ [TrRecv n v]) M S)
+        (mserv MQ M S)
+        (mserv (MQ ++ [TrRecv n v]) M S)
 
   | MTSendT : forall {n v MQ M0 M1 S},
       (M0 =(MonRecv (TrSend n v))=> M1) ->
       MTrans (MActT (Send n v))
-        (mq (TrSend n v :: MQ) M0 S)
-        (mq MQ M1 S)
+        (mserv (TrSend n v :: MQ) M0 S)
+        (mserv MQ M1 S)
 
   | MTRecvP : forall {n v MQ M0 M1 S0 S1}
                 (TP : S0 =(Recv n v)=> S1),
       (M0 =(MonRecv (TrRecv n v))=> M1) ->
       MTrans (MActP (Recv n v))
-        (mq (TrRecv n v :: MQ) M0 S0)
-        (mq MQ M1 S1)
+        (mserv (TrRecv n v :: MQ) M0 S0)
+        (mserv MQ M1 S1)
 
   | MTSendP : forall {n v MQ M S0 S1}
                 (TP : S0 =(Send n v)=> S1),
       MTrans (MActP (Send n v))
-        (mq MQ M S0)
-        (mq (MQ ++ [TrSend n v]) M S1)
+        (mserv MQ M S0)
+        (mserv (MQ ++ [TrSend n v]) M S1)
 
   | MTTauP : forall {MQ M S0 S1}
                (TP : S0 =(Tau)=> S1),
       MTrans (MActP Tau)
-        (mq MQ M S0)
-        (mq MQ M S1)
+        (mserv MQ M S0)
+        (mserv MQ M S1)
   .
   #[export] Hint Constructors MTrans : LTS.
 
@@ -901,7 +893,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Section Inversions.
     Fact MTrans_SendM_inv n msg MS0 MS1 :
       (MS0 =(MActM (Send n msg))=> MS1) <-> exists MQ M0 P M1,
-          MS0 = mq MQ M0 P /\ MS1 = mq MQ M1 P /\ (M0 =(MonSend n msg)=> M1).
+          MS0 = mserv MQ M0 P /\ MS1 = mserv MQ M1 P /\ (M0 =(MonSend n msg)=> M1).
     Proof.
       split; intros.
       - destruct MS0, MS1; kill H. eexists _,_,_,_. eattac.
@@ -910,7 +902,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
     Fact MTrans_RecvM_inv n v MS0 MS1 :
       (MS0 =(MActM (Recv n v))=> MS1) <-> exists MQ M P,
-          MS0 = mq MQ M P /\ MS1 = mq (MQ ++ [EvRecv n v]) M P.
+          MS0 = mserv MQ M P /\ MS1 = mserv (MQ ++ [EvRecv n v]) M P.
     Proof.
       split; intros.
       - destruct MS0, MS1; kill H. eexists _,_,_. eattac.
@@ -919,7 +911,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
     Fact MTrans_PickM_inv MS0 MS1 :
       (MS0 =(MActM Tau)=> MS1) <-> exists n msg MQ P M0 M1,
-          MS0 = mq (EvRecv n msg :: MQ) M0 P /\ MS1 = mq MQ M1 P /\ (M0 =(MonRecv (EvRecv n msg))=> M1).
+          MS0 = mserv (EvRecv n msg :: MQ) M0 P /\ MS1 = mserv MQ M1 P /\ (M0 =(MonRecv (EvRecv n msg))=> M1).
     Proof.
       split; intros.
       - kill H; kill H0. eexists _,_. eattac.
@@ -928,7 +920,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
     Fact MTrans_RecvT_inv n v MS0 MS1 :
       (MS0 =(MActT (Recv n v))=> MS1) <-> exists MQ M P,
-          MS0 = mq MQ M P /\ MS1 = mq (MQ ++ [TrRecv n v]) M P.
+          MS0 = mserv MQ M P /\ MS1 = mserv (MQ ++ [TrRecv n v]) M P.
     Proof.
       split; intros.
       - destruct MS0, MS1; kill H. eexists _,_,_. eattac.
@@ -937,7 +929,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
     Fact MTrans_SendT_inv n v MS0 MS1 :
       (MS0 =(MActT (Send n v))=> MS1) <-> exists MQ P M0 M1,
-          MS0 = mq (TrSend n v :: MQ) M0 P /\ MS1 = mq MQ M1 P /\ (M0 =(MonRecv (TrSend n v))=> M1).
+          MS0 = mserv (TrSend n v :: MQ) M0 P /\ MS1 = mserv MQ M1 P /\ (M0 =(MonRecv (TrSend n v))=> M1).
     Proof.
       split; intros.
       - kill H; kill H0. eattac.
@@ -946,7 +938,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
     Fact MTrans_RecvP_inv n v MS0 MS1 :
       (MS0 =(MActP (Recv n v))=> MS1) <-> exists MQ P0 M0 M1 P1,
-          MS0 = mq (TrRecv n v :: MQ) M0 P0 /\ MS1 = mq MQ M1 P1 /\ (M0 =(MonRecv (TrRecv n v))=> M1)
+          MS0 = mserv (TrRecv n v :: MQ) M0 P0 /\ MS1 = mserv MQ M1 P1 /\ (M0 =(MonRecv (TrRecv n v))=> M1)
           /\ (P0 =(Recv n v)=> P1).
     Proof.
       split; intros.
@@ -956,7 +948,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
     Fact MTrans_SendP_inv n v MS0 MS1 :
       (MS0 =(MActP (Send n v))=> MS1) <-> exists MQ M P0 P1,
-          MS0 = mq MQ M P0 /\ MS1 = mq (MQ ++ [TrSend n v]) M P1 /\ (P0 =(Send n v)=> P1).
+          MS0 = mserv MQ M P0 /\ MS1 = mserv (MQ ++ [TrSend n v]) M P1 /\ (P0 =(Send n v)=> P1).
     Proof.
       split; intros.
       - destruct MS0, MS1; kill H. eexists _,_,_. eattac.
@@ -965,7 +957,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
     Fact MTrans_TauP_inv MS0 MS1 :
       (MS0 =(MActP Tau)=> MS1) <-> exists MQ M P0 P1,
-          MS0 = mq MQ M P0 /\ MS1 = mq MQ M P1 /\ (P0 =(Tau)=> P1).
+          MS0 = mserv MQ M P0 /\ MS1 = mserv MQ M P1 /\ (P0 =(Tau)=> P1).
     Proof. eattac; kill H; eattac. Qed.
   End Inversions.
 
@@ -976,7 +968,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   Lemma mq_preserve_handle1 [a MQ0 M0 S0 MQ1 M1 S1] :
-    (mq MQ0 M0 S0 =(a)=> mq MQ1 M1 S1) ->
+    (mserv MQ0 M0 S0 =(a)=> mserv MQ1 M1 S1) ->
     handle M0 = handle M1.
 
   Proof.
@@ -986,7 +978,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   Lemma mq_preserve_handle [mpath MQ0 M0 S0 MQ1 M1 S1] :
-    (mq MQ0 M0 S0 =[mpath]=> mq MQ1 M1 S1) ->
+    (mserv MQ0 M0 S0 =[mpath]=> mserv MQ1 M1 S1) ->
     handle M0 = handle M1.
 
   Proof.
@@ -1002,7 +994,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Definition ready_q (M : MServ) :=
     match M with
-    | mq _ M _ => ready M
+    | mserv _ M _ => ready M
     end.
 
   #[export] Hint Unfold ready_q : LTS.
@@ -1011,16 +1003,16 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Lemma ready_q_erecv [MQ M S n e] :
     ready M ->
-    (mq (EvRecv n e :: MQ) M S =(MActM Tau)=>
-       mq MQ {|handle:=handle M; state:=handle M (EvRecv n e) (next_state (state M))|} S).
+    (mserv (EvRecv n e :: MQ) M S =(MActM Tau)=>
+       mserv MQ {|handle:=handle M; state:=handle M (EvRecv n e) (next_state (state M))|} S).
 
   Proof. eattac. Qed.
 
 
   Lemma ready_q_tsend [MQ M S n v] :
     ready M ->
-    (mq (TrSend n v :: MQ) M S =(MActT (Send n v))=>
-       mq MQ {|handle:=handle M; state:=handle M (TrSend n v) (next_state (state M))|} S).
+    (mserv (TrSend n v :: MQ) M S =(MActT (Send n v))=>
+       mserv MQ {|handle:=handle M; state:=handle M (TrSend n v) (next_state (state M))|} S).
 
   Proof. eattac. Qed.
 
@@ -1028,8 +1020,8 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Lemma ready_q_trecv [MQ M S0 S1 n v] :
     ready M ->
     (S0 =(Recv n v)=> S1) ->
-    (mq (TrRecv n v :: MQ) M S0 =(MActP (Recv n v))=>
-       mq MQ {|handle:=handle M; state:=handle M (TrRecv n v) (next_state (state M))|} S1).
+    (mserv (TrRecv n v :: MQ) M S0 =(MActP (Recv n v))=>
+       mserv MQ {|handle:=handle M; state:=handle M (TrRecv n v) (next_state (state M))|} S1).
 
   Proof. eattac. Qed.
 
@@ -1120,7 +1112,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   (** Instrumentation function *)
   Definition instr : instr_t :=
-    fun (MQ : MQ_clear) (M : Mon_ready) (P : Serv) => mq (proj1_sig MQ) (proj1_sig M) P.
+    fun (MQ : MQ_clear) (M : Mon_ready) (P : Serv) => mserv (proj1_sig MQ) (proj1_sig M) P.
 
   #[export] Hint Unfold instr : LTS.
   #[export] Hint Transparent instr : LTS.
@@ -1411,9 +1403,9 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     end.
 
 
-  Definition mq_dI MS := serv_i (mq_S MS) ++ MQ_r (mq_MQ MS).
-  Definition mq_dP MS := serv_p (mq_S MS).
-  Definition mq_dO MS := MQ_s (mq_MQ MS) ++ serv_o (mq_S MS).
+  Definition mq_dI MS := serv_i (mserv_s MS) ++ MQ_r (mserv_i MS).
+  Definition mq_dP MS := serv_p (mserv_s MS).
+  Definition mq_dO MS := MQ_s (mserv_i MS) ++ serv_o (mserv_s MS).
 
   #[export] Hint Transparent mq_dI mq_dP mq_dO : LTS.
 
@@ -1543,7 +1535,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   (** Deinstrumentation. Strips off monitoring and disassembles monitor's queue. *)
   Definition deinstr (MS0 : MServ) : Serv :=
     match MS0 with
-    | (mq MQ0 _ (serv I0 P0 O0)) => (serv (I0 ++ (MQ_r MQ0)) P0 (MQ_s MQ0 ++ O0))
+    | (mserv MQ0 _ (serv I0 P0 O0)) => (serv (I0 ++ (MQ_r MQ0)) P0 (MQ_s MQ0 ++ O0))
     end.
 
   #[reversible=no] Coercion deinstr : MServ >-> Serv.
@@ -1564,7 +1556,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Lemma deinstr_In_recv [MQ M S I P O n v] :
     List.In (TrRecv n v) MQ ->
-    deinstr (mq MQ M S) = (serv I P O) ->
+    deinstr (mserv MQ M S) = (serv I P O) ->
     List.In (n, v) I.
 
   Proof.
@@ -1580,7 +1572,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Lemma deinstr_In_send [MQ M S I P O n v] :
     List.In (TrSend n v) MQ ->
-    deinstr (mq MQ M S) = (serv I P O) ->
+    deinstr (mserv MQ M S) = (serv I P O) ->
     List.In (n, v) O.
 
   Proof.
@@ -1794,7 +1786,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   (** Flushing action reduces the monitor queue *)
   Lemma Flushing_act_split : forall [a] [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1],
-      (mq MQ0 M0 (serv I0 P0 O0) =(a)=> mq MQ1 M1 (serv I1 P1 O1)) ->
+      (mserv MQ0 M0 (serv I0 P0 O0) =(a)=> mserv MQ1 M1 (serv I1 P1 O1)) ->
       Flushing_act a ->
       exists MQ', MQ0 = MQ' ++ MQ1.
 
@@ -1811,9 +1803,9 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   (** Flushing path can be reapplied with a bigger monitor queue, and the residue will remain. *)
   Lemma Flushing_cont : forall [mpath] [MQ0 M0 S0] [MQ1 M1 S1] MQ',
-      (mq MQ0 M0 S0 =[mpath]=> mq MQ1 M1 S1) ->
+      (mserv MQ0 M0 S0 =[mpath]=> mserv MQ1 M1 S1) ->
       Forall Flushing_act mpath ->
-      (mq (MQ0 ++ MQ') M0 S0 =[mpath]=> mq (MQ1 ++ MQ') M1 S1).
+      (mserv (MQ0 ++ MQ') M0 S0 =[mpath]=> mserv (MQ1 ++ MQ') M1 S1).
 
   Proof with eattac 10.
     induction mpath; intros.
@@ -1844,9 +1836,9 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   (** Flushing act can be reapplied with a shorter monitor queue*)
   Lemma Flushing_retract1 : forall [a] [MQ0 M0 S0] [MQ1 M1 S1] MQ',
-      (mq (MQ0 ++ MQ') M0 S0 =(a)=> mq (MQ1 ++ MQ') M1 S1) ->
+      (mserv (MQ0 ++ MQ') M0 S0 =(a)=> mserv (MQ1 ++ MQ') M1 S1) ->
       Flushing_act a ->
-      (mq MQ0 M0 S0 =(a)=> mq MQ1 M1 S1).
+      (mserv MQ0 M0 S0 =(a)=> mserv MQ1 M1 S1).
 
   Proof.
     intros.
@@ -1857,9 +1849,9 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   (** Flushing path can be reapplied with a shorter monitor queue *)
   Lemma Flushing_retract : forall [mpath] [MQ0 M0 S0] [MQ1 M1 S1] MQ',
-      (mq (MQ0 ++ MQ') M0 S0 =[mpath]=> mq (MQ1 ++ MQ') M1 S1) ->
+      (mserv (MQ0 ++ MQ') M0 S0 =[mpath]=> mserv (MQ1 ++ MQ') M1 S1) ->
       Forall Flushing_act mpath ->
-      (mq MQ0 M0 S0 =[mpath]=> mq MQ1 M1 S1).
+      (mserv MQ0 M0 S0 =[mpath]=> mserv MQ1 M1 S1).
 
   Proof.
     intros.
@@ -1876,7 +1868,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
       enough (exists MQ1, MQ1' = MQ1 ++ MQ').
       {
         hsimpl in *.
-        enough (mq MQ0 M0 S0 =( a )=> mq MQ1 M1 S1); eauto using Flushing_retract1 with LTS.
+        enough (mserv MQ0 M0 S0 =( a )=> mserv MQ1 M1 S1); eauto using Flushing_retract1 with LTS.
       }
 
       clear - H1 H2.
@@ -1949,8 +1941,8 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Definition flush_M MQ M := {|handle:=handle M;state:=MRecv (flush_Mstate MQ M)|}.
   Definition flush_S MQ S := match S with serv I0 P0 O0 => serv (I0 ++ MQ_r MQ) P0 O0 end.
-  Definition flush_path MS := match MS with mq MQ M _ => mk_flush_path MQ M end.
-  Definition flush_MS MS0 := match MS0 with mq MQ0 M0 S0 => mq [] (flush_M MQ0 M0) (flush_S MQ0 S0) end.
+  Definition flush_path MS := match MS with mserv MQ M _ => mk_flush_path MQ M end.
+  Definition flush_MS MS0 := match MS0 with mserv MQ0 M0 S0 => mserv [] (flush_M MQ0 M0) (flush_S MQ0 S0) end.
 
   #[export] Hint Unfold flush_M : LTS.
   #[export] Hint Transparent flush_M flush_S flush_path flush_MS : LTS.
@@ -2003,7 +1995,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Lemma flush_M_go : forall MQ M h s S,
       handle M = h ->
       state M = s ->
-      mq MQ M S =[flush_mcode s]=> mq MQ {|handle:=handle M;state:=MRecv (next_state s)|} S.
+      mserv MQ M S =[flush_mcode s]=> mserv MQ {|handle:=handle M;state:=MRecv (next_state s)|} S.
   Proof.
     intros.
     destruct M; attac.
@@ -2013,7 +2005,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   Lemma flush_go : forall MQ0 M0 S0,
-    mq MQ0 M0 S0 =[ mk_flush_path MQ0 M0 ]=> mq [] (flush_M MQ0 M0) (flush_S MQ0 S0).
+    mserv MQ0 M0 S0 =[ mk_flush_path MQ0 M0 ]=> mserv [] (flush_M MQ0 M0) (flush_S MQ0 S0).
 
   Proof.
     intros.
@@ -2077,7 +2069,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   Hint Unfold flush_MS : LTS.
-  Lemma flush_go_Clear : forall MQ M S, MQ_Clear MQ -> mq MQ M S =[mk_flush_path MQ M]=> mq [] (flush_M MQ M) S.
+  Lemma flush_go_Clear : forall MQ M S, MQ_Clear MQ -> mserv MQ M S =[mk_flush_path MQ M]=> mserv [] (flush_M MQ M) S.
   Proof.
     intros.
     ltac1:(replace &S with (flush_S MQ &S) at 2 by attac).
@@ -2142,7 +2134,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   (** Any state of a monitored process can be dragged to a "canonical" one, where the monitor is ready
   and has empty queue. **)
   Theorem flush_go_until : forall MQ0 MQ1 M0 S0,
-      (mq (MQ0 ++ MQ1) M0 S0 =[ mk_flush_path MQ0 M0 ]=> mq MQ1 (flush_M MQ0 M0) (flush_S MQ0 S0)).
+      (mserv (MQ0 ++ MQ1) M0 S0 =[ mk_flush_path MQ0 M0 ]=> mserv MQ1 (flush_M MQ0 M0) (flush_S MQ0 S0)).
 
   Proof with ltac2:(eauto with LTS).
     destruct S0.
@@ -2155,7 +2147,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   and has empty queue. **)
   Theorem flush_go_until_Clear : forall MQ0 MQ1 M0 S0,
       MQ_Clear MQ0 ->
-      (mq (MQ0 ++ MQ1) M0 S0 =[ mk_flush_path MQ0 M0 ]=> mq MQ1 (flush_M MQ0 M0) S0).
+      (mserv (MQ0 ++ MQ1) M0 S0 =[ mk_flush_path MQ0 M0 ]=> mserv MQ1 (flush_M MQ0 M0) S0).
 
   Proof with ltac2:(eauto with LTS).
     intros.
@@ -2174,7 +2166,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Lemma corr_extraction1 : forall
       [ma]
       [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1],
-      (mq MQ0 M0 (serv I0 P0 O0) =(ma)=> mq MQ1 M1 (serv I1 P1 O1)) ->
+      (mserv MQ0 M0 (serv I0 P0 O0) =(ma)=> mserv MQ1 M1 (serv I1 P1 O1)) ->
       (serv (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0) =[MPath_to_PPath [ma]]=> serv (I1 ++ MQ_r MQ1) P1 (MQ_s MQ1 ++ O1)).
 
   Proof.
@@ -2189,7 +2181,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Lemma corr_extraction : forall
       [mpath]
       [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1],
-      (mq MQ0 M0 (serv I0 P0 O0) =[mpath]=> mq MQ1 M1 (serv I1 P1 O1)) ->
+      (mserv MQ0 M0 (serv I0 P0 O0) =[mpath]=> mserv MQ1 M1 (serv I1 P1 O1)) ->
       (serv (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0) =[MPath_to_PPath mpath]=> serv (I1 ++ MQ_r MQ1) P1 (MQ_s MQ1 ++ O1)).
 
   Proof with (eauto with LTS).
@@ -2311,25 +2303,25 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Lemma Transp_completeness_send_prep : forall [n v] [S0 S1] MQ0 M0,
       (S0 =( Send n v )=> S1) ->
-      (mq MQ0 M0 S0 =[MActP (Send n v) :: mk_flush_path MQ0 M0]=> (mq [TrSend n v] (flush_M MQ0 M0) (flush_S MQ0 S1))).
+      (mserv MQ0 M0 S0 =[MActP (Send n v) :: mk_flush_path MQ0 M0]=> (mserv [TrSend n v] (flush_M MQ0 M0) (flush_S MQ0 S1))).
 
   Proof.
     intros.
 
-    eenough (mq (MQ0 ++ [TrSend n v]) M0 S1 =[mk_flush_path MQ0 M0]=> _) by eattac.
+    eenough (mserv (MQ0 ++ [TrSend n v]) M0 S1 =[mk_flush_path MQ0 M0]=> _) by eattac.
     eapply flush_go_until.
   Qed.
 
 
   Lemma Transp_completeness_send : forall [n v] [S0 S1] MQ0 M0,
       (S0 =( Send n v )=> S1) ->
-      (mq MQ0 M0 S0 =[MActP (Send n v) :: mk_flush_path MQ0 M0 ++ [MActT (Send n v)]]=>
-         (mq [] {|handle:=handle M0; state:=handle M0 (TrSend n v) (flush_Mstate MQ0 M0)|} (flush_S MQ0 S1))).
+      (mserv MQ0 M0 S0 =[MActP (Send n v) :: mk_flush_path MQ0 M0 ++ [MActT (Send n v)]]=>
+         (mserv [] {|handle:=handle M0; state:=handle M0 (TrSend n v) (flush_Mstate MQ0 M0)|} (flush_S MQ0 S1))).
 
   Proof.
     intros.
 
-    eenough (mq [TrSend n v] (flush_M MQ0 M0) (flush_S MQ0 S1) =(MActT (Send n v))=> _)
+    eenough (mserv [TrSend n v] (flush_M MQ0 M0) (flush_S MQ0 S1) =(MActT (Send n v))=> _)
       by (rewrite app_comm_cons; eauto using Transp_completeness_send_prep with LTS).
 
     eattac.
@@ -2337,7 +2329,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   Lemma Flushing_clear1 [a] [MQ0 M0 S0 MS1] :
-    (mq MQ0 M0 S0 =(a)=> MS1) ->
+    (mserv MQ0 M0 S0 =(a)=> MS1) ->
     MQ_Clear MQ0 ->
     Flushing_act a ->
     [a] >:~ [].
@@ -2349,7 +2341,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   Lemma Flushing_clear [mpath] [MQ0 M0 S0 MS1] :
-    (mq MQ0 M0 S0 =[mpath]=> MS1) ->
+    (mserv MQ0 M0 S0 =[mpath]=> MS1) ->
     MQ_Clear MQ0 ->
     Forall Flushing_act mpath ->
     mpath >:~ [].
@@ -2376,7 +2368,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Lemma Transp_completeness_send_instr : forall [n v] [S0 S1] MQ0 M0,
       (S0 =( Send n v )=> S1) ->
         (instr MQ0 M0 S0 =[MActP (Send n v) :: flush_path (instr MQ0 M0 S0) ++ [MActT (Send n v)]]=>
-           (mq [] (handle_Mr (TrSend n v) (plain flush_Mr MQ0 M0)) S1)).
+           (mserv [] (handle_Mr (TrSend n v) (plain flush_Mr MQ0 M0)) S1)).
 
   Proof with eattac.
     intros.
@@ -2393,12 +2385,12 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   Lemma Transp_completeness_recv_prep : forall n v MQ0 M0 S0,
-    (mq MQ0 M0 S0 =[MActT (Recv n v) :: mk_flush_path MQ0 M0]=> mq [TrRecv n v] (flush_M MQ0 M0) (flush_S MQ0 S0)).
+    (mserv MQ0 M0 S0 =[MActT (Recv n v) :: mk_flush_path MQ0 M0]=> mserv [TrRecv n v] (flush_M MQ0 M0) (flush_S MQ0 S0)).
 
   Proof.
     intros.
 
-    eenough ( mq (MQ0 ++ [TrRecv n v]) M0 S0 =[mk_flush_path MQ0 M0]=> _) by eattac.
+    eenough ( mserv (MQ0 ++ [TrRecv n v]) M0 S0 =[mk_flush_path MQ0 M0]=> _) by eattac.
     eapply flush_go_until.
   Qed.
 
@@ -2406,12 +2398,12 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Lemma Transp_completeness_recv : forall [n v] [S0 S1] MQ0 M0,
       MQ_Clear MQ0 ->
       (S0 =( Recv n v )=> S1) ->
-      (mq MQ0 M0 S0 =[MActT (Recv n v) :: mk_flush_path MQ0 M0 ++ [MActP (Recv n v)]]=> mq [] {|handle:=handle M0; state:=handle M0 (TrRecv n v) (flush_Mstate MQ0 M0)|} S1).
+      (mserv MQ0 M0 S0 =[MActT (Recv n v) :: mk_flush_path MQ0 M0 ++ [MActP (Recv n v)]]=> mserv [] {|handle:=handle M0; state:=handle M0 (TrRecv n v) (flush_Mstate MQ0 M0)|} S1).
 
   Proof.
     intros.
 
-    eenough (mq [TrRecv n v] (flush_M MQ0 M0) (flush_S MQ0 S0) =(MActP (Recv n v))=> _)
+    eenough (mserv [TrRecv n v] (flush_M MQ0 M0) (flush_S MQ0 S0) =(MActP (Recv n v))=> _)
       by (rewrite app_comm_cons; eauto using Transp_completeness_recv_prep with LTS).
 
     eattac 10.
@@ -2421,7 +2413,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Theorem Transp_completeness1 : forall [a S0 S1] MQ0 M0,
       (S0 =( a )=> S1) ->
       exists mpath0 ma mpath1 M1,
-        (instr MQ0 M0 S0 =[ mpath0 ++ ma :: mpath1]=> mq [] M1 S1)
+        (instr MQ0 M0 S0 =[ mpath0 ++ ma :: mpath1]=> mserv [] M1 S1)
         /\ mpath0 >:~ []
         /\ ma >:- a
         /\ mpath1 >:~ [].
@@ -2462,13 +2454,13 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     intros.
 
     consider ( exists mpath0 ma mpath1 M1,
-                 (### instr MQ0 M0 S0 =[ mpath0 ++ ma :: mpath1]=> mq [] M1 S1)
+                 (### instr MQ0 M0 S0 =[ mpath0 ++ ma :: mpath1]=> mserv [] M1 S1)
                  /\ mpath0 >:~ []
                  /\ ma >:- a
                  /\ mpath1 >:~ []
            ) by eauto using Transp_completeness1.
 
-    assert (mq [] M1 S1 =[*]=> mq [] (flush_M [] M1) S1) by eauto using flush_go with LTS.
+    assert (mserv [] M1 S1 =[*]=> mserv [] (flush_M [] M1) S1) by eauto using flush_go with LTS.
 
     exists mpath0, ma, (mpath1 ++ mk_flush_path [] M1).
     replace (mpath0 ++ ma :: mpath1 ++ mk_flush_path [] M1)
