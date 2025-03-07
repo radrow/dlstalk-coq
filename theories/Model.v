@@ -881,13 +881,13 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   #[export]
-    Instance trans_mqued : LTS MAct MServ  :=
+    Instance trans_mserv : LTS MAct MServ  :=
     {
       trans := MTrans
     }.
 
-  #[export] Hint Unfold trans_mqued : LTS.
-  #[export] Hint Transparent trans_mqued : LTS.
+  #[export] Hint Unfold trans_mserv : LTS.
+  #[export] Hint Transparent trans_mserv : LTS.
 
 
   Section Inversions.
@@ -967,7 +967,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Notation NoSends_MQ := (Forall (fun e => match e with TrSend _ _ => False | _ => True end)).
 
 
-  Lemma mq_preserve_handle1 [a MQ0 M0 S0 MQ1 M1 S1] :
+  Lemma mserv_preserve_handle1 [a MQ0 M0 S0 MQ1 M1 S1] :
     (mserv MQ0 M0 S0 =(a)=> mserv MQ1 M1 S1) ->
     handle M0 = handle M1.
 
@@ -977,7 +977,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Qed.
 
 
-  Lemma mq_preserve_handle [mpath MQ0 M0 S0 MQ1 M1 S1] :
+  Lemma mserv_preserve_handle [mpath MQ0 M0 S0 MQ1 M1 S1] :
     (mserv MQ0 M0 S0 =[mpath]=> mserv MQ1 M1 S1) ->
     handle M0 = handle M1.
 
@@ -987,7 +987,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     induction mpath; eattac.
     destruct N1 as [MQ0' M0' S0'].
     transitivity '(handle M0').
-    - eauto using mq_preserve_handle1 with LTS.
+    - eauto using mserv_preserve_handle1 with LTS.
     - eauto.
   Qed.
 
@@ -1107,11 +1107,10 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Definition MServ_ready := {M : MServ | ready_q M}.
 
 
-  Definition instr_t := MQ_clear -> Mon_ready -> Serv -> MServ.
-
+  Record mon_assg := MQ_clear -> Mon_ready -> Serv -> MServ.
 
   (** Instrumentation function *)
-  Definition instr : instr_t :=
+  Definition instr : mon_assg :=
     fun (MQ : MQ_clear) (M : Mon_ready) (P : Serv) => mserv (proj1_sig MQ) (proj1_sig M) P.
 
   #[export] Hint Unfold instr : LTS.
@@ -1402,14 +1401,6 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     | _ :: MQ' => MQ_s MQ'
     end.
 
-
-  Definition mq_dI MS := serv_i (mserv_s MS) ++ MQ_r (mserv_i MS).
-  Definition mq_dP MS := serv_p (mserv_s MS).
-  Definition mq_dO MS := MQ_s (mserv_i MS) ++ serv_o (mserv_s MS).
-
-  #[export] Hint Transparent mq_dI mq_dP mq_dO : LTS.
-
-
   Lemma MQ_Split_rs MQ : MQ_Split MQ (MQ_r MQ) (MQ_s MQ).
   Proof. induction MQ; eattac. destruct a; eattac. Qed.
 
@@ -1533,7 +1524,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   (** Deinstrumentation. Strips off monitoring and disassembles monitor's queue. *)
-  Definition deinstr (MS0 : MServ) : Serv :=
+  Coercion deinstr (MS0 : MServ) : Serv :=
     match MS0 with
     | (mserv MQ0 _ (serv I0 P0 O0)) => (serv (I0 ++ (MQ_r MQ0)) P0 (MQ_s MQ0 ++ O0))
     end.
@@ -2090,7 +2081,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Definition nil_Clear : MQ_clear := exist _ [] (Forall_nil _).
 
-  Definition flush_instr : instr_t :=
+  Definition flush_instr : mon_assg :=
     fun MQc Mr S => instr nil_Clear (flush_Mr (proj1_sig MQc) (proj1_sig Mr)) S.
 
 

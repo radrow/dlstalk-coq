@@ -488,7 +488,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
   Import Rad.
 
 
-  Lemma mq_preserve_self [a MQ0 s0 S0 MQ1 M1 S1] :
+  Lemma mserv_preserve_self [a MQ0 s0 S0 MQ1 M1 S1] :
     (mserv MQ0 {|handle:=Rad_handle;state:=s0|} S0 =(a)=> mserv MQ1 M1 S1) ->
     self (next_state s0) = self (next_state (state M1)).
 
@@ -504,7 +504,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
   Qed.
 
 
-  Lemma mq_preserve_deadlock [a MQ0 s0 S0 MQ1 M1 S1] :
+  Lemma mserv_preserve_deadlock [a MQ0 s0 S0 MQ1 M1 S1] :
     (mserv MQ0 {|handle:=Rad_handle;state:=s0|} S0 =(a)=> mserv MQ1 M1 S1) ->
     deadlock (next_state s0) = true ->
     deadlock (next_state (state M1)) = true.
@@ -576,7 +576,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     rewrite `(NetMod.get n MN0 = _) in *.
     hsimpl in |- *.
     destruct S.
-    eauto using mq_preserve_deadlock.
+    eauto using mserv_preserve_deadlock.
   Qed.
 
 
@@ -623,7 +623,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     destruct S.
     hsimpl in |- *.
     apply NAME.eqb_eq.
-    eauto using mq_preserve_self.
+    eauto using mserv_preserve_self.
   Qed.
 
 
@@ -1271,7 +1271,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     assert (Rad_MServ (NetMod.get n MN0)) by attac.
     destruct S as [MQ1 M1 S1].
     destruct (NetMod.get n MN0) as [MQ0 M0 S0].
-    assert (handle M0 = handle M1) by eauto using mq_preserve_handle.
+    assert (handle M0 = handle M1) by eauto using mserv_preserve_handle.
     destruct M0, M1.
     eattac.
   Qed.
@@ -3741,7 +3741,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     Hint Resolve <- sends_probe_skip_s1 sends_probe_skip_s_in : LTS.
 
 
-    Lemma mq_sends_probe_sent [MS0 MS1 : MServ] [ma : MAct] [nc p] :
+    Lemma mserv_sends_probe_sent [MS0 MS1 : MServ] [ma : MAct] [nc p] :
       Rad_MServ MS0 ->
       (MS0 =(ma)=> MS1) ->
       sends_probe nc p MS0 ->
@@ -3936,7 +3936,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       intros.
       smash_eq n0 n'.
       - kill H0.
-        consider (a = send (n1, &t) p) by (eapply mq_sends_probe_sent; eattac).
+        consider (a = send (n1, &t) p) by (eapply mserv_sends_probe_sent; eattac).
       - replace (NetMod.get n0 MN1) with (NetMod.get n0 MN0) by eauto using NV_stay.
         bs.
     Qed.
@@ -6075,7 +6075,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
     (* TODO better name xd *)
-    Lemma mq_Q_lock_sound [MN m n v] :
+    Lemma mserv_Q_lock_sound [MN m n v] :
       net_sane '' MN ->
       List.In (TrRecv (m, Q) v) (get_MQ MN n) ->
       net_lock_on '' MN m n.
@@ -6199,7 +6199,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       intros.
       assert (net_sane MN0) by eauto with LTS.
 
-      assert (net_lock_on '' MN0 m n) by eauto using mq_Q_lock_sound.
+      assert (net_lock_on '' MN0 m n) by eauto using mserv_Q_lock_sound.
       assert (dep_on MN0 n n) by eauto with LTS.
       assert (deadlocked n '' MN0) by eauto 2 with LTS.
 

@@ -872,7 +872,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Import Rad.
 
 
-  Lemma mq_preserve_self [a MQ0 s0 S0 MQ1 M1 S1] :
+  Lemma mserv_preserve_self [a MQ0 s0 S0 MQ1 M1 S1] :
     (mserv MQ0 {|handle:=Rad_handle;state:=s0|} S0 =(a)=> mserv MQ1 M1 S1) ->
     self (next_state s0) = self (next_state (state M1)).
 
@@ -888,7 +888,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma mq_preserve_alarm [a MQ0 s0 S0 MQ1 M1 S1] :
+  Lemma mserv_preserve_alarm [a MQ0 s0 S0 MQ1 M1 S1] :
     (mserv MQ0 {|handle:=Rad_handle;state:=s0|} S0 =(a)=> mserv MQ1 M1 S1) ->
     alarm (next_state s0) = true ->
     alarm (next_state (state M1)) = true.
@@ -946,7 +946,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     rewrite `(NetMod.get n MN0 = _) in *.
     hsimpl in |- *.
     destruct S.
-    eauto using mq_preserve_alarm.
+    eauto using mserv_preserve_alarm.
   Qed.
 
 
@@ -992,7 +992,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     rewrite `(NetMod.get n MN0 = _) in *.
     destruct S.
     rewrite NetMod.get_put_eq. simpl.
-    eauto using mq_preserve_self.
+    eauto using mserv_preserve_self.
   Qed.
 
 
@@ -1570,7 +1570,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     assert (Rad_MServ (NetMod.get n MN0)) by attac.
     destruct S as [MQ1 M1 S1].
     destruct (NetMod.get n MN0) as [MQ0 M0 S0].
-    assert (handle M0 = handle M1) by eauto using mq_preserve_handle1.
+    assert (handle M0 = handle M1) by eauto using mserv_preserve_handle1.
     destruct M0, M1.
     eattac.
   Qed.
@@ -3802,7 +3802,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Hint Resolve <- sends_probe_skip_s1 sends_probe_skip_s_in : LTS.
 
 
-  Lemma mq_sends_probe_sent [MS0 MS1 : MServ] [ma : MAct] [nc p] :
+  Lemma mserv_sends_probe_sent [MS0 MS1 : MServ] [ma : MAct] [nc p] :
     Rad_MServ MS0 ->
     (MS0 =(ma)=> MS1) ->
     sends_probe nc p MS0 ->
@@ -3997,7 +3997,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     intros.
     smash_eq n0 n'.
     - kill H0.
-      consider (a = send (n1, &t) ^ p) by (eapply mq_sends_probe_sent; eattac).
+      consider (a = send (n1, &t) ^ p) by (eapply mserv_sends_probe_sent; eattac).
     - replace (NetMod.get n0 MN1) with (NetMod.get n0 MN0) by eauto using NV_stay.
       bs.
   Qed.
@@ -6372,7 +6372,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
 
   (* TODO better name xd *)
-  Lemma mq_Q_lock_sound [MN m n v] :
+  Lemma mserv_Q_lock_sound [MN m n v] :
     net_sane '' MN ->
     List.In (TrRecv (m, Q) v) (get_MQ MN n) ->
     net_lock_on '' MN m n.
@@ -6514,7 +6514,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     intros.
     assert (net_sane '' MN0) by eauto with LTS.
 
-    assert (net_lock_on '' MN0 m n) by eauto using mq_Q_lock_sound.
+    assert (net_lock_on '' MN0 m n) by eauto using mserv_Q_lock_sound.
     assert (dep_on '' MN0 n n) by eauto with LTS.
     assert (deadlocked n '' MN0) by (exists DS; eauto 2 with LTS).
 

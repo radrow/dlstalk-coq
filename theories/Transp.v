@@ -405,7 +405,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
     destruct (NetMod.get n MN0) eqn:?.
     destruct (NetMod.get n MN1) eqn:?.
-    eapply mq_preserve_handle.
+    eapply mserv_preserve_handle.
     hsimpl in *. hsimpl in *.
     rewrite `(NetMod.get n MN0 = _) in *.
     eauto.
