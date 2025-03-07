@@ -65,7 +65,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Decisive network remains decisive *)
     Lemma Decisive_net_invariant :
-      @trans_invariant _ _ (@trans_net _ _ _ trans_pqued) Decisive_net always.
+      @trans_invariant _ _ (@trans_net _ _ _ trans_Serv) Decisive_net always.
 
     Proof with attac.
       unfold Decisive_net.

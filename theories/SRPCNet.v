@@ -82,7 +82,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       unfold net_lock_on, net_lock.
       intros; hsimpl in *.
 
-      consider (exists s, pq_lock [s] (NetMod.get n0 N)) by eauto using SRPC_pq_get_lock.
+      consider (exists s, pq_lock [s] (NetMod.get n0 N)) by eauto using SRPC_serv_get_lock.
       enough (n1 = s) by (subst; eauto using lock_SRPC_Lock_serv with LTS).
 
       enough (In n1 [s]) by attac.
@@ -131,7 +131,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       unfold lock_neq_nil_type, net_lock.
       intros.
 
-      consider (exists s, pq_lock [s] (NetMod.get n N)) by eauto using SRPC_pq_get_lock.
+      consider (exists s, pq_lock [s] (NetMod.get n N)) by eauto using SRPC_serv_get_lock.
       destruct L; doubt.
 
       assert (incl [s] []) by eauto using pq_lock_incl.
@@ -178,7 +178,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       - assert (n <> n2) by eauto using net_lock_on_no_send.
         smash_eq n n3.
         + hsimpl in * |-; hsimpl in * |-.
-          eauto using SRPC_pq_no_relock.
+          eauto using SRPC_serv_no_relock.
         + replace (NetMod.get n N1) with (NetMod.get n N0).
           * enough (In n0 [n1]) by attac.
             enough (incl [n0] [n1]) by attac.
@@ -321,7 +321,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
     (** A much stronger version of SRPC_serv which holds in any network with the same premises *)
     Inductive SRPC_sane (srpc : SRPC_State) (S : Serv) : Prop :=
-      SPRC_pq_net_
+      SPRC_serv_net_
 
         (Hsrpc : SRPC_serv srpc S)
 
@@ -788,7 +788,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
     Proof.
       intros; intros ?.
-      consider (exists s, pq_lock [s] S1) by eauto using SRPC_pq_get_lock with LTS.
+      consider (exists s, pq_lock [s] S1) by eauto using SRPC_serv_get_lock with LTS.
       consider (exists c, SRPC_serv (Lock c s) S1) by eauto using lock_SRPC_Lock_serv with LTS.
       consider (_ =(_)=> _); simpl in *.
       consider (pq_lock _ _).
@@ -824,7 +824,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       intros.
       assert (AnySRPC_serv S1) by eattac.
       assert (pq_lock [s] S1) by eauto using SRPC_sane_send_Q_lock.
-      consider (exists c, SRPC_serv (Lock c s) S1) by eauto using lock_SRPC_Lock_pq.
+      consider (exists c, SRPC_serv (Lock c s) S1) by eauto using lock_SRPC_Lock_serv.
       attac.
     Qed.
 
@@ -1708,7 +1708,8 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         destruct `(SRPC_Busy_State _).
         + assert (SRPC (Work c) P1) by eattac.
           consider (Work c' = Work c) by attac.
-          enough (proc_client c P0); eattac.
+          assert (proc_client c P0) by eattac.
+          bs.
         + bs (Work c' = Lock c s) by attac.
       - consider (exists c', SRPC (Work c') P0 /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q.
         destruct `(SRPC_Busy_State _).
@@ -2151,7 +2152,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Proof.
       intros.
       assert (SRPC_serv srpc &S) by attac.
-      consider (exists s, pq_lock [s] &S) by eauto 4 using SRPC_pq_get_lock with LTS.
+      consider (exists s, pq_lock [s] &S) by eauto 4 using SRPC_serv_get_lock with LTS.
       consider (exists c, SRPC_serv (Lock c s) &S) by eauto using lock_SRPC_Lock_serv with LTS.
       destruct S as [I0 P0 O0]; hsimpl in *.
       intros ?.
@@ -2585,7 +2586,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
           intros ?.
           assert (In (n, R, v0) Im10 \/ In (n, R, v0) [(n0, R, v)]) as [|]; eattac.
           assert (AnySRPC_serv (serv Im10 Pm01 [])) by attac.
-          consider (exists c, SRPC_serv (Lock c n0) (serv Im10 Pm01 [])) by eauto using lock_SRPC_Lock_pq.
+          consider (exists c, SRPC_serv (Lock c n0) (serv Im10 Pm01 [])) by eauto using lock_SRPC_Lock_serv.
           consider (exists c', SRPC_serv (Lock c' n) (serv Im10 Pm01 [])).
           {
             consider (exists srpc, SRPC_sane srpc (serv Im10 Pm01 [])) by attac.
@@ -2623,7 +2624,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         + intros ?.
           assert (In (n, R, v0) Im10 \/ In (n, R, v0) [(n0, R, v)]) as [|]; attac.
           assert (AnySRPC_serv (serv Im10 Pm10 [])) by attac.
-          consider (exists c, SRPC_serv (Lock c n0) (serv Im10 Pm10 [])) by eauto using lock_SRPC_Lock_pq.
+          consider (exists c, SRPC_serv (Lock c n0) (serv Im10 Pm10 [])) by eauto using lock_SRPC_Lock_serv.
           consider (exists c', SRPC_serv (Lock c' n) (serv Im10 Pm10 [])).
           {
             consider (exists srpc, SRPC_sane srpc (serv Im10 Pm10 [])) by attac.
@@ -2649,7 +2650,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Hint Resolve trans_pqued | 0 : typeclass_instances.
+    Hint Resolve trans_Serv | 0 : typeclass_instances.
     Lemma trans_invariant_net_sane_comm [n0 n1 t] [v] [N0 N1 : PNet] :
       (N0 =(NComm n0 n1 t v)=> N1) ->
       net_sane N0 ->

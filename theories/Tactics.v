@@ -189,9 +189,14 @@ Ltac2 rec get_left_app c :=
 Ltac2 is_constructor_app c := Constr.is_constructor (get_left_app c).
 
 (** Better discriminate *)
-Ltac2 rec disc () :=
+Ltac2 rec disc_ () :=
   match! goal with
   | [h : ?x = ?y |- _] =>
+      match! '($x = $y) with
+      | existT _ _ _ = _ => solve [ltac1:(h |- dependent destruction h) (Ltac1.of_ident h)]
+      | _ = existT _ _ _ => solve [ltac1:(h |- dependent destruction h) (Ltac1.of_ident h)]
+      | _ => ()
+      end;
       let hh := hyp h in
       if Constr.is_constructor  (get_left_app x)
       then (if Constr.is_constructor (get_left_app y)
@@ -199,7 +204,7 @@ Ltac2 rec disc () :=
                   clear $h;
                   intros;
                   subst;
-                  disc ()
+                  disc_ ()
                  )
             else if Constr.is_var y
                  then
@@ -211,12 +216,12 @@ Ltac2 rec disc () :=
            )
       else if Constr.is_var x
            then (apply eq_sym in $h;
-                 disc ()
+                 disc_ ()
                 )
            else discriminate $hh
   end.
 
-
+Ltac2 Notation "disc" := Control.enter disc_.
 
 Inductive HAVE (P : Prop) := HAVE_ : P -> HAVE P.
 Notation "### P" := (HAVE P) (at level 200) : type_scope.
@@ -288,13 +293,13 @@ Ltac2 bs_ (on : (constr * (unit -> unit) option) option) :=
       assert $c by (s ())
   end;
 
-  simpl in *;
+  simpl in *; subst; simpl in *;
   try (ltac1:(autorewrite with bs in * ));
   solve
     [ contradiction
     | congruence
     | lia
-    | disc ()
+    | disc
     | List.iter (fun (h, _, _) => try (kill $h)) (hyps ())
     | match! goal with
       | [h : ?p |- _] =>
