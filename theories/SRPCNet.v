@@ -1798,11 +1798,11 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         bs (Free = Busy `(_)).
 
       - consider (exists c', SRPC (Lock c' n) P /\ SRPC (Work c') P1) by eauto using SRPC_recv_R.
-        smash_eq c c'; attac.
-
-        consider (proc_client c (PRecv &handle)).
-        bs.
-
+        smash_eq c c'.
+        + attac.
+        + hsimpl in *.
+          consider (proc_client c (PRecv &handle)).
+          attac.
       - consider (exists c', SRPC (Work c') P /\ SRPC (Lock c' n) P1) by eauto using SRPC_send_Q.
         consider (proc_client c P) by attac.
         consider (Work c' = Busy `(_)) by attac.
@@ -1879,7 +1879,8 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         consider (pq_client n0 _).
         + enough (List.In (n0, Q, v0) I0) by eattac.
           unshelve eapply (Deq_neq_In _ `(Deq _ _ I0 I1)); eattac.
-        + consider (proc_client n0 P1); eattac.
+        + hsimpl in *.
+          consider (proc_client n0 (cont0 _)); eattac.
         + attac.
 
       - consider (exists c', SRPC (Work c') P0 /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q.
