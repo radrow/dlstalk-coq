@@ -153,6 +153,35 @@ Ltac2 rec get_left_app c :=
 
 Ltac2 is_constructor_app c := Constr.is_constructor (get_left_app c).
 
+(** Better discriminate *)
+Ltac2 rec disc () :=
+  match! goal with
+  | [h : ?x = ?y |- _] =>
+      let hh := hyp h in
+      if Constr.is_constructor  (get_left_app x)
+      then (if Constr.is_constructor (get_left_app y)
+            then (injection $hh;
+                  clear $h;
+                  intros;
+                  subst;
+                  disc ()
+                 )
+            else if Constr.is_var y
+                 then
+                   ( ltac1:(exfalso);
+                     induction $y;
+                     ltac1:(congruence)
+                   )
+                 else discriminate $hh
+           )
+      else if Constr.is_var x
+           then (apply eq_sym in $h;
+                 disc ()
+                )
+           else discriminate $hh
+  end.
+
+
 
 Inductive HAVE (P : Prop) := HAVE_ : P -> HAVE P.
 Notation "### P" := (HAVE P) (at level 200) : type_scope.
@@ -230,6 +259,7 @@ Ltac2 bs_ (on : (constr * (unit -> unit) option) option) :=
     [ contradiction
     | congruence
     | lia
+    | disc ()
     | List.iter (fun (h, _, _) => try (kill $h)) (hyps ())
     | match! goal with
       | [h : ?p |- _] =>
@@ -802,8 +832,17 @@ Ltac2 Notation "compat_hsimpl" cl(opt(clause)) :=
 Hint Rewrite -> in_app_iff using assumption : LTS LTS_concl.
 
 
+Ltac2 splits_ () :=
+  let g := Control.goal () in
+  match! (eval cbv in $g) with
+  | _ /\ _ => split
+  end.
+Ltac2 Notation "splits" :=
+  repeat (Control.enter splits_).
+
+
 Ltac2 hammer solver :=
-  repeat (first [split | progress intros]);
+  repeat (first [progress (splits) | progress intros]);
   try (solve [repeat (first [split | intros ?]); eauto 5 with datatypes LTS; congruence]);
 
   Control.enter (
@@ -811,7 +850,7 @@ Ltac2 hammer solver :=
         hsimpl in *;
         subst;
         simpl in *;
-        repeat (first [split | progress intros]);
+        repeat (first [progress (splits) | progress intros]);
         try (solve
                [ simpl; eauto 5 with datatypes LTS
                | bs
