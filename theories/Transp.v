@@ -39,7 +39,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   (** Not-monitored network *)
   Notation PNet := (NetMod.t Serv).
   (** Monitored network *)
-  Notation MNet := (NetMod.t MQued).
+  Notation MNet := (NetMod.t MServ).
 
   Lemma pq_I_net_inv' : forall I P O n [N : PNet], (* TODO prime' is due to a name clash in SRPCNet.v *)
       NetMod.get n N = pq I P O ->
@@ -172,11 +172,11 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     unfold net_instr_n in H.
 
     assert (let (MQ, M) := &I n in instr MQ M (NetMod.get n N0) = let (MQ, M) := &I n in instr MQ M (NetMod.get n N1)).
-    - rewrite <- (@NetMod.get_map Serv MQued
+    - rewrite <- (@NetMod.get_map Serv MServ
                     (fun (n : Name) (S : Serv) => let (MQ, M) := &I n in instr MQ M S)
         ).
       rewrite <- H.
-      rewrite -> (@NetMod.get_map Serv MQued
+      rewrite -> (@NetMod.get_map Serv MServ
                     (fun (n : Name) (S : Serv) => let (MQ, M) := &I n in instr MQ M S)
         ).
       destruct (&I n) as [MQ M].
@@ -340,7 +340,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Qed.
 
 
-  Definition NoTrSend (MS : MQued) : Prop :=
+  Definition NoTrSend (MS : MServ) : Prop :=
     match MS with (mq MQ _ _) => NoSends_MQ MQ end.
 
   Definition no_sends_in n N := NoTrSend (NetMod.get n N).
@@ -357,7 +357,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   #[export] Hint Resolve no_sends_in_NoSendsMQ : LTS.
 
 
-  Definition Flushed (MS : MQued) : Prop :=
+  Definition Flushed (MS : MServ) : Prop :=
     match MS with (mq MQ _ _) => MQ_Clear MQ end.
 
   Definition flushed_in n N := Flushed (NetMod.get n N).
@@ -1169,7 +1169,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     unfold net_instr.
     unfold net_instr_n.
 
-    assert (forall n, {MS : MQued | NetMod.get n MN = MS  /\
+    assert (forall n, {MS : MServ | NetMod.get n MN = MS  /\
                                       match MS with
                                       | mq MQ M _ =>
                                           MQ_Clear MQ /\ ready M

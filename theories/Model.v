@@ -838,8 +838,8 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Proof. eattac. Qed.
 
 
-  Inductive MQued := mq : list Event -> Mon -> Serv -> MQued.
-  #[export] Hint Constructors MQued : LTS.
+  Inductive MServ := mq : list Event -> Mon -> Serv -> MServ.
+  #[export] Hint Constructors MServ : LTS.
 
   Definition mq_MQ MS := match MS with mq MQ _ _ => MQ end.
   Definition mq_M MS := match MS with mq _ M _ => M end.
@@ -851,7 +851,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[export] Hint Transparent mq_MQ mq_M mq_S mq_I mq_P mq_O : LTS.
 
 
-  Inductive MTrans : MAct -> MQued -> MQued -> Prop :=
+  Inductive MTrans : MAct -> MServ -> MServ -> Prop :=
   | MTSendM : forall {n msg MQ M0 M1 S},
       (M0 =(MonSend n msg)=> M1) ->
       MTrans (MActM (Send n msg))
@@ -909,7 +909,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   #[export]
-    Instance trans_mqued : LTS MAct MQued  :=
+    Instance trans_mqued : LTS MAct MServ  :=
     {
       trans := MTrans
     }.
@@ -1020,7 +1020,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Qed.
 
 
-  Definition ready_q (M : MQued) :=
+  Definition ready_q (M : MServ) :=
     match M with
     | mq _ M _ => ready M
     end.
@@ -1132,10 +1132,10 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     | MQ_Clear MQ
     }.
 
-  Definition MQued_ready := {M : MQued | ready_q M}.
+  Definition MServ_ready := {M : MServ | ready_q M}.
 
 
-  Definition instr_t := MQ_clear -> Mon_ready -> Serv -> MQued.
+  Definition instr_t := MQ_clear -> Mon_ready -> Serv -> MServ.
 
 
   (** Instrumentation function *)
@@ -1561,12 +1561,12 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   (** Deinstrumentation. Strips off monitoring and disassembles monitor's queue. *)
-  Definition deinstr (MS0 : MQued) : Serv :=
+  Definition deinstr (MS0 : MServ) : Serv :=
     match MS0 with
     | (mq MQ0 _ (pq I0 P0 O0)) => (pq (I0 ++ (MQ_r MQ0)) P0 (MQ_s MQ0 ++ O0))
     end.
 
-  #[reversible=no] Coercion deinstr : MQued >-> Serv.
+  #[reversible=no] Coercion deinstr : MServ >-> Serv.
 
 
   (** Deinstrumentation is inversion of instrumentation *)
@@ -2305,7 +2305,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Notation "MS0 =[*]=> MS1" := (MS0 =[flush_path MS0]=> MS1) (at level 80) : type_scope.
 
-  Theorem Transp_soundness_base : forall [mpath0 : list MAct] [MS0 MS1 : MQued],
+  Theorem Transp_soundness_base : forall [mpath0 : list MAct] [MS0 MS1 : MServ],
       (MS0 =[ mpath0 ]=> MS1) ->
       (deinstr MS0 =[ mpath0 ++ flush_path MS1 ]=> deinstr (flush_MS MS1)).
 

@@ -408,7 +408,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   (** Monitor is going to send a probe (inevitably) *)
-  Inductive sends_probe : NChan -> MProbe -> MQued -> Prop :=
+  Inductive sends_probe : NChan -> MProbe -> MServ -> Prop :=
   | sp_init MQ MQ' c S n n' v p :
     NoRecvR_from n' MQ -> (* We won't unlock *)
     NoSends_MQ MQ -> (* We won't change the lock_id *)
@@ -1169,18 +1169,18 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   (* TODO move up *)
-  Definition Rad_MQued MS :=
+  Definition Rad_MServ MS :=
     match MS with
     | mq _ {|handle:=h;state:=s|} _ => h = Rad_handle
     end.
 
-  Definition Rad_net N := forall n, Rad_MQued (NetMod.get n N).
+  Definition Rad_net N := forall n, Rad_MServ (NetMod.get n N).
 
 
   Lemma Rad_net_invariant : trans_invariant Rad_net always.
 
   Proof.
-    unfold trans_invariant, Rad_net, Rad_MQued.
+    unfold trans_invariant, Rad_net, Rad_MServ.
     intros.
     assert (handle (get_M N0 n) = handle (get_M N1 n)) by eauto using net_preserve_handle.
     ltac1:(autounfold with LTS_get in * ).
@@ -1195,8 +1195,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
   Hint Extern 0 (Rad_net _) => solve_invariant : LTS.
 
 
-  Lemma Rad_MQued_inv MQ M S :
-    Rad_MQued (mq MQ M S) <-> handle M = Rad_handle.
+  Lemma Rad_MServ_inv MQ M S :
+    Rad_MServ (mq MQ M S) <-> handle M = Rad_handle.
   Proof. split; intros; destruct M; attac. Qed.
 
 
@@ -1204,10 +1204,10 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     Rad_net MN ->
     handle (get_M MN n) = Rad_handle.
   Proof. intros; specialize (H n); ltac1:(autounfold with LTS_get in * ); destruct (NetMod.get n MN);
-           unfold Rad_MQued in *; destruct m; attac.
+           unfold Rad_MServ in *; destruct m; attac.
   Qed.
 
-  Hint Rewrite -> Rad_MQued_inv Rad_net_inv using spank : LTS LTS_concl.
+  Hint Rewrite -> Rad_MServ_inv Rad_net_inv using spank : LTS LTS_concl.
 
 
   Lemma Rad_net_get MN n MQ h s S:
@@ -1217,7 +1217,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
   Proof.
     intros.
-    assert (Rad_MQued (NetMod.get n MN)) by attac.
+    assert (Rad_MServ (NetMod.get n MN)) by attac.
     rewrite `(NetMod.get n MN = _) in *.
     auto.
   Qed.
@@ -1268,7 +1268,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     compat_hsimpl in *.
     intros ?.
     smash_eq n n0; hsimpl; attac.
-    assert (Rad_MQued (NetMod.get n MN0)) by attac.
+    assert (Rad_MServ (NetMod.get n MN0)) by attac.
     destruct S as [MQ1 M1 S1].
     destruct (NetMod.get n MN0) as [MQ0 M0 S0].
     assert (handle M0 = handle M1) by eauto using mq_preserve_handle.
@@ -1590,7 +1590,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma sends_probe_dec n p MS :
-    Rad_MQued MS ->
+    Rad_MServ MS ->
     sends_probe n p MS \/ ~ sends_probe n p MS.
 
   Proof.
@@ -2907,7 +2907,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     intros.
     consider (KIC MN).
     intros n.
-    unfold Rad_MQued.
+    unfold Rad_MServ.
     specialize (H_Rad_C n).
     ltac1:(autounfold with LTS_get in * ).
     destruct (NetMod.get n MN).
@@ -3741,8 +3741,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     Hint Resolve <- sends_probe_skip_s1 sends_probe_skip_s_in : LTS.
 
 
-    Lemma mq_sends_probe_sent [MS0 MS1 : MQued] [ma : MAct] [nc p] :
-      Rad_MQued MS0 ->
+    Lemma mq_sends_probe_sent [MS0 MS1 : MServ] [ma : MAct] [nc p] :
+      Rad_MServ MS0 ->
       (MS0 =(ma)=> MS1) ->
       sends_probe nc p MS0 ->
       ~ sends_probe nc p MS1 ->
@@ -3960,7 +3960,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           smash_eq n n2.
           - kill H3; hsimpl in |- *; eauto with LTS.
             specialize (H n).
-            unfold Rad_MQued in *.
+            unfold Rad_MServ in *.
             destruct (NetMod.get n MN0) as [MQ [h s] S'].
             subst.
             destruct S as [Q [hh ss] W].
@@ -4397,7 +4397,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           constructor 1.
           consider (KIC MN0).
           eauto using net_preserve_deadlock.
-        + assert (Rad_MQued (NetMod.get m' MN1)) by eauto with LTS.
+        + assert (Rad_MServ (NetMod.get m' MN1)) by eauto with LTS.
           assert (sends_probe (m0, R) (hot_of MN0 m) (NetMod.get m' MN1) \/ ~ sends_probe (m0, R) (hot_of MN0 m) (NetMod.get m' MN1))
             as [|] by eauto using sends_probe_dec.
           * exists m.
@@ -4628,7 +4628,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
             rewrite `(NetMod.get m1 MN1 = _) in *.
             auto.
           }
-          assert (h1 = Rad_handle) by (specialize (H6 m1); unfold Rad_MQued; rewrite `(NetMod.get m1 MN1 = _) in *; auto).
+          assert (h1 = Rad_handle) by (specialize (H6 m1); unfold Rad_MServ; rewrite `(NetMod.get m1 MN1 = _) in *; auto).
           assert (m1 = self (next_state s1)); subst.
           {
             consider (m1 = _of self MN0 m1) by consider (KIC MN0).
