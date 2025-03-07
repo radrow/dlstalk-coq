@@ -662,15 +662,15 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[global] Coercion PayloadM : MVal >-> Payload.
 
 
-  Inductive MCode :=
+  Inductive MProc :=
   | MRecv (state : MState)
-  | MSend (to : NameTag) (msg : Msg) (M : MCode)
+  | MSend (to : NameTag) (msg : Msg) (M : MProc)
   .
 
-  #[export] Hint Constructors MCode : LTS.
+  #[export] Hint Constructors MProc : LTS.
 
 
-  Fixpoint next_state (M : MCode) :=
+  Fixpoint next_state (M : MProc) :=
     match M with
     | MRecv s => s
     | MSend _ _ next => next_state next
@@ -678,8 +678,8 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   Record Mon :=
-    { handle : Event -> MState -> MCode
-    ; state : MCode
+    { handle : Event -> MState -> MProc
+    ; state : MProc
     }.
 
   #[export] Hint Constructors Mon : LTS.
@@ -1901,7 +1901,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     | MSend nc e _ => Some (MActM (Send nc e))
     end.
 
-  Fixpoint mcode_measure (M : MCode) : (nat * MState) :=
+  Fixpoint mcode_measure (M : MProc) : (nat * MState) :=
     match M with
     | MRecv s => (O, s)
     | MSend nc e Mc =>
@@ -1925,7 +1925,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     | EvRecv nc e => MActM Tau
     end.
 
-  Fixpoint flush_mcode (M : MCode) : list MAct :=
+  Fixpoint flush_mcode (M : MProc) : list MAct :=
     match M with
     | MRecv s => []
     | MSend nc e Mc => MActM (Send nc e) :: flush_mcode Mc
@@ -2528,7 +2528,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[export] Hint Resolve flushing_nil_M : LTS.
 
 
-  Fixpoint flushing_M_artifact (self : Name) (M : MCode) (n : Name) : list Event :=
+  Fixpoint flushing_M_artifact (self : Name) (M : MProc) (n : Name) : list Event :=
     match M with
     | MRecv _ => []
     | MSend (n', t) e M' =>

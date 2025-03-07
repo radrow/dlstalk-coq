@@ -766,7 +766,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     : LTS.
 
 
-  Inductive sends_to_mon : MCode -> Name -> MProbe -> Prop :=
+  Inductive sends_to_mon : MProc -> Name -> MProbe -> Prop :=
   | stm_find n p M : sends_to_mon (MSend (n, R) p M) n p
   | stm_seek n nc' p p' M :
     nc' <> (n, R) \/ p <> p' ->

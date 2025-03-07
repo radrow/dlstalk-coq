@@ -685,7 +685,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       List.fold_right (fun n P' => MSend (n, t) v P') P ns.
 
 
-    Definition Rad_handle (ev : Event) (mstate : MState) : MCode :=
+    Definition Rad_handle (ev : Event) (mstate : MState) : MProc :=
       match ev, mstate with
       (* Back probe *)
       | EvRecv (from, R) probe, {|lock := Some l|} =>

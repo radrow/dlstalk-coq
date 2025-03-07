@@ -300,7 +300,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       List.fold_right (fun n P' => MSend (n, t) v P') P ns.
 
 
-    Definition Rad_handle (ev : Event) (state : MState) : MCode :=
+    Definition Rad_handle (ev : Event) (state : MState) : MProc :=
       match ev, state with
       (* Back probe *)
       | EvRecv (from, R) probe, {|lock := Some l|} =>
