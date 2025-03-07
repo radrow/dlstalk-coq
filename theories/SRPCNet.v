@@ -2678,6 +2678,167 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
     #[export] Hint Resolve trans_invariant_net_sane : inv.
     #[export] Hint Extern 0 (net_sane _) => solve_invariant : LTS.
+
+
+  Lemma locked_deinstr :
+    forall MN0 MN1 a n,
+      SRPC_net '' MN0 ->
+      deadlocked n '' MN0 ->
+      Flushing_NAct n a ->
+      (MN0 =(a)=> MN1) ->
+      net_deinstr MN0 = net_deinstr MN1.
+
+  Proof.
+    intros.
+
+    consider (exists n', net_lock_on '' MN0 n n') by (eapply deadlocked_M_get_lock; eattac).
+
+    destruct a; consider (Flushing_NAct _ _).
+    - destruct m; doubt.
+      + destruct p; doubt.
+        unfold net_deinstr in *.
+        apply NetMod.extensionality.
+        intros.
+        repeat (rewrite NetMod.get_map in * ).
+        consider (_ =(_)=> _).
+        hsimpl in *.
+        smash_eq n n1; attac.
+        unfold deinstr.
+        attac.
+        repeat (rewrite <- app_assoc).
+        attac.
+      + destruct p; doubt.
+      + destruct a; doubt.
+        unfold net_deinstr in *.
+        apply NetMod.extensionality.
+        intros.
+        repeat (rewrite NetMod.get_map in * ).
+        consider (_ =(_)=> _).
+        hsimpl in *.
+        smash_eq n n0; attac.
+        unfold deinstr.
+        attac.
+    - apply net_deinstr_act in H2.
+      hsimpl in *.
+      destruct p; doubt; attac.
+      enough (n <> n) by bs.
+      eapply net_lock_on_no_send; eauto.
+  Qed.
+
+
+  Lemma locked_deinstrs :
+    forall MN0 MN1 mpath DS,
+      net_sane '' MN0 ->
+      DeadSet DS '' MN0 ->
+      Forall (fun a => exists n, In n DS /\ Flushing_NAct n a) mpath ->
+      (MN0 =[mpath]=> MN1) ->
+      net_deinstr MN0 = net_deinstr MN1.
+
+  Proof.
+    intros.
+    generalize dependent MN0.
+    induction mpath; attac.
+    rename N1 into MN0'.
+    transitivity '(net_deinstr MN0').
+    - eapply locked_deinstr; eauto with LTS.
+      exists DS; eattac.
+    - apply net_deinstr_act in H2.
+      destruct (MNAct_to_PNAct a); eattac.
+      hrewrite ('' MN0) in *.
+      eapply IHmpath; eauto with LTS.
+  Qed.
+
+
+  Lemma locked_flushed :
+    forall MN0 MN1 a n,
+      SRPC_net '' MN0 ->
+      deadlocked n '' MN0 ->
+      Flushing_NAct n a ->
+      (MN0 =(a)=> MN1) ->
+      flushed MN0 ->
+      flushed MN1.
+
+  Proof.
+    intros.
+
+    unfold flushed, flushed_in, Flushed in *.
+    intros.
+    specialize (H3 n) as Hx.
+    specialize (H3 n0) as Hx0.
+    destruct (NetMod.get n0 MN0) as [MQ0 M0 S0] eqn:?.
+    destruct (NetMod.get n0 MN1) as [MQ1 M1 S1] eqn:?.
+    destruct a; kill H1.
+    + smash_eq n0 n.
+        * consider (_ =(_)=> _); hsimpl in *.
+          destruct m; attac.
+          -- destruct p; doubt.
+             unfold net_deinstr, deinstr, ready_in, ready_q, ready, apply_instr, instr_for, mon_assg_ in *.
+             attac.
+          -- destruct a; doubt.
+             unfold net_deinstr, deinstr, ready_in, ready_q, ready, apply_instr, instr_for, mon_assg_ in *.
+             attac.
+        * assert (NetMod.get n0 MN0 = NetMod.get n0 MN1) by eattac.
+          unfold ready_in, ready_q, ready, apply_instr, instr_for, mon_assg_ in *.
+          attac.
+      + smash_eq n0 n.
+        * consider (_ =(_)=> _); hsimpl in *.
+          unfold net_deinstr, deinstr, ready_in, ready_q, ready, apply_instr, instr_for, mon_assg_ in *.
+          destruct p; hsimpl in *; doubt.
+          smash_eq n0 n2; blast_cases; attac.
+        * smash_eq n0 n2.
+          -- consider (_ =(_)=> _).
+             assert (NetMod.get n0 MN0 = NetMod.get n0 N0') by eauto using eq_sym, NV_stay.
+             hsimpl in *.
+             unfold ready_in, ready_q, ready, apply_instr, instr_for, mon_assg_ in *.
+             rewrite <- `(NetMod.get n0 _ = _) in *.
+             hsimpl in *.
+             hsimpl in *.
+             blast_cases; attac.
+          -- assert (NetMod.get n0 MN0 = NetMod.get n0 MN1) by eattac.
+             unfold ready_in, ready_q, ready, apply_instr, instr_for, mon_assg_ in *.
+             attac.
+  Qed.
+
+
+  Lemma locked_flusheds :
+    forall MN0 MN1 mpath DS,
+      net_sane '' MN0 ->
+      DeadSet DS '' MN0 ->
+      Forall (fun a => exists n, In n DS /\ Flushing_NAct n a) mpath ->
+      (MN0 =[mpath]=> MN1) ->
+      flushed MN0 ->
+      flushed MN1.
+
+  Proof.
+    intros.
+    generalize dependent MN0.
+    induction mpath; attac.
+    assert (flushed N1); eauto using locked_flushed with LTS.
+    - eapply locked_flushed; eauto with LTS.
+      exists DS; eattac.
+    - apply net_deinstr_act in H2.
+      destruct (MNAct_to_PNAct a); eattac.
+      hrewrite ('' MN0) in *.
+      eapply IHmpath; eauto with LTS.
+  Qed.
+
+
+  Lemma to_instr : forall chans MN0,
+      (forall n, not (In n chans) -> ready_in n MN0) ->
+      flushed MN0 ->
+      exists mnpath i1,
+        (MN0 =[mnpath]=> apply_instr i1 MN0).
+
+  Proof.
+    intros.
+    destruct (@flushed_ready chans MN0 ltac:(auto) ltac:(auto)) as (mpath & MN1 & ?).
+    hsimpl in *.
+    destruct (@flushed_ready_instr MN1 ltac:(auto) ltac:(auto)) as [i ?].
+    exists mpath, i.
+    hrewrite ('' MN0).
+    rewrite <- `(MN1 = _).
+    auto.
+  Qed.
 End SRPC_NET_F.
 
 Module Type SRPC_NET(Conf : SRPC_NET_CONF) := Conf <+ SRPC_NET_PARAMS <+ SRPC_NET_F.
