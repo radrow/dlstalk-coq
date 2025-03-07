@@ -1659,7 +1659,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         destruct `(SRPC_Busy_State _).
         + bs (Work c = Free) by attac.
         + bs (Lock c s = Free) by attac.
-      - consider (exists c', SRPC (Work c') (PTau P1) /\ SRPC (Work c') P1) by eauto using SRPC_tau with LTS.
+      - consider (exists c', SRPC (Work c') (STau P1) /\ SRPC (Work c') P1) by eauto using SRPC_tau with LTS.
         destruct `(SRPC_Busy_State _).
         + consider (Work c' = Work c) by attac.
           attac.

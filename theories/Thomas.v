@@ -1114,7 +1114,7 @@ Module Thomas.
           repeat econstructor.
       }
 
-      eapply PTnil.
+      eapply STnil.
     }
 
     match! goal with [_ : _ =[_]=> ?n |- _] => remember $n as N end.

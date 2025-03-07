@@ -36,8 +36,8 @@ autounfold *)
 
 Inductive ptrans [Label Node : Type] [lts : LTS Label Node] :
   list Label -> Node -> Node -> Prop :=
-| PTnil : forall N, ptrans [] N N
-| PTcons : forall [a path N0 N1 N']
+| STnil : forall N, ptrans [] N N
+| STcons : forall [a path N0 N1 N']
              (T0 : N0 =(a)=> N1)
              (T1 : ptrans path N1 N'),
     ptrans (a::path) N0 N'
@@ -135,8 +135,8 @@ Section PathFacts.
 
   Proof.
     intros.
-    apply (PTcons H).
-    apply PTnil.
+    apply (STcons H).
+    apply STnil.
   Qed.
 
   #[global] Arguments path_seq0 act source target : rename.
@@ -149,7 +149,7 @@ Section PathFacts.
 
   Proof.
     intros.
-    apply (PTcons H).
+    apply (STcons H).
     assumption.
   Qed.
 
@@ -165,7 +165,7 @@ Section PathFacts.
     induction path1; intros path2 P1 P2 P3 T1 T2.
     - inversion_clear T1; auto.
     - inversion_clear T1.
-      apply (PTcons T0).
+      apply (STcons T0).
       apply (IHpath1 _ _ P2); auto.
   Qed.
 

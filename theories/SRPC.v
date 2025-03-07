@@ -154,7 +154,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
         (forall (P1 : Proc) c,
             SRPC (Work c) P1 ->
-            PTau P1 = P0 ->
+            STau P1 = P0 ->
             srpc = Work c ->
             P
         ) ->
@@ -496,17 +496,17 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Qed.
 
 
-  Lemma AnySRPC_PTau_inv P :
-    AnySRPC (PTau P) <-> exists c, SRPC (Work c) (PTau P).
+  Lemma AnySRPC_STau_inv P :
+    AnySRPC (STau P) <-> exists c, SRPC (Work c) (STau P).
 
   Proof.
     split; intros.
     - kill H.
-      assert (PTau P =(Tau)=> P ) as T by attac.
+      assert (STau P =(Tau)=> P ) as T by attac.
       kill H0.
       1: apply HQueryOnly in T; eattac.
       exists c.
-      have (SRPC_Busy srpc (PTau P)).
+      have (SRPC_Busy srpc (STau P)).
       kill HBusy.
       1: constructor; attac.
       apply HReplyOnly in T; attac.
@@ -857,24 +857,24 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     SRPC Free (PSend n v P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). destruct n. specialize (HQueryAll n v). eattac. contradiction. Qed.
 
-  Lemma SRPC_Free_PTau_bs P1 :
-    SRPC Free (PTau P1) <-> False.
+  Lemma SRPC_Free_STau_bs P1 :
+    SRPC Free (STau P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). specialize (HQueryAll some_name some_val). eattac. contradiction. Qed.
 
   Lemma SRPC_Lock_PSend_bs n v P1 c s :
     SRPC (Lock c s) (PSend n v P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). destruct n.  consider (SRPC_Busy _ _); doubt. specialize (HReplyAll v); attac. contradiction. Qed.
 
-  Lemma SRPC_Lock_PTau_bs P1 c s :
-    SRPC (Lock c s) (PTau P1) <-> False.
+  Lemma SRPC_Lock_STau_bs P1 c s :
+    SRPC (Lock c s) (STau P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). consider (SRPC_Busy _ _); doubt. specialize (HReplyAll some_val); attac. contradiction. Qed.
 
   #[export] Hint Rewrite ->
     SRPC_Work_PRecv_bs
     SRPC_Free_PSend_bs
-    SRPC_Free_PTau_bs
+    SRPC_Free_STau_bs
     SRPC_Lock_PSend_bs
-    SRPC_Lock_PTau_bs
+    SRPC_Lock_STau_bs
     using spank
     : bs.
 
@@ -888,7 +888,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     SRPC Free (PSend n v P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). eattac. Qed.
   Lemma SRPC_Free_tau_bs P1 :
-    SRPC Free (PTau P1) <-> False.
+    SRPC Free (STau P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). attac. Qed.
   Lemma SRPC_Free_recv_R_None_bs h n :
     h (n, R) <> None -> SRPC Free (PRecv h) <-> False.
@@ -901,7 +901,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     SRPC (Lock c s) (PSend n v P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). destruct n. kill HBusy. specialize (HReply0 n v). eattac. destruct (HReplyAll v). attac. contradiction. Qed.
   Lemma SRPC_Lock_tau_bs c s P1 :
-    SRPC (Lock c s) (PTau P1) <-> False.
+    SRPC (Lock c s) (STau P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). kill HBusy. specialize (HReply0 some_name some_val). eattac. destruct (HReplyAll some_val). attac. contradiction. Qed.
   Lemma SRPC_Lock_recv_Q_None_bs h n c s :
     h (n, Q) <> None -> SRPC (Lock c s) (PRecv h) <-> False.
@@ -1309,7 +1309,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
           apply HRecv in T as Hsrpc_n.
           apply C; eattac.
     - constructor.
-      assert (PTau P =(Tau)=> P) as T by attac.
+      assert (STau P =(Tau)=> P) as T by attac.
       assert (AnySRPC P) by eattac.
       attac.
   Qed.

@@ -117,7 +117,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     Decisive (PSend n v P)
   | DecTau [P] :
     Decisive P ->
-    Decisive (PTau P)
+    Decisive (STau P)
   .
 
   #[export] Hint Constructors Decisive : LTS.
@@ -277,13 +277,13 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
   #[export] Hint Resolve mk_proc_lock | 20 : LTS.
 
-  Lemma proc_lock_PTau_inv L P : proc_lock L (PTau P) <-> False.
+  Lemma proc_lock_STau_inv L P : proc_lock L (STau P) <-> False.
   Proof. unfold proc_lock. attac. Qed.
 
   Lemma proc_lock_PSend_inv L nc v P : proc_lock L (PSend nc v P) <-> False.
   Proof. unfold proc_lock. attac. Qed.
 
-  #[export] Hint Rewrite -> proc_lock_PTau_inv proc_lock_PSend_inv using spank : LTS LTS_concl.
+  #[export] Hint Rewrite -> proc_lock_STau_inv proc_lock_PSend_inv using spank : LTS LTS_concl.
 
 
   (** Locked process can only receive from its lock set *)

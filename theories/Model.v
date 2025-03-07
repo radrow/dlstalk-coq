@@ -77,14 +77,14 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
   | PEnd
   | PSend (n : NameTag) (v : Val) (P : Proc) : Proc
   | PRecv (handle : NameTag -> option (Val -> Proc)) : Proc
-  | PTau (P : Proc) : Proc
+  | STau (P : Proc) : Proc
   .
 
   Fact unfold_Proc : forall (P : Proc),
       P = match P with
           | PRecv handle => PRecv handle
           | PSend n v P' => PSend n v P'
-          | PTau P' => PTau P'
+          | STau P' => STau P'
           | PEnd => PEnd
           end.
     intros.
@@ -103,7 +103,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
     : ProcTrans (Send n v) (PSend n v P) P
 
   | PrTTau P
-    : ProcTrans Tau (PTau P) P
+    : ProcTrans Tau (STau P) P
   .
 
   #[export] Hint Constructors ProcTrans : LTS.
@@ -136,7 +136,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
     Lemma ProcTrans_Tau_inv P0 P1 :
       (P0 =(Tau)=> P1) <->
-        P0 = PTau P1.
+        P0 = STau P1.
     Proof. eattac; kill H; attac. Qed.
 
     Lemma ProcTrans_PRecv_inv handle a P1 :
@@ -151,69 +151,49 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
         a = Send n v /\ P0 = P1.
     Proof. eattac; kill H; eattac. Qed.
 
-    Lemma ProcTrans_PTau_inv a P0 P1 :
-      (PTau P0 =(a)=> P1) <->
+    Lemma ProcTrans_STau_inv a P0 P1 :
+      (STau P0 =(a)=> P1) <->
         a = Tau /\ P0 = P1.
     Proof. attac; kill H; attac. Qed.
   End Inversions.
   #[export] Hint Rewrite -> @ProcTrans_Recv_inv @ProcTrans_Send_inv @ProcTrans_Tau_inv using assumption : LTS.
-  #[export] Hint Rewrite -> @ProcTrans_PRecv_inv @ProcTrans_PSend_inv @ProcTrans_PTau_inv using assumption : LTS.
+  #[export] Hint Rewrite -> @ProcTrans_PRecv_inv @ProcTrans_PSend_inv @ProcTrans_STau_inv using assumption : LTS.
 
 
-  Inductive Serv := serv : Que Val -> Proc -> Que Val -> Serv.
+  Inductive Serv := serv {serv_i : Que Val; serv_p : Proc; serv_o : Que Val}.
   #[export] Hint Constructors Serv : LTS.
 
-  Definition serv_i S := match S with serv I' _ _ => I' end.
-  Definition serv_p S := match S with serv _ P _ => P end.
-  Definition serv_o S := match S with serv _ _ O' => O' end.
-
-  #[export] Hint Transparent serv_i serv_p serv_o : LTS.
-
-  Section Inversions.
-    Fact serv_i_inv : forall S I P O, S = serv I P O -> serv_i S = I.
-    Proof. intros. subst. auto. Qed.
-
-    Fact serv_p_inv : forall S I P O, S = serv I P O -> serv_p S = P.
-    Proof. intros. subst. auto. Qed.
-
-    Fact serv_o_inv : forall S I P O, S = serv I P O -> serv_o S = O.
-    Proof. intros. subst. auto. Qed.
-  End Inversions.
-
-  #[export] Hint Rewrite -> serv_i_inv serv_p_inv serv_o_inv using spank : LTS LTS_concl.
-
-
-  Inductive PTrans : PAct -> Serv -> Serv -> Prop :=
-  | PTRecv [n v I0 I1 P O]
+  Inductive STrans : PAct -> Serv -> Serv -> Prop :=
+  | STRecv [n v I0 I1 P O]
       (HEnq : Enq n v I0 I1)
-    : PTrans (Recv n v) (serv I0 P O) (serv I1 P O)
+    : STrans (Recv n v) (serv I0 P O) (serv I1 P O)
 
-  | PTPick [n v I0 I1 P0 P1 O]
+  | STPick [n v I0 I1 P0 P1 O]
       (HDeq : Deq n v I0 I1)
     : (P0 =(Recv n v)=> P1) ->
-      PTrans Tau (serv I0 P0 O) (serv I1 P1 O)
+      STrans Tau (serv I0 P0 O) (serv I1 P1 O)
 
-  | PTSend [n v I P0 P1 O0 O1]
+  | STSend [n v I P0 P1 O0 O1]
       (HEnq : Enq n v O0 O1)
     : (P0 =(Send n v)=> P1) ->
-      PTrans Tau (serv I P0 O0) (serv I P1 O1)
+      STrans Tau (serv I P0 O0) (serv I P1 O1)
 
-  | PTPush {n v I P O}
-    : PTrans (Send n v) (serv I P ((n, v)::O)) (serv I P O)
+  | STPush {n v I P O}
+    : STrans (Send n v) (serv I P ((n, v)::O)) (serv I P O)
 
-  | PTTau {I P0 P1 O}
-    : P0 =(Tau)=> P1 ->
-                 PTrans Tau (serv I P0 O) (serv I P1 O)
+  | STTau {I P0 P1 O}
+    : (P0 =(Tau)=> P1) ->
+      STrans Tau (serv I P0 O) (serv I P1 O)
   .
 
 
-  #[export] Hint Constructors PTrans : LTS.
+  #[export] Hint Constructors STrans : LTS.
 
 
   #[export]
     Instance trans_pqued : LTS PAct Serv  :=
     {
-      trans := PTrans
+      trans := STrans
     }.
 
   #[export] Hint Unfold trans_pqued : LTS.
@@ -221,16 +201,16 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
 
   Section Inversions.
-    Lemma PTrans_Recv_inv n v S0 S1 :
+    Lemma STrans_Recv_inv n v S0 S1 :
       (S0 =(Recv n v)=> S1) <-> exists I0 P0 O0, serv I0 P0 O0 = S0 /\ serv (I0 ++ [(n, v)]) P0 O0 = S1.
     Proof. eattac; kill H; eattac. Qed.
 
-    Lemma PTrans_Send_inv n v S0 S1 :
+    Lemma STrans_Send_inv n v S0 S1 :
       (S0 =(Send n v)=> S1) <->
         exists I0 P0 O1, serv I0 P0 ((n, v)::O1) = S0 /\ serv I0 P0 O1 = S1.
     Proof. eattac; kill H; eattac. Qed.
 
-    Lemma PTrans_Tau_Recv_inv I0 O0 S1 handle :
+    Lemma STrans_Tau_Recv_inv I0 O0 S1 handle :
       (serv I0 (PRecv handle) O0 =(Tau)=> S1) <->
         exists n v I1 P1, (PRecv handle =(Recv n v)=> P1) /\ Deq n v I0 I1 /\ S1 = serv I1 P1 O0.
     Proof.
@@ -239,7 +219,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
       - eattac.
     Qed.
 
-    Lemma PTrans_Tau_Send_inv n v I0 P0 O0 S1 :
+    Lemma STrans_Tau_Send_inv n v I0 P0 O0 S1 :
       (serv I0 (PSend n v P0) O0 =(Tau)=> S1) <->
         exists P1, (PSend n v P0 =(Send n v)=> P1) /\ S1 = serv I0 P0 (O0 ++ [(n, v)]).
     Proof.
@@ -248,16 +228,16 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
       - eattac; kill H.
     Qed.
 
-    Lemma PTrans_Tau_Tau_inv  I0 P0 O0 S1 :
-      (serv I0 (PTau P0) O0 =(Tau)=> S1) <->
-        exists P1, (PTau P0 =(Tau)=> P1) /\ S1 = serv I0 P1 O0.
+    Lemma STrans_Tau_Tau_inv  I0 P0 O0 S1 :
+      (serv I0 (STau P0) O0 =(Tau)=> S1) <->
+        exists P1, (STau P0 =(Tau)=> P1) /\ S1 = serv I0 P1 O0.
     Proof.
       split; intros.
       - kill H; eattac.
       - eattac.
     Qed.
 
-    Lemma PTrans_Recv_t_inv a I0 P0 O0 I1 P1 O1 :
+    Lemma STrans_Recv_t_inv a I0 P0 O0 I1 P1 O1 :
       (length I1 > length I0)%nat ->
       (serv I0 P0 O0 =(a)=> serv I1 P1 O1) <->
         exists n v, I1 = I0 ++ [(n, v)] /\ P1 = P0 /\ O1 = O0 /\ a = Recv n v.
@@ -271,7 +251,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
       - eattac.
     Qed.
 
-    Lemma PTrans_Pick_t_inv a I0 P0 O0 I1 P1 O1 :
+    Lemma STrans_Pick_t_inv a I0 P0 O0 I1 P1 O1 :
       (length I1 < length I0)%nat ->
       (serv I0 P0 O0 =(a)=> serv I1 P1 O1) <->
         exists n v, Deq n v I0 I1 /\ (P0 =(Recv n v)=> P1) /\ O1 = O0 /\ a = Tau.
@@ -281,7 +261,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
       - eattac.
     Qed.
 
-    Lemma PTrans_Tau_t_inv a I0 P0 O0 I1 P1 O1 :
+    Lemma STrans_Tau_t_inv a I0 P0 O0 I1 P1 O1 :
       length I0 = length I1 -> length O0 = length O1 ->
       (serv I0 P0 O0 =(a)=> serv I1 P1 O1) <->
         I1 = I0 /\ O1 = O0 /\ a = Tau /\ (P0 =(Tau)=> P1).
@@ -291,7 +271,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
       - eattac.
     Qed.
 
-    Lemma PTrans_Send_t_inv a I0 P0 O0 I1 P1 O1 :
+    Lemma STrans_Send_t_inv a I0 P0 O0 I1 P1 O1 :
       (length O1 > length O0)%nat ->
       (serv I0 P0 O0 =(a)=> serv I1 P1 O1) <->
         exists n v, O1 = O0 ++ [(n, v)] /\ (P0 =(Send n v)=> P1) /\ I1 = I0 /\ a = Tau.
@@ -304,7 +284,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
       - eattac.
     Qed.
 
-    Lemma PTrans_Push_t_inv a I0 P0 O0 I1 P1 O1 :
+    Lemma STrans_Push_t_inv a I0 P0 O0 I1 P1 O1 :
       (length O1 < length O0)%nat ->
       (serv I0 P0 O0 =(a)=> serv I1 P1 O1) <->
         exists n v, I0 = I1 /\ P0 = P1 /\ O0 = ((n,v)::O1) /\ a = (Send n v).
@@ -315,11 +295,11 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
     Qed.
   End Inversions.
   #[export] Hint Rewrite
-  -> @PTrans_Recv_inv @PTrans_Send_inv @PTrans_Tau_Recv_inv @PTrans_Tau_Send_inv @PTrans_Tau_Tau_inv
+  -> @STrans_Recv_inv @STrans_Send_inv @STrans_Tau_Recv_inv @STrans_Tau_Send_inv @STrans_Tau_Tau_inv
       using (first [assumption | lia]) : LTS.
 
   #[export] Hint Rewrite
-  -> @PTrans_Recv_t_inv @PTrans_Pick_t_inv @PTrans_Tau_t_inv @PTrans_Send_t_inv @PTrans_Push_t_inv using (solve [eauto with LTS datatypes; lia]) : LTS.
+  -> @STrans_Recv_t_inv @STrans_Pick_t_inv @STrans_Tau_t_inv @STrans_Send_t_inv @STrans_Push_t_inv using (solve [eauto with LTS datatypes; lia]) : LTS.
 
 End PROC_F.
 
