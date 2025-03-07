@@ -50,7 +50,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
   Lemma Decisive_lookup [N n I P O] :
     Decisive_net N ->
-    NetMod.get n N = pq I P O ->
+    NetMod.get n N = serv I P O ->
     Decisive P.
   Proof. intros. specialize (H n). rewrite H0 in *. auto. Qed.
 
@@ -60,7 +60,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Decisive_q S.
   Proof. intros. specialize (H n). rewrite H0 in *. auto. Qed.
 
-    #[export] Hint Resolve Decisive_lookup : LTS.  (* pq variant seems redundant *)
+    #[export] Hint Resolve Decisive_lookup : LTS.  (* serv variant seems redundant *)
 
 
     (** Decisive network remains decisive *)
@@ -111,26 +111,26 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     Lemma net_lock_inv_I n n' v N L I P O :
-      NetMod.get n N = pq I P O ->
+      NetMod.get n N = serv I P O ->
       List.In n' L ->
       net_lock N L n ->
       ~ List.In (n', R, v) I.
     Proof. intros. kill H1. attac. Qed.
 
     Lemma net_lock_inv_P n N L I P O :
-      NetMod.get n N = pq I P O ->
+      NetMod.get n N = serv I P O ->
       net_lock N L n ->
       proc_lock L P.
     Proof. intros. kill H0. Qed.
 
     Lemma net_lock_inv_P_Decisive n N L I P O :
-      NetMod.get n N = pq I P O ->
+      NetMod.get n N = serv I P O ->
       net_lock N L n ->
       Decisive P.
     Proof. intros. kill H0. Qed.
 
     Lemma net_lock_inv_O n N L I P O :
-      NetMod.get n N = pq I P O ->
+      NetMod.get n N = serv I P O ->
       net_lock N L n -> O = [].
 
     Proof. intros. kill H0. Qed.
@@ -386,8 +386,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
       DeadSet DL N0 ->
       List.In n DL ->
       (N0 =(a)=> N1) ->
-      NetMod.get n N0 = (pq I0 P0 O0) ->
-      exists I', NetMod.get n N1 = (pq (I0 ++ I') P0 O0).
+      NetMod.get n N0 = (serv I0 P0 O0) ->
+      exists I', NetMod.get n N1 = (serv (I0 ++ I') P0 O0).
 
     Proof with eattac.
       intros HDL HInD T HEq0.
@@ -494,8 +494,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
       DeadSet DL N0 ->
       List.In n DL ->
       (N0 =[path]=> N1) ->
-      NetMod.get n N0 = (pq I0 P0 O0) ->
-      exists I', NetMod.get n N1 = (pq (I0 ++ I') P0 O0).
+      NetMod.get n N0 = (serv I0 P0 O0) ->
+      exists I', NetMod.get n N1 = (serv (I0 ++ I') P0 O0).
 
     Proof.
       generalize dependent I0.

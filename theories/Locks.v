@@ -153,7 +153,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     Decisive P ->
     proc_lock L P ->
     (forall n v, List.In n L -> not (List.In (n, R, v) I)) ->
-    pq_lock L (pq I P []).
+    pq_lock L (serv I P []).
 
   #[export] Hint Constructors pq_lock : LTS.
 
@@ -184,7 +184,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     Qed.
   End Examples.
 
-  Lemma Decisive_q_inv I P O : Decisive_q (pq I P O) <-> Decisive P.
+  Lemma Decisive_q_inv I P O : Decisive_q (serv I P O) <-> Decisive P.
   Proof. split; intros; eattac. Qed.
 
   #[export] Hint Rewrite -> Decisive_q_inv using assumption : LTS LTS_concl.
@@ -207,7 +207,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   Lemma prop_transport_l_Decisive :
-    prop_transport_l Decisive_q Decisive (fun S => match S with pq _ P _ => P end).
+    prop_transport_l Decisive_q Decisive (fun S => match S with serv _ P _ => P end).
 
   Proof.
     unfold prop_transport_l.
@@ -218,7 +218,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   Lemma prop_transport_r_Decisive :
-    prop_transport_r Decisive_q Decisive (fun S => match S with pq _ P _ => P end).
+    prop_transport_r Decisive_q Decisive (fun S => match S with serv _ P _ => P end).
 
   Proof.
     unfold prop_transport_r.
@@ -322,15 +322,15 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   Lemma pq_lock_P_inv [L I P O] :
-    pq_lock L (pq I P O) -> proc_lock L P.
+    pq_lock L (serv I P O) -> proc_lock L P.
   Proof. intros H; kill H. Qed.
 
   Lemma pq_lock_O_inv [L I P O] :
-    pq_lock L (pq I P O) -> O = [].
+    pq_lock L (serv I P O) -> O = [].
   Proof. intros H; kill H. Qed.
 
   Lemma pq_lock_I_inv [L I P O n v] :
-    pq_lock L (pq I P O) -> List.In n L -> ~ List.In (n, R, v) I.
+    pq_lock L (serv I P O) -> List.In n L -> ~ List.In (n, R, v) I.
   Proof. intros; kill H. attac. Qed.
 
   #[export] Hint Resolve pq_lock_P_inv pq_lock_I_inv pq_lock_O_inv : LTS.
@@ -478,8 +478,8 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     pq_lock L S0 ->
     (S0 =(a)=> S1) <->
       exists I P O nc v,
-        S0 = pq I P O
-        /\ S1 = pq (I ++ [(nc, v)]) P O
+        S0 = serv I P O
+        /\ S1 = serv (I ++ [(nc, v)]) P O
         /\ a = Recv nc v.
   Proof. attac. specialize (pq_lock_recv H H0) as ?. destruct a; eattac. Qed.
 

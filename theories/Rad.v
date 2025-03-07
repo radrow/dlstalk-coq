@@ -669,7 +669,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_pq_no_immediate_relock [n0 n1 S0 S1 a] :
-    AnySRPC_pq S0 ->
+    AnySRPC_serv S0 ->
     (S0 =(a)=> S1) ->
     pq_lock [n0] S0 ->
     pq_lock [n1] S1 ->
@@ -689,7 +689,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_net_vis_no_immediate_relock [n n' m0 m1 N0 N1 a] :
-    (forall n, AnySRPC_pq (NetMod.get n N0)) ->
+    (forall n, AnySRPC_serv (NetMod.get n N0)) ->
     (N0 ~(n' @ a)~> N1) ->
     net_lock_on N0 n m0 ->
     net_lock_on N1 n m1 ->
@@ -697,7 +697,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
   Proof.
     intros.
-    assert (forall n, AnySRPC_pq (NetMod.get n N1)). (* TODO extract as invariant any name it *)
+    assert (forall n, AnySRPC_serv (NetMod.get n N1)). (* TODO extract as invariant any name it *)
     {
       intros.
       smash_eq n' n0.
@@ -726,7 +726,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_net_no_immediate_relock [n m0 m1 N0 N1 a] :
-    (forall n, AnySRPC_pq (NetMod.get n N0)) ->
+    (forall n, AnySRPC_serv (NetMod.get n N0)) ->
     (N0 =(a)=> N1) ->
     net_lock_on N0 n m0 ->
     net_lock_on N1 n m1 ->
@@ -736,7 +736,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     intros.
     kill H0.
     - eauto using SRPC_net_vis_no_immediate_relock.
-    - assert (forall n : Name, AnySRPC_pq (NetMod.get n N0')).
+    - assert (forall n : Name, AnySRPC_serv (NetMod.get n N0')).
       {
         intros.
         smash_eq n0 n1.
@@ -765,7 +765,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_M_net_no_immediate_relock [n m0 m1 N0 N1 a] :
-    (forall n, AnySRPC_pq (NetMod.get n '' N0)) ->
+    (forall n, AnySRPC_serv (NetMod.get n '' N0)) ->
     (N0 =(a)=> N1) ->
     net_lock_on '' N0 n m0 ->
     net_lock_on '' N1 n m1 ->
@@ -794,7 +794,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     destruct (NetMod.get n0 N0) as [I0 P0 O0] eqn:?.
     destruct (NetMod.get n0 N1) as [I1 P1 O1] eqn:?.
 
-    assert (exists c, SRPC_pq (Lock c n1) (NetMod.get n0 N1)).
+    assert (exists c, SRPC_serv (Lock c n1) (NetMod.get n0 N1)).
     {
       apply lock_singleton in H1. 2: attac.
       unfold net_lock in *.
@@ -808,10 +808,10 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       unfold net_lock in *.
       rewrite `(NetMod.get n0 N1 = _) in *.
       compat_hsimpl in *.
-      consider (pq_lock [n1] (pq _ _ _)).
+      consider (pq_lock [n1] (serv _ _ _)).
       destruct P1; doubt.
       eattac 3.
-      consider (exists c', SRPC_pq (Lock c' m) (NetMod.get n0 N1)) by eauto with LTS.
+      consider (exists c', SRPC_serv (Lock c' m) (NetMod.get n0 N1)) by eauto with LTS.
       consider (Lock c' m = Lock c n1) by eauto with LTS.
       bs (List.In (n1, R, v) I1).
     }
@@ -1107,7 +1107,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_pq_client_dec [n S] :
-    AnySRPC_pq S ->
+    AnySRPC_serv S ->
     pq_client n S \/ ~ pq_client n S.
 
   Proof.
@@ -1789,7 +1789,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     apply Forall_forall.
     intros.
     destruct x; auto.
-    destruct (deinstr (mq MQ0 M0 (pq I0 P0 O0))) as [I' P' O'] eqn:?.
+    destruct (deinstr (mq MQ0 M0 (serv I0 P0 O0))) as [I' P' O'] eqn:?.
     absurd (List.In (n0, v) O').
     - intros ?.
       unfold deinstr in *.
@@ -1801,7 +1801,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       clear - H0 H1.
       induction l; attac.
       destruct a; attac.
-    - assert (deinstr (mq l m p) = pq I' P' O') by attac.
+    - assert (deinstr (mq l m p) = serv I' P' O') by attac.
       eapply (deinstr_In_send `(List.In _ l)). attac.
   Qed.
 
@@ -2462,7 +2462,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
   (* TODO TO LOCKS *)
   Lemma lock_no_dep_refute [N] [n0 n1 n2] :
-    (forall n, AnySRPC_pq (NetMod.get n N)) ->
+    (forall n, AnySRPC_serv (NetMod.get n N)) ->
     n1 <> n2 ->
     net_lock_on N n0 n1 ->
     ~ dep_on N n1 n2 ->
@@ -2482,7 +2482,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma lock_no_dep_refute' [N] [n0 n1 n2] :
-    (forall n, AnySRPC_pq (NetMod.get n N)) ->
+    (forall n, AnySRPC_serv (NetMod.get n N)) ->
     net_lock_on N n0 n1 ->
     ~ dep_on N n0 n2 ->
     ~ dep_on N n1 n2.
@@ -2742,7 +2742,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       ltac1:(autorewrite with LTS in * ).
       rewrite `(NetMod.get n MN0 = _) in *.
       destruct S.
-      enough (deinstr (mq MQ M (pq l p l0)) = pq &I P []) by eauto using deinstr_In_recv with LTS.
+      enough (deinstr (mq MQ M (serv l p l0)) = serv &I P []) by eauto using deinstr_In_recv with LTS.
       unfold deinstr; auto.
     }
 
@@ -2757,8 +2757,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         subst.
         unfold net_deinstr in *. simpl in *.
         ltac1:(autorewrite with LTS in * ).
-        enough (exists c0, SRPC_pq (Lock c0 n0) (pq I0 P0 O0)) by attac.
-        rewrite <- `(_ = pq I0 P0 O0).
+        enough (exists c0, SRPC_serv (Lock c0 n0) (serv I0 P0 O0)) by attac.
+        rewrite <- `(_ = serv I0 P0 O0).
 
         replace (deinstr (NetMod.get n MN0)) with (NetMod.get n '' MN0) by (unfold net_deinstr, deinstr; attac).
         eauto using SRPC_net_in_net_R_in_lock with LTS.
@@ -2780,8 +2780,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       eapply lock_SRPC_Lock.
       2: eattac.
 
-      enough (NetMod.get n '' MN0 = pq (&I ++ MQ_r MQ) P (MQ_s MQ ++ &O))
-        by (enough (AnySRPC_pq (pq (&I ++ MQ_r MQ) P (MQ_s MQ ++ &O))); eauto with LTS).
+      enough (NetMod.get n '' MN0 = serv (&I ++ MQ_r MQ) P (MQ_s MQ ++ &O))
+        by (enough (AnySRPC_serv (serv (&I ++ MQ_r MQ) P (MQ_s MQ ++ &O))); eauto with LTS).
 
       unfold net_deinstr, deinstr in *.
       ltac1:(autorewrite with LTS in * ).
@@ -3493,7 +3493,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     Proof with eattac.
       intros BSRPC Hd.
 
-      assert (forall n, AnySRPC_pq (NetMod.get n N)) as Hsrpc by eauto with LTS.
+      assert (forall n, AnySRPC_serv (NetMod.get n N)) as Hsrpc by eauto with LTS.
 
       consider (exists DS, List.In n0 DS /\ DeadSet DS N).
       hsimpl in *. (* TODO why? *)
@@ -4131,9 +4131,9 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
             unfold deinstr in *.
             eattac.
           }
-          assert (NetMod.get n1 '' MN0 = pq &I P &O).
+          assert (NetMod.get n1 '' MN0 = serv &I P &O).
           {
-            rewrite <- `(_ = pq &I P &O).
+            rewrite <- `(_ = serv &I P &O).
             unfold net_deinstr, deinstr; hsimpl in *; hsimpl in *; attac.
           }
           eauto with LTS.
@@ -4171,9 +4171,9 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
             unfold deinstr in *.
             eattac.
           }
-          assert (NetMod.get n1 '' MN0 = pq &I P &O).
+          assert (NetMod.get n1 '' MN0 = serv &I P &O).
           {
-            rewrite <- `(_ = pq &I P &O).
+            rewrite <- `(_ = serv &I P &O).
             unfold net_deinstr, deinstr; hsimpl in *; hsimpl in *; attac.
           }
           eauto with LTS.
@@ -4493,7 +4493,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
             (mq
                ((l1 ++
                  EvRecv (n', R) {| init := m; index := lock_id (next_state (state M)) |}
-                 :: l2) ++ [TrSend (n, t0) v]) M (pq I0 P2 O1)) MN0)).
+                 :: l2) ++ [TrSend (n, t0) v]) M (serv I0 P2 O1)) MN0)).
                2: eauto using net_lock_on_M_no_sends_in.
 
                intros Hx. clear - Hx.
@@ -4605,7 +4605,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
         assert (dep_on '' MN1 n0 m0) by
           (destruct `(n0 = m0 \/ dep_on '' MN1 n0 m0); subst; eauto 4 using dep_reloop, dep_loop, dep_on_seq1 with LTS).
-        assert (forall n : Name, AnySRPC_pq (NetMod.get n '' MN1)) by re_have (eauto with LTS).
+        assert (forall n : Name, AnySRPC_serv (NetMod.get n '' MN1)) by re_have (eauto with LTS).
         assert (sends_probe (m0, R) (hot_of MN1 m1) (NetMod.get m1 MN1)).
         {
           assert (deadlocked m1 '' MN1) by eauto 4 using dep_self_deadlocked with LTS.
@@ -4871,11 +4871,11 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         + subst MN0'.
           smash_eq_on m0 m n; subst; hsimpl in *; hsimpl in |- *; eexists; eattac.
       - destruct S0 as [I0 P0 O0].
-        pose (NetMod.put n (mq MQ0 M1 (pq (I0 ++ [(m, &t, v)]) P0 O0)) MN0) as MN0'.
+        pose (NetMod.put n (mq MQ0 M1 (serv (I0 ++ [(m, &t, v)]) P0 O0)) MN0) as MN0'.
         exists (NTau n (MActP (Recv (m, &t) v))).
         exists MN0'.
         exists [].
-        exists (pq (I0 ++ [(m, &t, v)]) P0 O0).
+        exists (serv (I0 ++ [(m, &t, v)]) P0 O0).
         subst MN0' M1; attac.
         constructor. attac. constructor. rewrite H. attac.
         eexists. eattac.
@@ -5291,7 +5291,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         }
 
         destruct S1 as [I1 P1 O1].
-        pose (pq (I1 ++ [(m, Q, v)]) P1 O1) as S2.
+        pose (serv (I1 ++ [(m, Q, v)]) P1 O1) as S2.
         pose  {|self := self s
               ; lock_id := lock_id s
               ; lock := lock s
@@ -6134,7 +6134,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         }
 
         destruct S1 as [I1 P1 O1].
-        pose (pq (I1 ++ [(m, Q, v)]) P1 O1) as S2.
+        pose (serv (I1 ++ [(m, Q, v)]) P1 O1) as S2.
         pose  {|self := self s
               ; lock_id := lock_id s
               ; lock := lock s
@@ -6253,7 +6253,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
     Lemma KIC_AnySRPC_pq_instr [I N] : KIC (net_instr I N) ->
-                               forall n, AnySRPC_pq (NetMod.get n N).
+                               forall n, AnySRPC_serv (NetMod.get n N).
     Proof.
       intros ?.
       consider (KIC _); attac.

@@ -126,13 +126,13 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     .
 
 
-    Definition SRPC_pq srpc S := match S with pq _ P _ => SRPC srpc P end.
+    Definition SRPC_serv srpc S := match S with serv _ P _ => SRPC srpc P end.
 
-    Definition AnySRPC_pq S := exists s, SRPC_pq s S.
+    Definition AnySRPC_serv S := exists s, SRPC_serv s S.
 
     Definition AnySRPC P := exists s, SRPC s P.
 
-    #[export] Hint Transparent SRPC_pq AnySRPC AnySRPC_pq : LTS.
+    #[export] Hint Transparent SRPC_serv AnySRPC AnySRPC_serv : LTS.
 
     (* TODO this :) *)
     Lemma srpc_inv
@@ -196,7 +196,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     Ltac2 rec destruct_SRPC (hs : ident) (htr : ident option) :=
       let hs_h := hyp hs in
       match! (Constr.type hs_h) with
-      | AnySRPC_pq ?p =>
+      | AnySRPC_serv ?p =>
           let srpc := Fresh.in_goal @srpc in
           destruct $hs_h as [$srpc $hs];
           destruct_SRPC hs htr
@@ -204,10 +204,10 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
           let srpc := Fresh.in_goal @srpc in
           destruct $hs_h as [$srpc $hs];
           destruct_SRPC hs htr
-      | SRPC_pq ?srpc (pq _ _ _) =>
+      | SRPC_serv ?srpc (serv _ _ _) =>
           simpl in $hs;
           destruct_SRPC hs htr
-      | SRPC_pq ?srpc ?p =>
+      | SRPC_serv ?srpc ?p =>
           let i := Fresh.in_goal @I in
           let p := Fresh.in_goal @P in
           let o := Fresh.in_goal @O in
@@ -349,24 +349,24 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Module Import SrpcDefs := SRPC_DEFS(Conf)(Params).
 
   (* This is to prevent stupid unfolding, but preserve inference from SRPC *)
-  Lemma SRPC_SRPC_pq : forall [s S I P O], S = pq I P O -> SRPC s P <-> SRPC_pq s S.
+  Lemma SRPC_SRPC_serv : forall [s S I P O], S = serv I P O -> SRPC s P <-> SRPC_serv s S.
   Proof. split; intros; subst; eauto. Qed.
 
-  Lemma AnySRPC_AnySRPC_pq : forall [S I P O], S = pq I P O -> AnySRPC P <-> AnySRPC_pq S.
+  Lemma AnySRPC_AnySRPC_serv : forall [S I P O], S = serv I P O -> AnySRPC P <-> AnySRPC_serv S.
   Proof. unfold AnySRPC_pq. split; intros; subst; eauto. Qed.
 
   Lemma SRPC_AnySRPC : forall [s P], SRPC s P -> AnySRPC P.
   Proof. unfold AnySRPC. eauto. Qed.
 
-  Lemma SRPC_pq_AnySRPC_pq : forall [s P], SRPC_pq s P -> AnySRPC_pq P.
+  Lemma SRPC_pq_AnySRPC_serv : forall [s P], SRPC_serv s P -> AnySRPC_serv P.
   Proof. unfold AnySRPC_pq. eauto. Qed.
 
 
-  #[export] Hint Immediate SRPC_SRPC_pq AnySRPC_AnySRPC_pq : LTS.
-  #[export] Hint Resolve -> SRPC_SRPC_pq AnySRPC_AnySRPC_pq 10 : LTS.
-  #[export] Hint Rewrite <- SRPC_SRPC_pq AnySRPC_AnySRPC_pq using spank : LTS.
+  #[export] Hint Immediate SRPC_SRPC_serv AnySRPC_AnySRPC_serv : LTS.
+  #[export] Hint Resolve -> SRPC_SRPC_serv AnySRPC_AnySRPC_serv 10 : LTS.
+  #[export] Hint Rewrite <- SRPC_SRPC_serv AnySRPC_AnySRPC_serv using spank : LTS.
 
-  #[export] Hint Resolve SRPC_AnySRPC SRPC_pq_AnySRPC_pq : LTS.
+  #[export] Hint Resolve SRPC_AnySRPC SRPC_pq_AnySRPC_serv : LTS.
 
   (** SRPC is preserved for processes *)
   Lemma trans_invariant_AnySRPC : trans_invariant AnySRPC always.
@@ -382,7 +382,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   (** SRPC is preserved for services *)
-  Lemma trans_invariant_AnySRPC_pq : trans_invariant AnySRPC_pq always.
+  Lemma trans_invariant_AnySRPC_serv : trans_invariant AnySRPC_serv always.
 
   Proof.
     intros N0 N1 a T Hsrpc _.
@@ -390,8 +390,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     all: destruct SRPC Hsrpc H; eattac.
   Qed.
 
-  #[export] Hint Resolve trans_invariant_AnySRPC_pq : inv.
-  #[export] Hint Extern 10 (AnySRPC_pq _) => solve_invariant : LTS.
+  #[export] Hint Resolve trans_invariant_AnySRPC_serv : inv.
+  #[export] Hint Extern 10 (AnySRPC_serv _) => solve_invariant : LTS.
 
 
   Lemma SRPC_recv_Q [P0 P1] [c v] :
@@ -666,8 +666,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   Lemma SRPC_pq_work_inv [S : Serv] [c0 c1] [s0 : SRPC_Busy_State c0] [s1 : SRPC_Busy_State c1] :
-    SRPC_pq (Busy s0) S ->
-    SRPC_pq (Busy s1) S ->
+    SRPC_serv (Busy s0) S ->
+    SRPC_serv (Busy s1) S ->
     c0 = c1.
   Proof. destruct S; attac. Qed.
 
@@ -716,8 +716,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   Lemma SRPC_pq_inv [S srpc0 srpc1] :
-    SRPC_pq srpc0 S ->
-    SRPC_pq srpc1 S ->
+    SRPC_serv srpc0 S ->
+    SRPC_serv srpc1 S ->
     srpc0 = srpc1.
 
   Proof. destruct S; attac. Qed.
@@ -984,7 +984,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   (** SRPC service can be locked only on one thing *)
   Lemma SRPC_pq_one_lock [S : Serv] [L] :
-    AnySRPC_pq S ->
+    AnySRPC_serv S ->
     pq_lock L S ->
     length (nodup NAME.eq_dec L) = 1%nat.
 
@@ -1023,7 +1023,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   (** If SRPC service is locked, then it is known on who *)
   Lemma SRPC_pq_get_lock [S : Serv] [L] :
-    AnySRPC_pq S ->
+    AnySRPC_serv S ->
     pq_lock L S ->
     exists n, pq_lock [n] S.
 
@@ -1121,14 +1121,14 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   (** You can't judge locks of a service based on its SRPC-state, because the code may be in a *)
   (*   locked state, but there are messages to be sent *)
   Example SRPC_Lock_pq_lock [S : Serv] [s c] :
-    SRPC_pq (Lock c s) S -> pq_lock [s] S.
+    SRPC_serv (Lock c s) S -> pq_lock [s] S.
   Abort.
 
 
   (** SRPC-lock state is complete for all SRPC services *)
-  Lemma lock_SRPC_Lock_pq [S : Serv] [s] :
-    AnySRPC_pq S ->
-    pq_lock [s] S -> (exists c, SRPC_pq (Lock c s) S).
+  Lemma lock_SRPC_Lock_serv [S : Serv] [s] :
+    AnySRPC_serv S ->
+    pq_lock [s] S -> (exists c, SRPC_serv (Lock c s) S).
 
   Proof.
     intros Hsrpc HL.
@@ -1164,7 +1164,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   (** You need at least a tau to change the lock *)
   Lemma SRPC_pq_no_relock [S0 S1 a n0 n1] :
-    AnySRPC_pq S0 ->
+    AnySRPC_serv S0 ->
     pq_lock [n0] S0 ->
     pq_lock [n1] S1 ->
     (S0 =(a)=> S1) ->
@@ -1172,8 +1172,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   Proof.
     intros.
-    consider (exists c0, SRPC_pq (Lock c0 n0) S0) by eauto using lock_SRPC_Lock_pq with LTS.
-    consider (exists c1, SRPC_pq (Lock c1 n1) S1) by eauto using lock_SRPC_Lock_pq with LTS.
+    consider (exists c0, SRPC_serv (Lock c0 n0) S0) by eauto using lock_SRPC_Lock_serv with LTS.
+    consider (exists c1, SRPC_serv (Lock c1 n1) S1) by eauto using lock_SRPC_Lock_serv with LTS.
     destruct S0, S1; simpl in *.
     consider (_ =(a)=> _);
       try (consider (Lock c0 n0 = Lock c1 n1) by eattac).
@@ -1318,7 +1318,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   Lemma SRPC_Decisive_q [S] :
-    AnySRPC_pq S ->
+    AnySRPC_serv S ->
     Decisive_q S.
   Proof. intros. destruct S; eattac. Qed.
 
@@ -1326,14 +1326,14 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   Lemma SRPC_tau_no_lock_r [S0 S1 L] :
-    AnySRPC_pq S0 ->
+    AnySRPC_serv S0 ->
     (S0 =(Tau)=> S1) ->
     ~ pq_lock L S1.
 
   Proof.
     intros; intros ?.
     consider (exists s, pq_lock [s] S1) by eauto using SRPC_pq_get_lock with LTS.
-    consider (exists c, SRPC_pq (Lock c s) S1) by eauto using lock_SRPC_Lock_pq with LTS.
+    consider (exists c, SRPC_serv (Lock c s) S1) by eauto using lock_SRPC_Lock_serv with LTS.
     consider (_ =(_)=> _); consider (pq_lock _ _); doubt; simpl in *.
     - destruct n as [n [|]].
       + assert (SRPC (Work n) P1) by eauto using SRPC_inv_recv_Q_r.

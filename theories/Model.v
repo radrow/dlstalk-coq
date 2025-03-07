@@ -160,23 +160,23 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
   #[export] Hint Rewrite -> @ProcTrans_PRecv_inv @ProcTrans_PSend_inv @ProcTrans_PTau_inv using assumption : LTS.
 
 
-  Inductive Serv := pq : Que Val -> Proc -> Que Val -> Serv.
+  Inductive Serv := serv : Que Val -> Proc -> Que Val -> Serv.
   #[export] Hint Constructors Serv : LTS.
 
-  Definition serv_i S := match S with pq I' _ _ => I' end.
-  Definition serv_p S := match S with pq _ P _ => P end.
-  Definition serv_o S := match S with pq _ _ O' => O' end.
+  Definition serv_i S := match S with serv I' _ _ => I' end.
+  Definition serv_p S := match S with serv _ P _ => P end.
+  Definition serv_o S := match S with serv _ _ O' => O' end.
 
   #[export] Hint Transparent serv_i serv_p serv_o : LTS.
 
   Section Inversions.
-    Fact serv_i_inv : forall S I P O, S = pq I P O -> serv_i S = I.
+    Fact serv_i_inv : forall S I P O, S = serv I P O -> serv_i S = I.
     Proof. intros. subst. auto. Qed.
 
-    Fact serv_p_inv : forall S I P O, S = pq I P O -> serv_p S = P.
+    Fact serv_p_inv : forall S I P O, S = serv I P O -> serv_p S = P.
     Proof. intros. subst. auto. Qed.
 
-    Fact serv_o_inv : forall S I P O, S = pq I P O -> serv_o S = O.
+    Fact serv_o_inv : forall S I P O, S = serv I P O -> serv_o S = O.
     Proof. intros. subst. auto. Qed.
   End Inversions.
 
@@ -186,24 +186,24 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
   Inductive PTrans : PAct -> Serv -> Serv -> Prop :=
   | PTRecv [n v I0 I1 P O]
       (HEnq : Enq n v I0 I1)
-    : PTrans (Recv n v) (pq I0 P O) (pq I1 P O)
+    : PTrans (Recv n v) (serv I0 P O) (serv I1 P O)
 
   | PTPick [n v I0 I1 P0 P1 O]
       (HDeq : Deq n v I0 I1)
     : (P0 =(Recv n v)=> P1) ->
-      PTrans Tau (pq I0 P0 O) (pq I1 P1 O)
+      PTrans Tau (serv I0 P0 O) (serv I1 P1 O)
 
   | PTSend [n v I P0 P1 O0 O1]
       (HEnq : Enq n v O0 O1)
     : (P0 =(Send n v)=> P1) ->
-      PTrans Tau (pq I P0 O0) (pq I P1 O1)
+      PTrans Tau (serv I P0 O0) (serv I P1 O1)
 
   | PTPush {n v I P O}
-    : PTrans (Send n v) (pq I P ((n, v)::O)) (pq I P O)
+    : PTrans (Send n v) (serv I P ((n, v)::O)) (serv I P O)
 
   | PTTau {I P0 P1 O}
     : P0 =(Tau)=> P1 ->
-                 PTrans Tau (pq I P0 O) (pq I P1 O)
+                 PTrans Tau (serv I P0 O) (serv I P1 O)
   .
 
 
@@ -222,17 +222,17 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
   Section Inversions.
     Lemma PTrans_Recv_inv n v S0 S1 :
-      (S0 =(Recv n v)=> S1) <-> exists I0 P0 O0, pq I0 P0 O0 = S0 /\ pq (I0 ++ [(n, v)]) P0 O0 = S1.
+      (S0 =(Recv n v)=> S1) <-> exists I0 P0 O0, serv I0 P0 O0 = S0 /\ serv (I0 ++ [(n, v)]) P0 O0 = S1.
     Proof. eattac; kill H; eattac. Qed.
 
     Lemma PTrans_Send_inv n v S0 S1 :
       (S0 =(Send n v)=> S1) <->
-        exists I0 P0 O1, pq I0 P0 ((n, v)::O1) = S0 /\ pq I0 P0 O1 = S1.
+        exists I0 P0 O1, serv I0 P0 ((n, v)::O1) = S0 /\ serv I0 P0 O1 = S1.
     Proof. eattac; kill H; eattac. Qed.
 
     Lemma PTrans_Tau_Recv_inv I0 O0 S1 handle :
-      (pq I0 (PRecv handle) O0 =(Tau)=> S1) <->
-        exists n v I1 P1, (PRecv handle =(Recv n v)=> P1) /\ Deq n v I0 I1 /\ S1 = pq I1 P1 O0.
+      (serv I0 (PRecv handle) O0 =(Tau)=> S1) <->
+        exists n v I1 P1, (PRecv handle =(Recv n v)=> P1) /\ Deq n v I0 I1 /\ S1 = serv I1 P1 O0.
     Proof.
       split; intros.
       - kill H; kill H0; eattac.
@@ -240,8 +240,8 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
     Qed.
 
     Lemma PTrans_Tau_Send_inv n v I0 P0 O0 S1 :
-      (pq I0 (PSend n v P0) O0 =(Tau)=> S1) <->
-        exists P1, (PSend n v P0 =(Send n v)=> P1) /\ S1 = pq I0 P0 (O0 ++ [(n, v)]).
+      (serv I0 (PSend n v P0) O0 =(Tau)=> S1) <->
+        exists P1, (PSend n v P0 =(Send n v)=> P1) /\ S1 = serv I0 P0 (O0 ++ [(n, v)]).
     Proof.
       split; intros.
       - kill H; kill H0; subst. eattac.
@@ -249,8 +249,8 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
     Qed.
 
     Lemma PTrans_Tau_Tau_inv  I0 P0 O0 S1 :
-      (pq I0 (PTau P0) O0 =(Tau)=> S1) <->
-        exists P1, (PTau P0 =(Tau)=> P1) /\ S1 = pq I0 P1 O0.
+      (serv I0 (PTau P0) O0 =(Tau)=> S1) <->
+        exists P1, (PTau P0 =(Tau)=> P1) /\ S1 = serv I0 P1 O0.
     Proof.
       split; intros.
       - kill H; eattac.
@@ -259,7 +259,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
     Lemma PTrans_Recv_t_inv a I0 P0 O0 I1 P1 O1 :
       (length I1 > length I0)%nat ->
-      (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
+      (serv I0 P0 O0 =(a)=> serv I1 P1 O1) <->
         exists n v, I1 = I0 ++ [(n, v)] /\ P1 = P0 /\ O1 = O0 /\ a = Recv n v.
     Proof.
       split; intros.
@@ -273,7 +273,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
     Lemma PTrans_Pick_t_inv a I0 P0 O0 I1 P1 O1 :
       (length I1 < length I0)%nat ->
-      (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
+      (serv I0 P0 O0 =(a)=> serv I1 P1 O1) <->
         exists n v, Deq n v I0 I1 /\ (P0 =(Recv n v)=> P1) /\ O1 = O0 /\ a = Tau.
     Proof.
       split; intros.
@@ -283,7 +283,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
     Lemma PTrans_Tau_t_inv a I0 P0 O0 I1 P1 O1 :
       length I0 = length I1 -> length O0 = length O1 ->
-      (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
+      (serv I0 P0 O0 =(a)=> serv I1 P1 O1) <->
         I1 = I0 /\ O1 = O0 /\ a = Tau /\ (P0 =(Tau)=> P1).
     Proof.
       split; intros; subst.
@@ -293,7 +293,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
     Lemma PTrans_Send_t_inv a I0 P0 O0 I1 P1 O1 :
       (length O1 > length O0)%nat ->
-      (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
+      (serv I0 P0 O0 =(a)=> serv I1 P1 O1) <->
         exists n v, O1 = O0 ++ [(n, v)] /\ (P0 =(Send n v)=> P1) /\ I1 = I0 /\ a = Tau.
     Proof.
       split; intros.
@@ -306,7 +306,7 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
     Lemma PTrans_Push_t_inv a I0 P0 O0 I1 P1 O1 :
       (length O1 < length O0)%nat ->
-      (pq I0 P0 O0 =(a)=> pq I1 P1 O1) <->
+      (serv I0 P0 O0 =(a)=> serv I1 P1 O1) <->
         exists n v, I0 = I1 /\ P0 = P1 /\ O0 = ((n,v)::O1) /\ a = (Send n v).
     Proof.
       split; intros.
@@ -1563,7 +1563,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   (** Deinstrumentation. Strips off monitoring and disassembles monitor's queue. *)
   Definition deinstr (MS0 : MServ) : Serv :=
     match MS0 with
-    | (mq MQ0 _ (pq I0 P0 O0)) => (pq (I0 ++ (MQ_r MQ0)) P0 (MQ_s MQ0 ++ O0))
+    | (mq MQ0 _ (serv I0 P0 O0)) => (serv (I0 ++ (MQ_r MQ0)) P0 (MQ_s MQ0 ++ O0))
     end.
 
   #[reversible=no] Coercion deinstr : MServ >-> Serv.
@@ -1584,7 +1584,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Lemma deinstr_In_recv [MQ M S I P O n v] :
     List.In (TrRecv n v) MQ ->
-    deinstr (mq MQ M S) = (pq I P O) ->
+    deinstr (mq MQ M S) = (serv I P O) ->
     List.In (n, v) I.
 
   Proof.
@@ -1600,7 +1600,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Lemma deinstr_In_send [MQ M S I P O n v] :
     List.In (TrSend n v) MQ ->
-    deinstr (mq MQ M S) = (pq I P O) ->
+    deinstr (mq MQ M S) = (serv I P O) ->
     List.In (n, v) O.
 
   Proof.
@@ -1814,7 +1814,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   (** Flushing action reduces the monitor queue *)
   Lemma Flushing_act_split : forall [a] [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1],
-      (mq MQ0 M0 (pq I0 P0 O0) =(a)=> mq MQ1 M1 (pq I1 P1 O1)) ->
+      (mq MQ0 M0 (serv I0 P0 O0) =(a)=> mq MQ1 M1 (serv I1 P1 O1)) ->
       Flushing_act a ->
       exists MQ', MQ0 = MQ' ++ MQ1.
 
@@ -1968,7 +1968,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     end.
 
   Definition flush_M MQ M := {|handle:=handle M;state:=MRecv (flush_Mstate MQ M)|}.
-  Definition flush_S MQ S := match S with pq I0 P0 O0 => pq (I0 ++ MQ_r MQ) P0 O0 end.
+  Definition flush_S MQ S := match S with serv I0 P0 O0 => serv (I0 ++ MQ_r MQ) P0 O0 end.
   Definition flush_path MS := match MS with mq MQ M _ => mk_flush_path MQ M end.
   Definition flush_MS MS0 := match MS0 with mq MQ0 M0 S0 => mq [] (flush_M MQ0 M0) (flush_S MQ0 S0) end.
 
@@ -2194,8 +2194,8 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Lemma corr_extraction1 : forall
       [ma]
       [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1],
-      (mq MQ0 M0 (pq I0 P0 O0) =(ma)=> mq MQ1 M1 (pq I1 P1 O1)) ->
-      (pq (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0) =[MPath_to_PPath [ma]]=> pq (I1 ++ MQ_r MQ1) P1 (MQ_s MQ1 ++ O1)).
+      (mq MQ0 M0 (serv I0 P0 O0) =(ma)=> mq MQ1 M1 (serv I1 P1 O1)) ->
+      (serv (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0) =[MPath_to_PPath [ma]]=> serv (I1 ++ MQ_r MQ1) P1 (MQ_s MQ1 ++ O1)).
 
   Proof.
     intros.
@@ -2209,8 +2209,8 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Lemma corr_extraction : forall
       [mpath]
       [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1],
-      (mq MQ0 M0 (pq I0 P0 O0) =[mpath]=> mq MQ1 M1 (pq I1 P1 O1)) ->
-      (pq (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0) =[MPath_to_PPath mpath]=> pq (I1 ++ MQ_r MQ1) P1 (MQ_s MQ1 ++ O1)).
+      (mq MQ0 M0 (serv I0 P0 O0) =[mpath]=> mq MQ1 M1 (serv I1 P1 O1)) ->
+      (serv (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0) =[MPath_to_PPath mpath]=> serv (I1 ++ MQ_r MQ1) P1 (MQ_s MQ1 ++ O1)).
 
   Proof with (eauto with LTS).
     induction mpath; intros.
@@ -2221,7 +2221,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     destruct N1 as [MQ0' M0' [I0' P0' O0']].
     rewrite MPath_to_PPath_cons.
 
-    eapply path_seq with (middle := pq (I0' ++ MQ_r MQ0') P0' (MQ_s MQ0' ++ O0'));
+    eapply path_seq with (middle := serv (I0' ++ MQ_r MQ0') P0' (MQ_s MQ0' ++ O0'));
       eauto using corr_extraction1.
   Qed.
 

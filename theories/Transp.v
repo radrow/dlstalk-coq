@@ -42,17 +42,17 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Notation MNet := (NetMod.t MServ).
 
   Lemma serv_i_net_inv' : forall I P O n [N : PNet], (* TODO prime' is due to a name clash in SRPCNet.v *)
-      NetMod.get n N = pq I P O ->
+      NetMod.get n N = serv I P O ->
       serv_i (NetMod.get n N) = I.
   Proof. intros. rewrite H. attac. Qed.
 
   Lemma serv_p_net_inv' : forall I P O n N,
-      NetMod.get n N = pq I P O ->
+      NetMod.get n N = serv I P O ->
       serv_p (NetMod.get n N) = P.
   Proof. intros. rewrite H. attac. Qed.
 
   Lemma serv_o_net_inv' : forall I P O n N,
-      NetMod.get n N = pq I P O ->
+      NetMod.get n N = serv I P O ->
       serv_o (NetMod.get n N) = O.
   Proof. intros. rewrite H. attac. Qed.
 
@@ -87,8 +87,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   Lemma PNet_trans_simpl_inv a n N I P O S :
-    NetMod.get n N = pq I P O ->
-    (NetMod.get n N =(a)=> S) <-> (pq I P O =(a)=> S).
+    NetMod.get n N = serv I P O ->
+    (NetMod.get n N =(a)=> S) <-> (serv I P O =(a)=> S).
   Proof. split; intros; rewrite H in *; auto. Qed.
 
   Lemma MNet_trans_simpl_inv a n N MQ M S MS :
@@ -381,9 +381,9 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   #[export] Hint Resolve flushed_in_MQ_Clear : LTS.
 
 
-  Definition get_I N n := match NetMod.get n N with pq i _ _ => i end.
-  Definition get_P N n := match NetMod.get n N with pq _ p _ => p end.
-  Definition get_O N n := match NetMod.get n N with pq _ _ o => o end.
+  Definition get_I N n := match NetMod.get n N with serv i _ _ => i end.
+  Definition get_P N n := match NetMod.get n N with serv _ p _ => p end.
+  Definition get_O N n := match NetMod.get n N with serv _ _ o => o end.
   Definition get_MQ N n := match NetMod.get n N with mq MQ _ _ => MQ end.
   Definition get_M N n := match NetMod.get n N with mq _ M _ => M end.
   Definition get_Mc N n := state (get_M N n).
@@ -622,7 +622,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       } (* TODO lemma? *)
 
       unfold deinstr in Hreduce.
-      specialize (Hreduce MQ0 (n, t0) msg M0 (pq l p l0)).
+      specialize (Hreduce MQ0 (n, t0) msg M0 (serv l p l0)).
       hsimpl.
       rewrite <- (Hreduce); auto. clear Hreduce.
       unfold deinstr.
@@ -672,7 +672,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
   Lemma flush_exists : forall MQ0 M0 I0 P O,
     exists mpath M1 I1,
-      (mq MQ0 M0 (pq I0 P O) =[ mpath ]=> instr (exist _ [] (Forall_nil _)) M1 (pq (I0 ++ I1) P O))
+      (mq MQ0 M0 (serv I0 P O) =[ mpath ]=> instr (exist _ [] (Forall_nil _)) M1 (serv (I0 ++ I1) P O))
       /\ Forall Flushing_act mpath.
 
   Proof.
@@ -683,7 +683,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     unshelve eexists (exist _ (flush_M MQ0 M0) (flush_M_ready _ _)).
     exists (MQ_r MQ0).
     simpl.
-    replace (pq (I0 ++ MQ_r MQ0) P &O) with (flush_S MQ0 (pq I0 P &O)) by attac.
+    replace (serv (I0 ++ MQ_r MQ0) P &O) with (flush_S MQ0 (serv I0 P &O)) by attac.
     split; eauto using flush_go, flush_path_Flushing.
   Qed.
 
@@ -702,8 +702,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     destruct (flush_exists MQ0 M0 I0 P0 O0)
       as (mpath & M1 & I1 & TM & HF).
 
-    remember (pq I0 P0 O0) as S0. clear HeqS0.
-    remember (pq (I0 ++ I1) P0 O0) as S1. clear HeqS1 I0 I1 P0 O0.
+    remember (serv I0 P0 O0) as S0. clear HeqS0.
+    remember (serv (I0 ++ I1) P0 O0) as S1. clear HeqS1 I0 I1 P0 O0.
     remember (mq MQ0 M0 S0) as MS0. clear HeqMS0.
 
     remember (instr (exist _ [] _) M1 S1) as MS1.
@@ -793,8 +793,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     destruct (flush_exists MQ0 M0 I0 P0 O0)
       as (mpath & M1 & I1 & TM & HF).
 
-    remember (pq I0 P0 O0) as S0. clear HeqS0.
-    remember (pq (I0 ++ I1) P0 O0) as S1. clear HeqS1 I0 I1 P0 O0.
+    remember (serv I0 P0 O0) as S0. clear HeqS0.
+    remember (serv (I0 ++ I1) P0 O0) as S1. clear HeqS1 I0 I1 P0 O0.
     remember (mq MQ0 M0 S0) as MS0. clear HeqMS0.
 
     eremember (instr (exist _ [] _) M1 S1) as MS1; eauto.
@@ -1372,7 +1372,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     rewrite NetMod.put_map in *.
     kill TP.
 
-    assert (deinstr (mq MQ M (pq &I P ((n', t0, v) :: &O))) = deinstr (NetMod.get n MN0))
+    assert (deinstr (mq MQ M (serv &I P ((n', t0, v) :: &O))) = deinstr (NetMod.get n MN0))
       by (rewrite <- H2; reflexivity).
 
     clear H2.
@@ -1599,7 +1599,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         hsimpl in |- *.
         kill H.
         destruct S0 as [I P O].
-        exists (NetMod.put n (pq (&I ++ MQ_r MQ) P (MQ_s MQ ++ &O)) (net_deinstr MN0)).
+        exists (NetMod.put n (serv (&I ++ MQ_r MQ) P (MQ_s MQ ++ &O)) (net_deinstr MN0)).
         split.
         * constructor.
           unfold net_deinstr, deinstr in *.

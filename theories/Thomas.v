@@ -372,11 +372,11 @@ Module Thomas.
         fun n => match n with
               | Worker name =>
                   match workers conf name with
-                    worker_conf init_call_ handle_call => pq [] (gen_server init_call_ handle_call) []
+                    worker_conf init_call_ handle_call => serv [] (gen_server init_call_ handle_call) []
                   end
               | Initiator name i =>
                   match inits conf name with
-                  | init_conf to arg => pq [] (Finger name i to arg) []
+                  | init_conf to arg => serv [] (Finger name i to arg) []
                   end
               end
       ).
@@ -1122,8 +1122,8 @@ Module Thomas.
     assert (forall n, Decisive_q (NetMod.get n N)).
     {
       enough (forall n, AnySRPC (serv_p (NetMod.get n N))) by (unfold Decisive_q; eauto using SRPC_Decisive).
-      enough (forall n, AnySRPC_pq (NetMod.get n N)) by (intros;
-                                                    destruct `(AnySRPC_pq (NetMod.get n N)) as [srpc ?]; exists srpc;
+      enough (forall n, AnySRPC_serv (NetMod.get n N)) by (intros;
+                                                    destruct `(AnySRPC_serv (NetMod.get n N)) as [srpc ?]; exists srpc;
                                                     destruct (NetMod.get n N);
                                                     eauto).
       enough (SRPC_net N) by eauto.
