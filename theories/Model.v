@@ -35,8 +35,8 @@ End PROC_PARAMS.
 
 Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
   Inductive Act {Payload : Set} : Set :=
-  | Send (n : NChan) (v : Payload) : Act
-  | Recv (n : NChan) (v : Payload) : Act
+  | Send (n : NameTag) (v : Payload) : Act
+  | Recv (n : NameTag) (v : Payload) : Act
   | Tau
   .
   #[export] Hint Constructors Act : LTS.
@@ -75,8 +75,8 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
 
   CoInductive Proc : Set :=
   | PEnd
-  | PSend (n : NChan) (v : Val) (P : Proc) : Proc
-  | PRecv (handle : NChan -> option (Val -> Proc)) : Proc
+  | PSend (n : NameTag) (v : Val) (P : Proc) : Proc
+  | PRecv (handle : NameTag -> option (Val -> Proc)) : Proc
   | PTau (P : Proc) : Proc
   .
 
@@ -610,9 +610,9 @@ End MON_PARAMS.
 
 Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf)).
   Inductive Event :=
-  | TrSend : NChan -> Val -> Event
-  | TrRecv : NChan -> Val -> Event
-  | EvRecv : NChan -> Msg -> Event
+  | TrSend : NameTag -> Val -> Event
+  | TrRecv : NameTag -> Val -> Event
+  | EvRecv : NameTag -> Msg -> Event
   .
   #[export] Hint Constructors Event : LTS.
 
@@ -684,7 +684,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Inductive MCode :=
   | MRecv (state : MState)
-  | MSend (to : NChan) (msg : Msg) (M : MCode)
+  | MSend (to : NameTag) (msg : Msg) (M : MCode)
   .
 
   #[export] Hint Constructors MCode : LTS.
@@ -707,7 +707,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Inductive MonAct : Set :=
   | MonRecv : Event -> MonAct
-  | MonSend : NChan -> Msg -> MonAct
+  | MonSend : NameTag -> Msg -> MonAct
   | MonTau : MonAct
   .
   #[export] Hint Constructors MonAct : LTS.

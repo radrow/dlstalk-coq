@@ -408,7 +408,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   (** Monitor is going to send a probe (inevitably) *)
-  Inductive sends_probe : NChan -> MProbe -> MServ -> Prop :=
+  Inductive sends_probe : NameTag -> MProbe -> MServ -> Prop :=
   | sp_init MQ MQ' c S n n' v p :
     NoRecvR_from n' MQ -> (* We won't unlock *)
     NoSends_MQ MQ -> (* We won't change the lock_id *)
@@ -1485,7 +1485,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
   Proof.
     intros.
-    destruct e0, e1; destruct (NChan_eq_dec n n0); attac.
+    destruct e0, e1; destruct (NameTag_eq_dec n n0); attac.
     - destruct (Val_eq_dec v v0); attac.
     - destruct (Val_eq_dec v v0); attac.
     - destruct (MProbe_eq_dec m m0); attac.
@@ -1600,7 +1600,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     induction state0.
 
     (* Rare case where inductive step is simpler than the base! *)
-    2: destruct (NChan_eq_dec n to);
+    2: destruct (NameTag_eq_dec n to);
         destruct (MProbe_eq_dec p msg);
         destruct IHstate0; subst; eattac; right; intros Hx; kill Hx.
 
@@ -1659,7 +1659,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         2: right; intros Hx; hsimpl in *; bs.
         hsimpl in * |-.
 
-        destruct (NChan_eq_dec n0 (n, Q)); subst.
+        destruct (NameTag_eq_dec n0 (n, Q)); subst.
         * destruct IHMQ.
           -- left.
              hsimpl in * |- .
@@ -1670,7 +1670,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
              attac.
         * destruct IHMQ.
           -- hsimpl in * |- .
-             destruct (NChan_eq_dec n0 (n', R)).
+             destruct (NameTag_eq_dec n0 (n', R)).
              ++ right.
                 intros Hx; hsimpl in Hx.
                 destruct MQ'0; kill Hx4.
@@ -1753,7 +1753,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           induction l'; attac.
           destruct IHl'; attac.
           destruct a; attac.
-          destruct (NChan_eq_dec n0 (n, Q)); attac.
+          destruct (NameTag_eq_dec n0 (n, Q)); attac.
         }
         - left; eattac.
           specialize (H v).
@@ -3586,7 +3586,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       - kill H; hsimpl in *; hsimpl in |- *.
         + econstructor 1; eattac.
         + econstructor 2; subst; kill H4; eattac.
-      - destruct (NChan_eq_dec nc (a, &t)).
+      - destruct (NameTag_eq_dec nc (a, &t)).
         + subst. econstructor 3.
         + kill H.
           apply IHl in H1.
@@ -3622,7 +3622,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       intros.
-      destruct (NChan_eq_dec nc (n, &t)); eattac.
+      destruct (NameTag_eq_dec nc (n, &t)); eattac.
     Qed.
 
 
@@ -3643,7 +3643,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       intros.
-      destruct (NChan_eq_dec nc (n, &t)); eattac.
+      destruct (NameTag_eq_dec nc (n, &t)); eattac.
     Qed.
 
 
@@ -3751,7 +3751,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     Proof.
       intros.
       destruct_ma &ma; compat_hsimpl in *; doubt.
-      6: destruct (NChan_eq_dec nc (n, t0)); subst; auto.
+      6: destruct (NameTag_eq_dec nc (n, t0)); subst; auto.
       6: destruct (MProbe_eq_dec p v) as [?|HEqv]; subst; auto.
       all: exfalso; apply H2; clear H2; subst.
       all: eauto using sends_probe_extend_r, sends_probe_proc.
@@ -4076,7 +4076,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
             kill IHMQ; eattac.
             destruct a.
             - right; eattac.
-            - destruct (NChan_eq_dec (n0, Q) n); subst.
+            - destruct (NameTag_eq_dec (n0, Q) n); subst.
               + left; eattac.
               + right; eattac.
             - right; eattac.
@@ -4281,7 +4281,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           kill IHMQ; eattac.
           destruct a.
           - right; eattac.
-          - destruct (NChan_eq_dec (n0, Q) n); subst.
+          - destruct (NameTag_eq_dec (n0, Q) n); subst.
             + left; eattac.
             + right; eattac.
           - right; eattac.
@@ -4650,7 +4650,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           1: eattac.
 
           destruct
-            (NChan_eq_dec to (m0, R)),
+            (NameTag_eq_dec to (m0, R)),
             (MProbe_eq_dec msg {| init := self (next_state s1); index := lock_id (next_state s1) |}); subst;
             eauto with LTS.
         }

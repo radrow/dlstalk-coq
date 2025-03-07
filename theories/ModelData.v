@@ -69,11 +69,11 @@ Module Type CHANNEL_F(Import Conf : CHANNEL_CONF)(Import Params : CHANNEL_PARAMS
     intros. apply H. Defined.
   #[global] Coercion Name_'t : NAME.t' >-> Name.
 
-  #[global] Definition NChan : Set := (Name * Tag)%type.
-  #[global] Hint Transparent NChan : core.
+  #[global] Definition NameTag : Set := (Name * Tag)%type.
+  #[global] Hint Transparent NameTag : core.
   (* TODO understand and fix this crap above *)
 
-  Fact NChan_eq_dec : forall (n0 n1 : NChan), {n0 = n1} + {n0 <> n1}.
+  Fact NameTag_eq_dec : forall (n0 n1 : NameTag), {n0 = n1} + {n0 <> n1}.
 
   Proof.
     intros.
@@ -83,32 +83,32 @@ Module Type CHANNEL_F(Import Conf : CHANNEL_CONF)(Import Params : CHANNEL_PARAMS
   Qed.
 
 
-  Lemma NChan_neq_Name_inv : forall [n0 n1 : Name] [t0 t1 : Tag],
+  Lemma NameTag_neq_Name_inv : forall [n0 n1 : Name] [t0 t1 : Tag],
       n0 <> n1 ->
       (n0, t0) <> (n1, t1).
   Proof. attac. Qed.
 
-  Lemma NChan_neq_Tag_inv : forall [n0 n1 : Name] [t0 t1 : Tag],
+  Lemma NameTag_neq_Tag_inv : forall [n0 n1 : Name] [t0 t1 : Tag],
       t0 <> t1 ->
       (n0, t0) <> (n1, t1).
   Proof. attac. Qed.
 
-  #[export] Hint Resolve NChan_neq_Name_inv NChan_neq_Tag_inv : core. (* fsck coq *)
+  #[export] Hint Resolve NameTag_neq_Name_inv NameTag_neq_Tag_inv : core. (* fsck coq *)
 
 
   Class gen_Act (Act : Set) :=
     {
       Payload : Set;
-      send : NChan -> Payload -> Act;
-      recv : NChan -> Payload -> Act;
+      send : NameTag -> Payload -> Act;
+      recv : NameTag -> Payload -> Act;
       ia : Act -> Prop;
 
       ia_disjoint : forall n v, not (ia (recv n v)) /\ not (ia (send n v));
       send_recv : forall n v, send n v <> recv n v;
 
       gact_rec : forall [P : Act -> Type] (a : Act),
-                   (forall (nc : NChan) (v : Payload), P (send nc v)) ->
-                   (forall (nc : NChan) (v : Payload), P (recv nc v)) ->
+                   (forall (nc : NameTag) (v : Payload), P (send nc v)) ->
+                   (forall (nc : NameTag) (v : Payload), P (recv nc v)) ->
                    (ia a -> P a) ->
                    P a
     }.

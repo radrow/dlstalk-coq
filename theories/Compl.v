@@ -86,12 +86,12 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     #[local,reversible] Coercion Name_nat : Name >-> nat.
 
     Definition natchan := (nat * Tag)%type.
-    Definition NChan_nat (nc : NChan) : natchan :=
+    Definition NameTag_nat (nc : NameTag) : natchan :=
       let (n, t) := nc in (Name_nat n, t).
-    Definition nat_NChan  (nc : natchan) : NChan :=
+    Definition nat_NameTag  (nc : natchan) : NameTag :=
       let (n, t) := nc in (nat_Name n, t).
-    #[local,reversible] Coercion nat_NChan : natchan >-> NChan.
-    #[local,reversible] Coercion NChan_nat : NChan >-> natchan.
+    #[local,reversible] Coercion nat_NameTag : natchan >-> NameTag.
+    #[local,reversible] Coercion NameTag_nat : NameTag >-> natchan.
 
 
     CoInductive Mover (N : PNet) : Name -> Prop :=
@@ -792,7 +792,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof. attac. Qed.
 
   (** Monitor is going to send a probe (inevitably) *)
-  Inductive sends_probe : NChan -> MProbe -> MServ -> Prop :=
+  Inductive sends_probe : NameTag -> MProbe -> MServ -> Prop :=
   | sp_init MQ MQ' c S n n' v p :
     NoRecvR_from n' MQ -> (* We won't unlock *)
     NoSends_MQ MQ -> (* We won't change the lock_id *)
@@ -1784,7 +1784,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   (* Proof. *)
   (*   intros. *)
-  (*   destruct e0, e1; destruct (NChan_eq_dec n n0); attac. *)
+  (*   destruct e0, e1; destruct (NameTag_eq_dec n n0); attac. *)
   (*   - destruct (Val_eq_dec v v0); attac. *)
   (*   - destruct (Val_eq_dec v v0); attac. *)
   (*   - destruct (MProbe_eq_dec m m0); attac. *)
@@ -1899,7 +1899,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     induction state0.
 
     (* Rare case where inductive step is simpler than the base! *)
-    2: destruct (NChan_eq_dec n to);
+    2: destruct (NameTag_eq_dec n to);
     destruct (MProbe_eq_dec p msg);
     destruct IHstate0; subst; eattac; right; intros Hx; kill Hx.
 
@@ -1958,7 +1958,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         2: right; intros Hx; hsimpl in *; bs.
         hsimpl in * |-.
 
-        destruct (NChan_eq_dec n0 (n, Q)); subst.
+        destruct (NameTag_eq_dec n0 (n, Q)); subst.
         * destruct IHMQ.
           -- left.
              hsimpl in * |- .
@@ -1969,7 +1969,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
              attac.
         * destruct IHMQ.
           -- hsimpl in * |- .
-             destruct (NChan_eq_dec n0 (n', R)).
+             destruct (NameTag_eq_dec n0 (n', R)).
              ++ right.
                 intros Hx; hsimpl in Hx.
                 destruct MQ'0; kill Hx4.
@@ -2028,7 +2028,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         1: right; intros Hx; hsimpl in *; bs.
         destruct a; subst; doubt.
         1: right; intros Hx; hsimpl in *; apply app_inj_tail in Hx3; attac.
-        destruct (NChan_eq_dec n1 (n0, R)); subst.
+        destruct (NameTag_eq_dec n1 (n0, R)); subst.
         2: {right; intros Hx; eapply `(n1 <> (n0, R)); hsimpl in *; apply app_inj_tail in Hx3; attac.
         }
         destruct (MProbe_eq_dec m p); subst.
@@ -3647,7 +3647,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     - kill H; hsimpl in *; hsimpl in |- *.
       + econstructor 1; eattac.
       + econstructor 2; subst; kill H4; eattac.
-    - destruct (NChan_eq_dec nc (a, &t)).
+    - destruct (NameTag_eq_dec nc (a, &t)).
       + subst. econstructor 3.
       + kill H.
         apply IHl in H1.
@@ -3683,7 +3683,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Proof.
     intros.
-    destruct (NChan_eq_dec nc (n, &t)); eattac.
+    destruct (NameTag_eq_dec nc (n, &t)); eattac.
   Qed.
 
 
@@ -3704,7 +3704,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Proof.
     intros.
-    destruct (NChan_eq_dec nc (n, &t)); eattac.
+    destruct (NameTag_eq_dec nc (n, &t)); eattac.
   Qed.
 
 
@@ -3812,7 +3812,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     destruct_ma &ma; compat_hsimpl in *; doubt.
-    6: destruct (NChan_eq_dec nc (n, &t)); subst; auto.
+    6: destruct (NameTag_eq_dec nc (n, &t)); subst; auto.
     6: destruct (MProbe_eq_dec p v) as [?|HEqv]; subst; auto.
     all: exfalso; apply H2; clear H2; subst.
     all: eauto using sends_probe_extend_r, sends_probe_proc.
@@ -4137,7 +4137,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           kill IHMQ; eattac.
           destruct a.
           - right; ieattac.
-          - destruct (NChan_eq_dec (n0, Q) n); subst.
+          - destruct (NameTag_eq_dec (n0, Q) n); subst.
             + left; ieattac.
             + right; ieattac.
           - right; ieattac.
@@ -4342,7 +4342,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         kill IHMQ; eattac.
         destruct a.
         - right; ieattac.
-        - destruct (NChan_eq_dec (n0, Q) n); subst.
+        - destruct (NameTag_eq_dec (n0, Q) n); subst.
           + left; ieattac.
           + right; ieattac.
         - right; ieattac.
@@ -4746,7 +4746,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         1: eattac.
 
         destruct
-          (NChan_eq_dec to (m0, R)),
+          (NameTag_eq_dec to (m0, R)),
           (MProbe_eq_dec msg {| init := self (next_state s1); index := lock_id (next_state s1) |}); subst;
           eauto with LTS.
       }

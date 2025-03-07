@@ -1382,7 +1382,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
     (* This line is mandatory. `Set Printing All` helps here. *)
     (* Set Printing All. *)
-    unfold NChan in *.
+    unfold NameTag in *.
     rewrite H.
 
     unfold deinstr.

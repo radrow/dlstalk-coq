@@ -67,7 +67,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
 
     (* TODO to Que *)
-    Lemma Deq_app_l_not_Deq : forall [E : Set] [n : NChan] [v] [Q0 Q1 Q1'],
+    Lemma Deq_app_l_not_Deq : forall [E : Set] [n : NameTag] [v] [Q0 Q1 Q1'],
         (forall (v' : E) Q0', ~ Deq n v' Q0 Q0') ->
         Deq n v Q1 Q1' ->
         Deq n v (Q0 ++ Q1) (Q0 ++ Q1').
@@ -787,12 +787,12 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     induction M; attac.
     destruct `(_ \/ _).
-    - destruct (NChan_eq_dec to (n, R)); subst.
+    - destruct (NameTag_eq_dec to (n, R)); subst.
       destruct (MProbe_eq_dec msg p); subst.
       left; constructor 1; attac.
       left; constructor 2; attac.
       left; constructor 2; attac.
-    - destruct (NChan_eq_dec to (n, R)); subst.
+    - destruct (NameTag_eq_dec to (n, R)); subst.
       destruct (MProbe_eq_dec msg p); subst.
       left; constructor 1; attac.
       + right; bs.
@@ -1597,7 +1597,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         induction Q0; attac.
         destruct `(_ \/ _); attac.
         destruct a; attac.
-        destruct (NChan_eq_dec n (n1, R)); attac.
+        destruct (NameTag_eq_dec n (n1, R)); attac.
       }
       exfalso.
 

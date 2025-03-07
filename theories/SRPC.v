@@ -138,7 +138,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     Lemma srpc_inv
       : forall (srpc : SRPC_State) (P0 : Proc) (P : Prop),
 
-        (forall (h : NChan -> option (Val -> Proc))
+        (forall (h : NameTag -> option (Val -> Proc))
            (hq : Name -> Val -> Proc),
             (forall c, match h (c, Q) with
                   | None => False
@@ -174,7 +174,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
         ) ->
 
         (forall (c s : Name)
-           (h : NChan -> option (Val -> Proc))
+           (h : NameTag -> option (Val -> Proc))
            (hr : Name -> Val -> Proc),
             (match h (s, R) with
              | None => False

@@ -34,12 +34,12 @@ End QUE_PARAMS.
 
 Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
 
-  Notation Que E := (list (NChan * E)).
+  Notation Que E := (list (NameTag * E)).
 
 
   Inductive QAct (E : Set) :=
-  | QEnq (n : NChan) (e : E) : QAct E
-  | QDeq (n : NChan) (e : E) : QAct E
+  | QEnq (n : NameTag) (e : E) : QAct E
+  | QDeq (n : NameTag) (e : E) : QAct E
   .
   #[export] Hint Constructors QAct : LTS.
 
@@ -48,11 +48,11 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
 
 
   Inductive QTrans {E : Set} : QAct E -> Que E -> Que E -> Prop :=
-  | QPush (n : NChan) (e : E) (Q : Que E)
+  | QPush (n : NameTag) (e : E) (Q : Que E)
     : QTrans (QEnq n e) Q (Q ++ [(n, e)])
-  | QPop (n : NChan) (e : E) (Q : Que E)
+  | QPop (n : NameTag) (e : E) (Q : Que E)
     : QTrans (QDeq n e) ((n, e)::Q) Q
-  | QSeek (n : NChan) (e : E) {n' : NChan} {e' : E}
+  | QSeek (n : NameTag) (e : E) {n' : NameTag} {e' : E}
       (Q0 Q1 : Que E)
       (HSkip : n <> n')
       (HSeek : QTrans (QDeq n e) Q0 Q1)
@@ -117,7 +117,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
     destruct n.
     destruct n0.
 
-    destruct (NChan_eq_dec (n, t) (n0, t0)). 1: attac.
+    destruct (NameTag_eq_dec (n, t) (n0, t0)). 1: attac.
     specialize (IHQ (n, t)).
     destruct IHQ.
     + destruct H as [v [Q' H]].
@@ -141,7 +141,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
     destruct n.
     destruct n0.
 
-    destruct (NChan_eq_dec (n0, t0) (n, t)).
+    destruct (NameTag_eq_dec (n0, t0) (n, t)).
     - inversion e0; subst; clear e0.
       destruct (H e v); subst.
       + left. exists Q...
@@ -182,7 +182,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
     1: bs.
 
     destruct a as [n' v'].
-    destruct (NChan_eq_dec n' n); kill H; subst.
+    destruct (NameTag_eq_dec n' n); kill H; subst.
     - exists v', Q0; attac.
     - exists v', Q0; attac.
     - specialize (IHQ0 H0) as (v'' & Q1 & HDeq).
@@ -310,7 +310,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
     exists [], v...
 
     destruct a.
-    destruct (NChan_eq_dec n n0); subst.
+    destruct (NameTag_eq_dec n n0); subst.
     + exists (Q ++ [(n0, v)]), e...
     + destruct IHQ as (Q' & v' & H).
       exists ((n0, e) :: Q'), v'...
@@ -414,7 +414,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
 
 
   (** If something wasn't dequed and isn't in the resulting que, then it wasn't in the former *)
-  Lemma Deq_not_In_r : forall [E : Set] [n n' : NChan] [v v' : E] [Q0 Q1],
+  Lemma Deq_not_In_r : forall [E : Set] [n n' : NameTag] [v v' : E] [Q0 Q1],
       n <> n' ->
       Deq n v Q0 Q1 ->
       ~ (List.In (n', v') Q1) ->
@@ -430,7 +430,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
 
 
   (** If something is not in left part of the que but a deque succeeded, then it was in the right *)
-  Lemma Deq_app_or_l : forall [E : Set] [n : NChan] [v : E] [Q0 Q0' Q1],
+  Lemma Deq_app_or_l : forall [E : Set] [n : NameTag] [v : E] [Q0 Q0' Q1],
       Deq n v (Q0 ++ Q0') Q1 ->
       ~ List.In (n, v) Q0' ->
       exists Q1', Deq n v Q0 Q1' /\ Q1 = Q1' ++ Q0'.
@@ -444,7 +444,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
 
 
   (** If something is not in right part of the que but a deque succeeded, then it was in the left *)
-  Lemma Deq_app_or_r : forall [E : Set] [n : NChan] [v : E] [Q0 Q0' Q1],
+  Lemma Deq_app_or_r : forall [E : Set] [n : NameTag] [v : E] [Q0 Q0' Q1],
       Deq n v (Q0 ++ Q0') Q1 ->
       ~ List.In (n, v) Q0 ->
       exists Q1', Deq n v Q0' Q1' /\ Q1 = Q0 ++ Q1'.
@@ -473,7 +473,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
   Qed.
 
 
-  Lemma Deq_app_and_l : forall [E : Set] [n : NChan] [v v' : E] [Q0 Q0' Q1 Q1'],
+  Lemma Deq_app_and_l : forall [E : Set] [n : NameTag] [v v' : E] [Q0 Q0' Q1 Q1'],
       Deq n v Q0 Q1 ->
       Deq n v' (Q0 ++ Q0') Q1' ->
       Q1' = Q1 ++ Q0' /\ v' = v.
@@ -490,7 +490,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
   Qed.
 
 
-  Lemma in_dec_v [E : Set] (n : NChan) Q :
+  Lemma in_dec_v [E : Set] (n : NameTag) Q :
     (exists (v : E), List.In (n, v) Q) \/ (forall (v : E), ~ List.In (n, v) Q).
 
   Proof.
@@ -498,7 +498,7 @@ Module Type QUE_F(Conf : QUE_CONF)(Import Params : QUE_PARAMS(Conf)).
     induction Q; attac.
     destruct IHQ; hsimpl in *; eattac.
     destruct a as [n' v'].
-    destruct (NChan_eq_dec n n'); eattac.
+    destruct (NameTag_eq_dec n n'); eattac.
     right.
     eattac.
   Qed.
