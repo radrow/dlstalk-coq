@@ -163,24 +163,24 @@ Module Type PROC_F(Conf : PROC_CONF)(Import Params : PROC_PARAMS(Conf)).
   Inductive Serv := pq : Que Val -> Proc -> Que Val -> Serv.
   #[export] Hint Constructors Serv : LTS.
 
-  Definition ser_i S := match S with pq I' _ _ => I' end.
-  Definition ser_p S := match S with pq _ P _ => P end.
-  Definition ser_o S := match S with pq _ _ O' => O' end.
+  Definition serv_i S := match S with pq I' _ _ => I' end.
+  Definition serv_p S := match S with pq _ P _ => P end.
+  Definition serv_o S := match S with pq _ _ O' => O' end.
 
-  #[export] Hint Transparent ser_i ser_p ser_o : LTS.
+  #[export] Hint Transparent serv_i serv_p serv_o : LTS.
 
   Section Inversions.
-    Fact ser_i_inv : forall S I P O, S = pq I P O -> ser_i S = I.
+    Fact serv_i_inv : forall S I P O, S = pq I P O -> serv_i S = I.
     Proof. intros. subst. auto. Qed.
 
-    Fact ser_p_inv : forall S I P O, S = pq I P O -> ser_p S = P.
+    Fact serv_p_inv : forall S I P O, S = pq I P O -> serv_p S = P.
     Proof. intros. subst. auto. Qed.
 
-    Fact ser_o_inv : forall S I P O, S = pq I P O -> ser_o S = O.
+    Fact serv_o_inv : forall S I P O, S = pq I P O -> serv_o S = O.
     Proof. intros. subst. auto. Qed.
   End Inversions.
 
-  #[export] Hint Rewrite -> ser_i_inv ser_p_inv ser_o_inv using spank : LTS LTS_concl.
+  #[export] Hint Rewrite -> serv_i_inv serv_p_inv serv_o_inv using spank : LTS LTS_concl.
 
 
   Inductive PTrans : PAct -> Serv -> Serv -> Prop :=
@@ -844,9 +844,9 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Definition mq_MQ MS := match MS with mq MQ _ _ => MQ end.
   Definition mq_M MS := match MS with mq _ M _ => M end.
   Definition mq_S MS := match MS with mq _ _ S' => S' end.
-  Definition mq_I MS := ser_i (mq_S MS).
-  Definition mq_P MS := ser_p (mq_S MS).
-  Definition mq_O MS := ser_o (mq_S MS).
+  Definition mq_I MS := serv_i (mq_S MS).
+  Definition mq_P MS := serv_p (mq_S MS).
+  Definition mq_O MS := serv_o (mq_S MS).
 
   #[export] Hint Transparent mq_MQ mq_M mq_S mq_I mq_P mq_O : LTS.
 
@@ -1431,9 +1431,9 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     end.
 
 
-  Definition mq_dI MS := ser_i (mq_S MS) ++ MQ_r (mq_MQ MS).
-  Definition mq_dP MS := ser_p (mq_S MS).
-  Definition mq_dO MS := MQ_s (mq_MQ MS) ++ ser_o (mq_S MS).
+  Definition mq_dI MS := serv_i (mq_S MS) ++ MQ_r (mq_MQ MS).
+  Definition mq_dP MS := serv_p (mq_S MS).
+  Definition mq_dO MS := MQ_s (mq_MQ MS) ++ serv_o (mq_S MS).
 
   #[export] Hint Transparent mq_dI mq_dP mq_dO : LTS.
 

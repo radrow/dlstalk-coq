@@ -1121,7 +1121,7 @@ Module Thomas.
 
     assert (forall n, Decisive_q (NetMod.get n N)).
     {
-      enough (forall n, AnySRPC (ser_p (NetMod.get n N))) by (unfold Decisive_q; eauto using SRPC_Decisive).
+      enough (forall n, AnySRPC (serv_p (NetMod.get n N))) by (unfold Decisive_q; eauto using SRPC_Decisive).
       enough (forall n, AnySRPC_pq (NetMod.get n N)) by (intros;
                                                     destruct `(AnySRPC_pq (NetMod.get n N)) as [srpc ?]; exists srpc;
                                                     destruct (NetMod.get n N);

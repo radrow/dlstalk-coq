@@ -41,23 +41,23 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   (** Monitored network *)
   Notation MNet := (NetMod.t MServ).
 
-  Lemma ser_i_net_inv' : forall I P O n [N : PNet], (* TODO prime' is due to a name clash in SRPCNet.v *)
+  Lemma serv_i_net_inv' : forall I P O n [N : PNet], (* TODO prime' is due to a name clash in SRPCNet.v *)
       NetMod.get n N = pq I P O ->
-      ser_i (NetMod.get n N) = I.
+      serv_i (NetMod.get n N) = I.
   Proof. intros. rewrite H. attac. Qed.
 
-  Lemma ser_p_net_inv' : forall I P O n N,
+  Lemma serv_p_net_inv' : forall I P O n N,
       NetMod.get n N = pq I P O ->
-      ser_p (NetMod.get n N) = P.
+      serv_p (NetMod.get n N) = P.
   Proof. intros. rewrite H. attac. Qed.
 
-  Lemma ser_o_net_inv' : forall I P O n N,
+  Lemma serv_o_net_inv' : forall I P O n N,
       NetMod.get n N = pq I P O ->
-      ser_o (NetMod.get n N) = O.
+      serv_o (NetMod.get n N) = O.
   Proof. intros. rewrite H. attac. Qed.
 
-  #[export] Hint Rewrite -> ser_i_net_inv' ser_p_net_inv' ser_o_net_inv' using spank : LTS LTS_concl.
-  #[export] Hint Resolve ser_i_net_inv' ser_p_net_inv' ser_o_net_inv' : LTS LTS_concl.
+  #[export] Hint Rewrite -> serv_i_net_inv' serv_p_net_inv' serv_o_net_inv' using spank : LTS LTS_concl.
+  #[export] Hint Resolve serv_i_net_inv' serv_p_net_inv' serv_o_net_inv' : LTS LTS_concl.
 
 
   Lemma mq_MQ_net_inv : forall MQ M S n [N : MNet],

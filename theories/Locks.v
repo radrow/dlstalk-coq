@@ -123,7 +123,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   #[export] Hint Constructors Decisive : LTS.
 
   (** Service decisiveness *)
-  Definition Decisive_q (S : Serv) := Decisive (ser_p S).
+  Definition Decisive_q (S : Serv) := Decisive (serv_p S).
 
   #[export] Hint Transparent Decisive_q : LTS.
 

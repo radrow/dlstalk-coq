@@ -1234,7 +1234,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       consider (net_sane '' MN0) by eauto with LTS.
       specialize (H_Sane_SRPC m0) as [srpc Hsrpc].
       hrewrite NetMod.get in *.
-      replace O0 with (ser_o (pq I0 P0 O0)) by auto.
+      replace O0 with (serv_o (pq I0 P0 O0)) by auto.
       eauto using SRPC_sane_R_in_out_nil with LTS.
     }
 
@@ -1311,7 +1311,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           consider (net_sane '' MN0) by eauto with LTS.
           specialize (H_Sane_SRPC n0) as [srpc Hsrpc].
           rewrite `(NetMod.get n0 _ = _) in *.
-          replace (O0) with (ser_o (pq I0 P0 O0)) by auto. (* TODO seek and destroy this bs *)
+          replace (O0) with (serv_o (pq I0 P0 O0)) by auto. (* TODO seek and destroy this bs *)
           eauto using SRPC_sane_R_in_out_nil with LTS.
         }
 
@@ -1354,7 +1354,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       consider (net_sane '' MN0) by eauto with LTS.
       specialize (H_Sane_SRPC n0) as [srpc Hsrpc].
       rewrite `(NetMod.get n0 _ = _) in *.
-      replace (O0) with (ser_o (pq I0 P0 O0)) by auto. (* TODO seek and destroy this bs *)
+      replace (O0) with (serv_o (pq I0 P0 O0)) by auto. (* TODO seek and destroy this bs *)
       eauto using SRPC_sane_R_in_out_nil with LTS.
     }
 
