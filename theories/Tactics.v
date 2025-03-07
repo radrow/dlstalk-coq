@@ -137,6 +137,41 @@ Ltac2 kill h :=
 Ltac2 Notation "kill" h(ident) := kill h.
 
 
+(** src: https://github.com/coq/coq/issues/10095 *)
+Ltac2 get_n_constructors (n : int) (ind : inductive) :=
+  List.map (Constr.Unsafe.constructor ind) (List.seq 0 1 n).
+
+(** src: https://github.com/coq/coq/issues/10095 *)
+Ltac2 count_constructors (ty : constr) :=
+  let c := '(fun n : $ty => ltac:(lazymatch goal with n : _ |- _ => destruct n end; exact tt)) in
+  match Constr.Unsafe.kind c with
+  | Constr.Unsafe.Lambda _ c
+    => match Constr.Unsafe.kind c with
+       | Constr.Unsafe.Case _ _ _ _ cases
+         => Array.length cases
+       | _ => Control.throw (Tactic_failure (Some (Message.of_constr c)))
+       end
+  | _ => Control.throw (Tactic_failure (Some (Message.of_constr c)))
+  end.
+
+(** src: https://github.com/coq/coq/issues/10095 *)
+Ltac2 rec head v :=
+  match! v with
+  | ?f ?x => head f
+  | ?x => x
+  end.
+
+(** src: https://github.com/coq/coq/issues/10095 *)
+Ltac2 constructors_of_type ty :=
+  let t := head ty in
+  match Constr.Unsafe.kind t with
+  | Constr.Unsafe.Ind ind inst
+    => let n := count_constructors ty in
+       let ls := get_n_constructors n ind in
+       List.map (fun c => Constr.Unsafe.make (Constr.Unsafe.Constructor c inst)) ls
+  | _ => Control.throw (Tactic_failure (Some (Message.of_constr t)))
+  end.
+
 Ltac2 split_app c : constr * constr list :=
   let rec go c acc :=
     lazy_match! c with
@@ -840,9 +875,8 @@ Ltac2 splits_ () :=
 Ltac2 Notation "splits" :=
   repeat (Control.enter splits_).
 
-
 Ltac2 hammer solver :=
-  repeat (first [progress (splits) | progress intros]);
+  repeat (first [split | progress intros]);
   try (solve [repeat (first [split | intros ?]); eauto 5 with datatypes LTS; congruence]);
 
   Control.enter (
@@ -850,7 +884,7 @@ Ltac2 hammer solver :=
         hsimpl in *;
         subst;
         simpl in *;
-        repeat (first [progress (splits) | progress intros]);
+        repeat (first [split | progress intros]);
         try (solve
                [ simpl; eauto 5 with datatypes LTS
                | bs

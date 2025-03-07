@@ -109,7 +109,6 @@ Module Type NET_PARAMS(Conf : NET_CONF).
 End NET_PARAMS.
 
 Module Type NET_F(Import Conf : NET_CONF)(Import Params : NET_PARAMS(Conf)).
-
   (** Coercion to function *)
   Definition NetGet (A : Set) : NetMod.t A -> Name -> A := fun MN n => @NetMod.get A n MN.
   #[export] Hint Transparent NetGet : LTS typeclass_instances.

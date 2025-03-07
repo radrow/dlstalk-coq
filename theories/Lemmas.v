@@ -490,14 +490,10 @@ Qed.
 Lemma cons_self_l [A] (l0 : list A) (a : A) : (l0 = a :: l0) <-> False.
 Proof.
   split; intros; attac.
-  induction l0.
-  - attac.
-  - attac.
 Qed.
 Lemma cons_self_r [A] (l0 : list A) (a : A) : (a :: l0 = l0) <-> False.
 Proof.
   split; intros; attac.
-  induction l0; attac.
 Qed.
 
 #[export] Hint Rewrite -> cons_self_l cons_self_r using assumption : bs.
