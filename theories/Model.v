@@ -584,11 +584,9 @@ End MON_CONF.
 
 Module Type MON_PROC_CONF := PROC_CONF <+ MON_CONF.
 
-Module Type MON_PARAMS(Conf : MON_PROC_CONF).
+Module Type MON_PARAMS(Import Conf : MON_PROC_CONF).
   Declare Module Export Proc : PROC(Conf).
-End MON_PARAMS.
 
-Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf)).
   Inductive Event :=
   | TrSend : NameTag -> Val -> Event
   | TrRecv : NameTag -> Val -> Event
@@ -612,9 +610,24 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[export] Hint Constructors MAct : LTS.
 
 
+  Inductive MProc :=
+  | MRecv (state : MState)
+  | MSend (to : NameTag) (msg : Msg) (M : MProc)
+  .
+
+  #[export] Hint Constructors MProc : LTS.
+End MON_PARAMS.
+
+Module Type MON_HANDLE(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf)).
+  Parameter mon_handle : Event -> MState -> MProc.
+End MON_HANDLE.
+
+Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf)).
+  Declare Module Import MonHandle : MON_HANDLE(Conf)(Params).
+  Export MonHandle.
+
   Notation "# v" := (MValP v) (at level 1).
   Notation "^ v" := (MValM v) (at level 1).
-
 
   #[export,refine]
     Instance gen_Act_MAct : gen_Act MAct :=
@@ -662,13 +675,6 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[global] Coercion PayloadM : MVal >-> Payload.
 
 
-  Inductive MProc :=
-  | MRecv (state : MState)
-  | MSend (to : NameTag) (msg : Msg) (M : MProc)
-  .
-
-  #[export] Hint Constructors MProc : LTS.
-
 
   Fixpoint next_state (M : MProc) :=
     match M with
@@ -677,10 +683,6 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     end.
 
   Coercion next_state : MProc >-> MState.
-
-  SubClass handle_t := Event -> MState -> MProc.
-  Parameter mon_handle : handle_t.
-
 
   Inductive MonAct : Set :=
   | MonRecv : Event -> MonAct
