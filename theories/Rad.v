@@ -58,11 +58,11 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
   Check deadset_dep_self.
   Check dep_self_deadset.
 
-  Print net_sane.
+  Print well_formed.
   Print SRPC_pq_in_net.
   Print locks_complete.
   Print locks_sound.
-  Check trans_invariant_net_sane.
+  Check trans_invariant_well_formed.
 
   Definition _of [A] (f : MState -> A) (N : MNet) (n : Name) : A :=
     f (next_state (get_Mc N n)).
@@ -523,8 +523,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
   Inductive KIC (MN : MNet) : Prop :=
   | KIC_
-      (* We are sane *)
-      (H_sane_C : net_sane MN)
+      (* We are well_formed *)
+      (H_wf_C : well_formed MN)
       (* `self` is correct *)
       (H_self_C : forall n, _of self MN n = n)
       (* We are using the algorithm *)
@@ -782,7 +782,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Theorem SRPC_net_new_lock_query [N0 N1 : PNet] [n0 n1 a] :
-    net_sane N0 ->
+    well_formed N0 ->
     ~ net_lock_on N0 n0 n1 ->
     net_lock_on N1 n0 n1 ->
     (N0 =(a)=> N1) ->
@@ -828,7 +828,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       hsimpl in *.
 
       kill H.
-      specialize (H_Sane_SRPC n0) as [srpc0 ?].
+      specialize (H_wf_SRPC n0) as [srpc0 ?].
       kill H.
       hsimpl in *.
       kill H5.
@@ -864,14 +864,14 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           compat_hsimpl in *.
           attac.
         * exfalso.
-          assert (net_sane N1) by eauto with LTS.
+          assert (well_formed N1) by eauto with LTS.
           kill H2.
           compat_hsimpl in *.
           absurd (exists v, (List.In (n1, Q, v) ((n2, R, p) :: O2))).
           -- intros ?; hsimpl in *.
              smash_eq n0 n2; hsimpl in *; bs.
           -- kill H.
-             specialize (H_Sane_SRPC n0) as [? ?].
+             specialize (H_wf_SRPC n0) as [? ?].
              kill H.
              smash_eq n0 n2; hsimpl in *.
              ++ assert (x = Lock c n1) by eauto with LTS. subst.
@@ -901,7 +901,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Theorem SRPC_M_net_new_lock_query [N0 N1 : MNet] [n0 n1 a] :
-    net_sane N0 ->
+    well_formed N0 ->
     ~ net_lock_on '' N0 n0 n1 ->
     net_lock_on '' N1 n0 n1 ->
     (N0 =(a)=> N1) ->
@@ -920,7 +920,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Theorem SRPC_net_unlock_reply [N0 N1 : PNet] [n0 n1 a] :
-    net_sane N0 ->
+    well_formed N0 ->
     net_lock_on N0 n0 n1 ->
     ~ net_lock_on N1 n0 n1 ->
     (N0 =(a)=> N1) ->
@@ -969,7 +969,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Theorem SRPC_M_net_unlock_reply [N0 N1 : MNet] [n0 n1 a] :
-    net_sane N0 ->
+    well_formed N0 ->
     net_lock_on '' N0 n0 n1 ->
     ~ net_lock_on '' N1 n0 n1 ->
     (N0 =(a)=> N1) ->
@@ -989,7 +989,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_net_new_lock_uniq [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ net_lock_on N0 n0 n1 ->
     ~ net_lock_on N0 m0 m1 ->
@@ -1007,7 +1007,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_M_net_new_lock_uniq [N0 N1 : MNet] [na] [n0 n1 m0 m1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ net_lock_on '' N0 n0 n1 ->
     ~ net_lock_on '' N0 m0 m1 ->
@@ -1027,7 +1027,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Theorem SRPC_net_query_new_lock [N0 N1 : PNet] [n0 n1 v] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(NComm n0 n1 Q v)=> N1) ->
     (~ net_lock_on N0 n0 n1 /\ net_lock_on N1 n0 n1).
 
@@ -1042,7 +1042,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Theorem SRPC_M_net_query_new_lock [N0 N1 : MNet] [n0 n1 v] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(NComm n0 n1 Q (MValP v))=> N1) ->
     (~ net_lock_on '' N0 n0 n1 /\ net_lock_on '' N1 n0 n1).
 
@@ -1055,7 +1055,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Theorem SRPC_net_reply_unlock [N0 N1 : PNet] [n0 n1 v] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(NComm n0 n1 R v)=> N1) ->
     (net_lock_on N0 n1 n0 /\ ~ net_lock_on N1 n1 n0).
 
@@ -1074,7 +1074,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Theorem SRPC_M_net_reply_unlock [N0 N1 : MNet] [n0 n1 v] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(NComm n0 n1 R (MValP v))=> N1) ->
     (net_lock_on '' N0 n1 n0 /\ ~ net_lock_on '' N1 n1 n0).
 
@@ -1122,8 +1122,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
   Qed.
 
 
-  Lemma net_sane_lock_dec N n0 n1 :
-    net_sane N ->
+  Lemma well_formed_lock_dec N n0 n1 :
+    well_formed N ->
     net_lock_on N n0 n1 \/ ~ net_lock_on N n0 n1.
 
   Proof.
@@ -1134,25 +1134,25 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Theorem SRPC_net_tau_preserve_lock [N0 N1 : PNet] [n a] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(NTau n a)=> N1) ->
     forall n0 n1, net_lock_on N0 n0 n1 <-> net_lock_on N1 n0 n1.
 
   Proof.
     intros.
     split; intros.
-    - assert (net_sane N1) by auto with LTS.
-      destruct (net_sane_lock_dec N1 n0 n1); eauto.
+    - assert (well_formed N1) by auto with LTS.
+      destruct (well_formed_lock_dec N1 n0 n1); eauto.
       absurd (exists v, NTau n a = NComm n1 n0 R v); eauto using SRPC_net_unlock_reply.
       intros ?; attac.
-    - destruct (net_sane_lock_dec N0 n0 n1); eauto.
+    - destruct (well_formed_lock_dec N0 n0 n1); eauto.
       absurd (exists v, NTau n a = NComm n0 n1 Q v); eauto using SRPC_net_new_lock_query.
       intros ?; attac.
   Qed.
 
 
   Theorem SRPC_M_net_tau_preserve_lock [N0 N1 : MNet] [n a] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(NTau n a)=> N1) ->
     forall n0 n1, net_lock_on '' N0 n0 n1 <-> net_lock_on '' N1 n0 n1.
 
@@ -1823,7 +1823,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma dep_self_deadlocked [N n] :
-    net_sane N ->
+    well_formed N ->
     dep_on N n n -> deadlocked n N.
 
   Proof.
@@ -1834,7 +1834,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma net_dep_open [N0 N1 a n0 n1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(a)=> N1) ->
     dep_on N0 n0 n1 ->
     ~ dep_on N1 n0 n1 -> (* TODO relation between m1 and n1 *)
@@ -1859,7 +1859,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       smash_eq n0 n0'.
       1: eapply IHL; eauto.
 
-      destruct (net_sane_lock_dec N1 n0 n0'); eauto with LTS.
+      destruct (well_formed_lock_dec N1 n0 n0'); eauto with LTS.
       + specialize (IHL n0').
         assert (~ dep_on N1 n0' n1) by (intros Hx; eauto using dep_on_seq1).
         repeat (specialize (IHL ltac:(eauto with LTS))).
@@ -1874,7 +1874,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_net_unlock_uniq [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     net_lock_on N0 n0 n1 ->
     ~ net_lock_on N1 n0 n1 ->
@@ -1891,19 +1891,19 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
   Qed.
 
 
-  Lemma net_sane_lock_chain_dec (N : PNet) n0 L n1 :
-    net_sane N ->
+  Lemma well_formed_lock_chain_dec (N : PNet) n0 L n1 :
+    well_formed N ->
     lock_chain N n0 L n1 \/ ~ lock_chain N n0 L n1.
 
   Proof.
     intros.
     generalize dependent n0.
     induction L; intros; hsimpl in *.
-    1: eauto using net_sane_lock_dec with LTS.
+    1: eauto using well_formed_lock_dec with LTS.
 
     rename a into n0'.
     assert (net_lock_on N n0 n0' \/ ~ net_lock_on N n0 n0') as [|]
-        by eauto using net_sane_lock_dec with LTS.
+        by eauto using well_formed_lock_dec with LTS.
 
     - specialize (IHL n0') as [|]; attac.
       right; attac.
@@ -1912,7 +1912,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma lock_chain_no_immediate_relock [N0 N1] [na] [n0 n1] [L] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     lock_chain N0 n0 L n1 ->
     (lock_chain N1 n0 L n1 \/ ~ dep_on N1 n0 n1).
@@ -1921,7 +1921,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     intros.
     generalize dependent n0.
     induction L; intros; hsimpl in *.
-    - destruct (net_sane_lock_dec N1 n0 n1); eauto 2 with LTS.
+    - destruct (well_formed_lock_dec N1 n0 n1); eauto 2 with LTS.
       right; intros ?.
       consider (dep_on _ _ _).
       consider (n2 = n1) by eauto using SRPC_net_no_immediate_relock, eq_sym with LTS.
@@ -1941,12 +1941,12 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       }
 
       specialize (IHL n0' ltac:(auto)) as [|].
-      + destruct (net_sane_lock_dec N1 n0 n0'); eauto 3 with LTS.
+      + destruct (well_formed_lock_dec N1 n0 n0'); eauto 3 with LTS.
         right; intros ?.
         consider (dep_on N1 _ _).
         * consider (n0' = n1) by eauto using SRPC_net_no_immediate_relock, eq_sym with LTS.
         * consider (n0' = n2) by eauto using SRPC_net_no_immediate_relock, eq_sym with LTS.
-      + destruct (net_sane_lock_dec N1 n0 n0'); eauto 2 with LTS.
+      + destruct (well_formed_lock_dec N1 n0 n0'); eauto 2 with LTS.
         * right; intros ?.
           consider (dep_on N1 _ _).
           -- consider (n0' = n1) by eauto using lock_uniq with LTS.
@@ -1962,7 +1962,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma lock_chain_no_immediate_relock_dep [N0 N1] [na] [n0 n1] [L] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     lock_chain N0 n0 L n1 ->
     dep_on N1 n0 n1 ->
@@ -1977,7 +1977,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma lock_chain_dup_deadlock [N] [n0 n1] [L] :
-    net_sane N ->
+    well_formed N ->
     ~ NoDup L ->
     lock_chain N n0 L n1 ->
     deadlocked n0 N.
@@ -2009,7 +2009,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma unlock_dependency [N0 N1] [na] [n0 n1 n2] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     net_lock_on N0 n0 n1 ->
     net_lock_on N0 n1 n2 ->
@@ -2017,7 +2017,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
   Proof.
     intros.
-    destruct (net_sane_lock_dec N1 n0 n1); eauto 2 with LTS.
+    destruct (well_formed_lock_dec N1 n0 n1); eauto 2 with LTS.
     consider (exists v, na = NComm n1 n0 R v) by eauto using SRPC_net_unlock_reply.
     exfalso.
     consider (_ =(_)=> _); hsimpl in *.
@@ -2029,7 +2029,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma unlock_dependency_dep [N0 N1] [na] [n0 n1 n2] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     net_lock_on N0 n0 n1 ->
     dep_on N0 n1 n2 ->
@@ -2042,7 +2042,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma lock_chain_unlock_tip [N0 N1] [na] [n0 n1] [L] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     lock_chain N0 n0 L n1 ->
     ~ lock_chain N1 n0 L n1 ->
@@ -2073,7 +2073,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma lock_chain_connect [N0 N1] [na] [n0 n1] [L] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ List.In n1 L ->
     NoDup L ->
@@ -2105,7 +2105,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       bs.
     }
 
-    destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
+    destruct (well_formed_lock_dec N0 n0 n0'); eauto 2 with LTS.
     - assert (~ lock_chain N0 n0' L n1) by eattac.
 
       kill H2. (* TODO autorewrite NoDup *)
@@ -2134,7 +2134,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
       (* remember (NComm _ _ _ _) as a. clear Heqa. *)
 
-      destruct (net_sane_lock_chain_dec N0 n0' L n1); eauto 2 with LTS.
+      destruct (well_formed_lock_chain_dec N0 n0' L n1); eauto 2 with LTS.
       + smash_eq n0' n1.
         right; left; repeat split; auto; exists L; split; auto.
 
@@ -2145,14 +2145,14 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         hsimpl in IHL.
         repeat (destruct `(_ \/ _) as [|]); hsimpl in IHL0; attac.
         exfalso.
-        assert (net_sane N1) by eauto with LTS.
+        assert (well_formed N1) by eauto with LTS.
         hsimpl in *.
         bs (List.In m1 (L0 ++ m0 :: m1 :: L1)).
   Qed.
 
 
   Lemma lock_chain_connect' [N0 N1] [na] [n0 n1] [L] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ lock_chain N0 n0 L n1 ->
     lock_chain N1 n0 L n1 ->
@@ -2172,7 +2172,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     rename a into n0'.
 
-    destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
+    destruct (well_formed_lock_dec N0 n0 n0'); eauto 2 with LTS.
     - assert (~ lock_chain N0 n0' L n1) by eattac.
       specialize (IHL n1 n0' ltac:(auto) ltac:(auto)).
       hsimpl in IHL.
@@ -2189,7 +2189,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma lock_chain_no_immediate_relock_dep' [N0 N1] [na] [n0 n1] [L] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     dep_on N0 n0 n1 ->
     lock_chain N1 n0 L n1 ->
@@ -2208,7 +2208,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       attac.
 
     (* assert (lock_chain N0 n0 L n1 \/ ~ lock_chain N0 n0 L n1) as [|] *)
-    (*     by eauto using net_sane_lock_chain_dec; auto. *)
+    (*     by eauto using well_formed_lock_chain_dec; auto. *)
 
     consider (exists L', L0 = L ++ L' \/ L = L0 ++ L') by eauto using lock_chain_prefix with LTS.
     destruct `(_ \/ _); subst.
@@ -2219,7 +2219,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       hsimpl in *.
 
       assert (lock_chain N0 n1 L' n1 \/ ~ lock_chain N0 n1 L' n1) as [|]
-          by eauto using net_sane_lock_chain_dec with LTS; auto.
+          by eauto using well_formed_lock_chain_dec with LTS; auto.
 
       1: left; apply lock_chain_seq; auto.
 
@@ -2228,7 +2228,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma lock_chain_unlock_in [N0 N1] [na] [n0 n1] [L] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     lock_chain N0 n0 L n1 ->
     ~ dep_on N1 n0 n1 ->
@@ -2251,7 +2251,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_net_unlock_uniq_dep [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     net_lock_on N0 n0 n1 ->
     ~ net_lock_on N1 n0 n1 ->
@@ -2302,7 +2302,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
       split; eauto.
       split; eauto 2 with LTS.
-      destruct (net_sane_lock_chain_dec N1 m0 L' m1'); (re_have eauto 2 with LTS).
+      destruct (well_formed_lock_chain_dec N1 m0 L' m1'); (re_have eauto 2 with LTS).
 
       assert (exists m1'' v', NComm m1 m1' R v = NComm m1' m1'' R v'
                          /\ ((m1'' = m0 /\ L' = []) \/ exists L'', L' = L'' ++ [m1'']))
@@ -2314,7 +2314,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma net_dep_close [N0 N1 na n0 n1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ dep_on N0 n0 n1 ->
     dep_on N1 n0 n1 ->
@@ -2348,7 +2348,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma net_M_dep_close [N0 N1 : MNet] [na n0 n1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ dep_on N0 n0 n1 ->
     dep_on N1 n0 n1 ->
@@ -2377,7 +2377,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_net_new_lock_no_unlock [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ net_lock_on N0 n0 n1 ->
     net_lock_on N1 n0 n1 ->
@@ -2388,7 +2388,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     intros.
 
     assert (net_lock_on N1 m0 m1 \/ ~ net_lock_on N1 m0 m1) as [|]
-        by eauto using net_sane_lock_dec with LTS.
+        by eauto using well_formed_lock_dec with LTS.
     1: auto.
 
     assert (exists v', na = NComm n0 n1 Q v') by eauto using SRPC_net_new_lock_query.
@@ -2399,7 +2399,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_net_new_lock_no_unlock_dep [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ net_lock_on N0 n0 n1 ->
     net_lock_on N1 n0 n1 ->
@@ -2421,7 +2421,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_net_unlock_no_new_lock [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     net_lock_on N0 n0 n1 ->
     ~ net_lock_on N1 n0 n1 ->
@@ -2438,7 +2438,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma SRPC_net_unlock_no_new_dep [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(na)=> N1) ->
     net_lock_on N0 n0 n1 ->
     ~ net_lock_on N1 n0 n1 ->
@@ -2455,7 +2455,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       absurd (net_lock_on N1 m0 m1); eauto using SRPC_net_unlock_no_new_lock with LTS.
 
     - rename a into m0'.
-      destruct (net_sane_lock_dec N0 m0 m0'); auto; doubt.
+      destruct (well_formed_lock_dec N0 m0 m0'); auto; doubt.
       absurd (net_lock_on N1 m0 m0'); eauto using SRPC_net_unlock_no_new_lock with LTS.
   Qed.
 
@@ -2495,7 +2495,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma invariant_dep_dec1 [N0 N1 : PNet] [a] :
-    net_sane N0 ->
+    well_formed N0 ->
     (N0 =(a)=> N1) ->
     (forall n0 n1, dep_on N0 n0 n1 \/ ~ dep_on N0 n0 n1) ->
     (forall n0 n1, dep_on N1 n0 n1 \/ ~ dep_on N1 n0 n1).
@@ -2508,7 +2508,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       generalize dependent n0.
       induction L; intros; hsimpl in *.
       + assert (net_lock_on N1 n0 n1 \/ ~ net_lock_on N1 n0 n1)
-          as [|] by eauto using net_sane_lock_dec with LTS.
+          as [|] by eauto using well_formed_lock_dec with LTS.
         1: eattac.
 
         right; intros Hx.
@@ -2528,7 +2528,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
         destruct IHL as [|].
         * assert (net_lock_on N1 n0 n0' \/ ~ net_lock_on N1 n0 n0')
-            as [|] by eauto using net_sane_lock_dec with LTS.
+            as [|] by eauto using well_formed_lock_dec with LTS.
           -- left; eauto 3 with LTS.
           -- right.
              intros Hx.
@@ -2539,7 +2539,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                 bs.
         * right.
           assert (net_lock_on N1 n0 n0' \/ ~ net_lock_on N1 n0 n0')
-            as [|] by eauto using net_sane_lock_dec with LTS.
+            as [|] by eauto using well_formed_lock_dec with LTS.
 
           1: eauto using lock_no_dep_refute with LTS.
 
@@ -2607,8 +2607,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           1: bs.
           hsimpl in H10.
           bs.
-          -- destruct (net_sane_lock_dec N0 n0 n1); eauto 4 using SRPC_net_new_lock_no_unlock with LTS.
-             destruct (net_sane_lock_dec N1 n0 n1); eauto 2 with LTS.
+          -- destruct (well_formed_lock_dec N0 n0 n1); eauto 4 using SRPC_net_new_lock_no_unlock with LTS.
+             destruct (well_formed_lock_dec N1 n0 n1); eauto 2 with LTS.
 
              destruct `(dep_on N0 m1 n1 \/ ~ dep_on N0 m1 n1).
              ++ assert (dep_on N1 m1 n1) by eauto 2 using SRPC_net_new_lock_no_unlock_dep with LTS.
@@ -2645,23 +2645,23 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
                 clear L' H2 H1.
                 generalize dependent n0.
                 induction L; intros; hsimpl in *.
-                ** destruct (net_sane_lock_dec N0 n0 m0); eauto 2 with LTS.
+                ** destruct (well_formed_lock_dec N0 n0 m0); eauto 2 with LTS.
                    absurd (n0 = m0 /\ m0 = m1); eauto using SRPC_net_new_lock_uniq.
                    bs.
                 ** rename a into n0'.
                    kill H8.
                    specialize (IHL ltac:(auto) ltac:(auto) n0').
                    apply IHL; try (intros ?); eauto 3 with LTS.
-                   --- destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
+                   --- destruct (well_formed_lock_dec N0 n0 n0'); eauto 2 with LTS.
                        absurd (n0 = m0 /\ n0' = m1); eauto using SRPC_net_new_lock_uniq.
                        intros Hx; hsimpl in Hx.
 
                        bs.
-                   --- destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
+                   --- destruct (well_formed_lock_dec N0 n0 n0'); eauto 2 with LTS.
                        absurd (n0 = m0 /\ n0' = m1); eauto using SRPC_net_new_lock_uniq.
                        bs.
                    --- subst.
-                       destruct (net_sane_lock_dec N0 n0 n0'); eauto 2 with LTS.
+                       destruct (well_formed_lock_dec N0 n0 n0'); eauto 2 with LTS.
                        absurd (n0 = m0 /\ n0' = n0'); eauto using SRPC_net_new_lock_uniq.
                        bs.
              ++
@@ -2811,7 +2811,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma KIC_invariant_H_lock [MN0 MN1 na] :
-    net_sane '' MN0 ->
+    well_formed '' MN0 ->
     Rad_net MN0 ->
     (forall n0 n1, net_lock_on '' MN0 n0 n1 -> _of lock MN0 n0 = Some n1) ->
     (MN0 =(na)=> MN1) ->
@@ -2819,7 +2819,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
   Proof.
     intros.
-    assert (net_lock_on '' MN0 n0 n1 \/ ~ net_lock_on '' MN0 n0 n1) as [|] by eauto using net_sane_lock_dec.
+    assert (net_lock_on '' MN0 n0 n1 \/ ~ net_lock_on '' MN0 n0 n1) as [|] by eauto using well_formed_lock_dec.
     - assert (_of lock MN0 n0 = Some n1) by auto.
       destruct (_of lock MN1 n0) eqn:?.
       + enough (t0 = n1) by (subst; auto).
@@ -2856,7 +2856,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
   Lemma deadlocked_preserve_M_lock1 [na MN0 MN1 n] :
-    net_sane '' MN0 ->
+    well_formed '' MN0 ->
     Rad_net MN0 ->
     (forall n0 n1, net_lock_on '' MN0 n0 n1 -> _of lock MN0 n0 = Some n1) ->
     deadlocked n '' MN0 ->
@@ -2882,16 +2882,16 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
   Qed.
 
 
-  Lemma KIC_net_sane [MN] : KIC MN -> net_sane MN.
+  Lemma KIC_well_formed [MN] : KIC MN -> well_formed MN.
   Proof. intros; kill H. Qed.
 
-  Hint Immediate KIC_net_sane : LTS.
+  Hint Immediate KIC_well_formed : LTS.
 
 
-  Lemma KIC_invariant_net_sane1 [MN0 MN1] [a] :
+  Lemma KIC_invariant_well_formed1 [MN0 MN1] [a] :
     (MN0 =(a)=> MN1) ->
     KIC MN0 ->
-    net_sane MN1.
+    well_formed MN1.
 
   Proof.
     intros.
@@ -2899,7 +2899,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     eauto with LTS.
   Qed.
 
-  Hint Resolve KIC_invariant_net_sane1 : LTS.
+  Hint Resolve KIC_invariant_well_formed1 : LTS.
 
 
   Lemma KIC_Rad_net [MN] : KIC MN -> Rad_net MN.
@@ -2936,7 +2936,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     intros.
     assert (Rad_net MN0) by eauto with LTS. (* TODO why eattac not work? *)
     assert (forall n0 n1, net_lock_on '' MN0 n0 n1 -> _of lock MN0 n0 = Some n1) by (consider (KIC MN0); attac).
-    assert (net_sane MN0) by eauto with LTS.
+    assert (well_formed MN0) by eauto with LTS.
     clear H.
 
     generalize dependent MN0.
@@ -2947,7 +2947,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     transitivity '(_of lock N1 n).
     - eauto using deadlocked_preserve_M_lock1 with LTS.
     - consider (exists ppath, '' MN0 =[ppath]=> '' N1) by eauto using Net_path_corr1.
-      assert (net_sane '' N1) by eauto with LTS.
+      assert (well_formed '' N1) by eauto with LTS.
       assert (deadlocked n '' N1) by eauto 2 with LTS.
       eauto using KIC_invariant_H_lock with LTS.
   Qed.
@@ -3114,7 +3114,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
     Lemma deadlocked_preserve_M_lock_id [mpath MN0 MN1 n] :
-      net_sane '' MN0 ->
+      well_formed '' MN0 ->
       Rad_net MN0 ->
       deadlocked n '' MN0 ->
       (MN0 =[mpath]=> MN1) ->
@@ -3130,7 +3130,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       transitivity '(_of lock_id N1 n).
       - eapply deadlocked_preserve_M_lock_id1; eauto with LTS.
       - consider (exists ppath, '' MN0 =[ppath]=> '' N1) by eauto using Net_path_corr1.
-        assert (net_sane '' N1) by eauto with LTS.
+        assert (well_formed '' N1) by eauto with LTS.
         assert (deadlocked n '' N1) by eauto 2 with LTS.
         eauto with LTS.
     Qed.
@@ -3154,7 +3154,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
     Lemma deadlocked_preserve_hot_probe [mpath MN0 MN1 p n] :
-      net_sane '' MN0 ->
+      well_formed '' MN0 ->
       Rad_net MN0 ->
       deadlocked n '' MN0 ->
       (MN0 =[mpath]=> MN1) ->
@@ -3172,7 +3172,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       assert (hot N1 p n).
       - eapply deadlocked_preserve_hot_probe1; eauto with LTS.
       - consider (exists ppath, '' MN0 =[ppath]=> '' N1) by eauto using Net_path_corr1.
-        assert (net_sane '' N1) by eauto with LTS.
+        assert (well_formed '' N1) by eauto with LTS.
         assert (deadlocked n '' N1) by eauto 2 with LTS.
         eauto with LTS.
     Qed.
@@ -3313,7 +3313,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
     Lemma deadlocked_preserve_M_in_waitees [mpath MN0 MN1 n m] :
-      net_sane '' MN0 ->
+      well_formed '' MN0 ->
       Rad_net MN0 ->
       deadlocked n '' MN0 ->
       (MN0 =[mpath]=> MN1) ->
@@ -3331,7 +3331,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       assert (List.In m (_of waitees N1 n)).
       - eapply deadlocked_preserve_M_in_waitees1; eauto with LTS.
       - consider (exists ppath, '' MN0 =[ppath]=> '' N1) by eauto using Net_path_corr1.
-        assert (net_sane '' N1) by eauto with LTS.
+        assert (well_formed '' N1) by eauto with LTS.
         assert (deadlocked n '' N1) by eauto 2 with LTS.
         eauto with LTS.
     Qed.
@@ -3376,7 +3376,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
     Lemma deadlocked_preserve_hot_of1 [MN0 MN1 a m] :
-      net_sane '' MN0 ->
+      well_formed '' MN0 ->
       Rad_net MN0 ->
       deadlocked m '' MN0 ->
       (MN0 =(a)=> MN1) ->
@@ -3399,7 +3399,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       intros.
-      assert (net_lock_on '' MN0 n0 n1 \/ ~ net_lock_on '' MN0 n0 n1) as [|] by eauto using net_sane_lock_dec with LTS.
+      assert (net_lock_on '' MN0 n0 n1 \/ ~ net_lock_on '' MN0 n0 n1) as [|] by eauto using well_formed_lock_dec with LTS.
       - assert (NoRecvQ_from n0 (get_MQ MN0 n1) \/ ~ NoRecvQ_from n0 (get_MQ MN0 n1)) as [|] by eauto using NoRecvQ_from_dec.
         + assert (List.In n0 (_of waitees MN0 n1)) by (consider (KIC MN0); auto).
           assert (_of lock MN0 n0 = Some n1) by (consider (KIC MN0); auto).
@@ -4209,19 +4209,19 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
       consider (h0 = Rad_handle)
           by (assert (Rad_net MN0) by eauto with LTS; eauto with LTS).
 
-      assert (net_sane MN1)
+      assert (well_formed MN1)
         by ((consider (exists ppath, '' MN0 =[ppath]=> '' MN1)
               by eauto using Net_path_corr with LTS); eauto with LTS).
 
       assert (net_lock_on '' MN1 n0 n1).
       {
-        destruct (net_sane_lock_dec MN1 n0 n1); auto.
+        destruct (well_formed_lock_dec MN1 n0 n1); auto.
         assert (exists v, NComm n2 n1 R p = NComm n1 n0 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
         hsimpl in *; bs.
       }
       assert (net_lock_on '' MN1 n1 n2).
       {
-        destruct (net_sane_lock_dec MN1 n1 n2); auto.
+        destruct (well_formed_lock_dec MN1 n1 n2); auto.
         assert (exists v, NComm n2 n1 R p = NComm n2 n1 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
         hsimpl in *; bs.
       }
@@ -4375,8 +4375,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       intros.
-      have (net_sane '' MN0) by eauto with LTS.
-      have (net_sane '' MN1) by eauto with LTS.
+      have (well_formed '' MN0) by eauto with LTS.
+      have (well_formed '' MN1) by eauto with LTS.
       consider (exists n0', dep_on MN1 n0 n0' /\ dep_on MN1 n0' n0')
         by re_have (eauto using deadlocked_dep_on_loop with LTS).
 
@@ -4467,7 +4467,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           assert (deadlocked m '' MN0) by eauto 3 with LTS.
           assert (net_lock_on '' MN1 m n')
             by (consider (exists ppath, '' MN0 =[ppath]=> '' MN1) by eauto using Net_path_corr with LTS; eauto 4 with LTS).
-           assert (net_sane '' MN1)
+           assert (well_formed '' MN1)
             by (consider (exists ppath, '' MN0 =[ppath]=> '' MN1) by eauto using Net_path_corr with LTS; eauto 4 with LTS).
 
            assert (hot_ev_of MN1 n' m = hot_ev_of MN0 n' m).
@@ -4668,8 +4668,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     rename N0 into MN0.
     rename N1 into MN1.
 
-    assert (net_sane MN0) by eauto with LTS.
-    assert (net_sane MN1) by eauto with LTS.
+    assert (well_formed MN0) by eauto with LTS.
+    assert (well_formed MN1) by eauto with LTS.
 
     assert (forall n, _of self MN1 n = n) as H_self_C1.
     {
@@ -5252,7 +5252,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
     Lemma propagation_init [MN0 : MNet] [n n' m] [v ] :
-      net_sane '' MN0 ->
+      well_formed '' MN0 ->
       KIC MN0 ->
       deadlocked n '' MN0 ->
       net_lock_on '' MN0 n n' ->
@@ -5370,7 +5370,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     Proof. (* TODO adjust hint cost!!! Use Cut!!! *)
       intros Himlazy.
       intros.
-      assert (net_sane MN0) by eauto with LTS.
+      assert (well_formed MN0) by eauto with LTS.
       destruct (NetMod.get m MN0) as [MQ [h c] S] eqn:?.
       generalize dependent MN0 MQ n p.
 
@@ -5452,8 +5452,8 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
               hsimpl in *.
 
-              consider (net_sane MN0).
-              specialize (H_Sane_SRPC m) as [srpc Hsrpc].
+              consider (well_formed MN0).
+              specialize (H_wf_SRPC m) as [srpc Hsrpc].
               destruct Hsrpc.
               hsimpl in *.
 
@@ -5652,7 +5652,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
           exists MQ0.
           hsimpl in |- *.
           attac.
-        + have (net_sane '' MN1) by eauto with LTS.
+        + have (well_formed '' MN1) by eauto with LTS.
 
           assert (sends_probe (n, R) p (mserv (MQ ++ MQ1) {| handle := h; state := c |} &S))
             by auto using sends_probe_extend_r with LTS.
@@ -5705,7 +5705,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       intros.
-      assert (net_sane MN0) by eauto with LTS.
+      assert (well_formed MN0) by eauto with LTS.
       assert (_of lock MN0 n = Some m) by eauto with LTS.
 
       assert (exists mpath0 MN1 MQ1 h s S1,
@@ -5784,7 +5784,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       intros.
-      assert (net_sane MN0) by eauto with LTS.
+      assert (well_formed MN0) by eauto with LTS.
 
       destruct p.
       smash_eq n init0.
@@ -5859,7 +5859,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
         /\ (_of deadlock MN1 n = true \/ _of deadlock MN1 m = true \/ sends_probe (n', R) p (NetMod.get n MN1)).
     Proof.
       intros.
-      assert (net_sane MN0) by eauto with LTS.
+      assert (well_formed MN0) by eauto with LTS.
 
       consider (exists MN1 mpath0 MQn',
         (MN0 =[mpath0]=> MN1)
@@ -5898,7 +5898,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
     Proof.
       intros.
 
-      assert (net_sane MN0) by eauto with LTS.
+      assert (well_formed MN0) by eauto with LTS.
       apply dep_lock_chain in H0.
       hsimpl in *.
       clear H7. (* ~List.In m L *)
@@ -5940,7 +5940,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
       assert (deadlocked m '' MN0) by eauto with LTS.
 
-      assert (net_sane MN1).
+      assert (well_formed MN1).
       {
         consider (exists ppath, '' MN0 =[ppath]=> '' MN1) by eauto using Net_path_corr with LTS.
         eauto with LTS.
@@ -5999,7 +5999,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 (* TODO does propagation_init need net_lock_on assumption? *)
     Proof.
       intros.
-      assert (net_sane MN0) by eauto with LTS.
+      assert (well_formed MN0) by eauto with LTS.
 
       consider (exists MN1 mpath0 n',
         (MN0 =[mpath0]=> MN1)
@@ -6011,7 +6011,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
       consider (exists ppath, '' MN0 =[ppath]=> '' MN1) by eauto using Net_path_corr.
 
-      have (net_sane '' MN1) by eauto with LTS.
+      have (well_formed '' MN1) by eauto with LTS.
       have (KIC MN1) by auto with LTS.
       have (deadlocked n' '' MN1) by eauto 4 with LTS.
       have (deadlocked n '' MN0) by eauto 3 with LTS.
@@ -6034,7 +6034,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
       consider (exists ppath, '' MN1 =[ppath]=> '' MN2) by eauto using Net_path_corr.
 
-      have (net_sane '' MN2) by eauto with LTS.
+      have (well_formed '' MN2) by eauto with LTS.
       have (KIC MN2) by auto with LTS.
       have (deadlocked n '' MN2) by eauto 4 with LTS.
       assert (hot MN2 p (init p)).
@@ -6076,12 +6076,12 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     (* TODO better name xd *)
     Lemma mserv_Q_lock_sound [MN m n v] :
-      net_sane '' MN ->
+      well_formed '' MN ->
       List.In (TrRecv (m, Q) v) (get_MQ MN n) ->
       net_lock_on '' MN m n.
     Proof.
       intros.
-      consider (net_sane '' MN).
+      consider (well_formed '' MN).
       enough (pq_client m (NetMod.get n '' MN)); attac.
       unfold net_deinstr, get_MQ in *.
       destruct (NetMod.get n MN) as [MQ M S] eqn:?.
@@ -6105,7 +6105,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       intros.
-      assert (net_sane MN0) by eauto with LTS.
+      assert (well_formed MN0) by eauto with LTS.
 
       assert (exists mpath0 MN1 MQ1 h s S1,
                  (MN0 =[mpath0]=> MN1)
@@ -6197,7 +6197,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
     Proof.
       intros.
-      assert (net_sane MN0) by eauto with LTS.
+      assert (well_formed MN0) by eauto with LTS.
 
       assert (net_lock_on '' MN0 m n) by eauto using mserv_Q_lock_sound.
       assert (dep_on MN0 n n) by eauto with LTS.
@@ -6209,7 +6209,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
        by (consider (dep_on '' MN0 n n) by eauto using propagation_init'; eauto using propagation_init').
 
       consider (exists ppath, '' MN0 =[ppath]=> '' MN1) by eauto using Net_path_corr.
-      have (net_sane '' MN1) by eauto with LTS.
+      have (well_formed '' MN1) by eauto with LTS.
       have (KIC MN1) by auto with LTS.
 
       assert (deadlocked n '' MN1) by auto with LTS.
@@ -6334,7 +6334,7 @@ Module Misra(Name : UsualDecidableSet)(NetModF : NET).
 
 
     Conjecture detection_completeness_path' : forall [N0 N1] [ppath] [I0],
-      net_sane N0 ->
+      well_formed N0 ->
       KIC (net_instr I0 N0) ->
       (N0 =[ ppath ]=> N1) ->
       Deadlocked N1 ->

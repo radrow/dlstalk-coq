@@ -487,10 +487,10 @@ Module Thomas.
   Qed.
 
 
-  Lemma make_net_SRPC_sane : forall conf, SRPC_sane_net (make_net conf).
+  Lemma make_net_service_wf : forall conf, service_wf_net (make_net conf).
 
   Proof.
-    unfold SRPC_sane_net.
+    unfold service_wf_net.
     intros.
     unfold make_net.
     rewrite NetMod.init_get.
@@ -638,12 +638,12 @@ Module Thomas.
   Qed.
 
 
-  Lemma make_net_sane : forall conf, (net_sane (make_net conf)).
+  Lemma make_well_formed : forall conf, (well_formed (make_net conf)).
 
   Proof.
     intros.
     constructor.
-    - apply make_net_SRPC_sane.
+    - apply make_net_service_wf.
     - intros n0 n1 **.
       apply (make_net_lock_inv conf n0 n1) in H.
       attac.
@@ -730,7 +730,7 @@ Module Thomas.
   Lemma make_mnet_KIC : forall conf, (KIC (make_mnet conf)).
     intros.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
-    1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_net_sane.
+    1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
 
     1: destruct (NetMod.get n (make_mnet conf)) eqn:?.
     2: destruct (NetMod.get n (make_mnet conf)) eqn:?.
@@ -783,7 +783,7 @@ Module Thomas.
   Lemma make_mnet_KIS : forall conf, (KIS (make_mnet conf)).
     intros.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
-    1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_net_sane.
+    1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
 
     - unfold make_mnet.
       rewrite net_deinstr_instr.

@@ -53,8 +53,8 @@ Set DependGraph File "../graphs/dep_self_deadset.dpd".
 Print DependGraph Deps.Compl.SrpcNet.dep_self_deadset.
 
 
-Set DependGraph File "../graphs/trans_invariant_net_sane.dpd".
-Print DependGraph Deps.Compl.SrpcNet.trans_invariant_net_sane.
+Set DependGraph File "../graphs/trans_invariant_well_formed.dpd".
+Print DependGraph Deps.Compl.SrpcNet.trans_invariant_well_formed.
 
 
 Set DependGraph File "../graphs/KIC.dpd".
