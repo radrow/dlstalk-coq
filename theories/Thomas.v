@@ -659,20 +659,17 @@ Module Thomas.
     match n with
     | Worker name => {| self := n
                     ;  lock := None
-                    ;  lock_id := 0
-                    ;  waitees := []
+                    ;  wait := []
                     ;  alarm := false
                     |}
     | Initiator name 0 => {| self := n
                          ;  lock := None
-                         ;  lock_id := 0
-                         ;  waitees := [Initiator name 1]
+                         ;  wait := [Initiator name 1]
                          ;  alarm := false
                          |}
     | Initiator name (S i) => {| self := n
                              ;  lock := Some (Initiator name i)
-                             ;  lock_id := 0
-                             ;  waitees := [Initiator name (S (S i))]
+                             ;  wait := [Initiator name (S (S i))]
                              ;  alarm := false
                              |}
     end.
