@@ -659,33 +659,29 @@ Module Thomas.
     match n with
     | Worker name => {| self := n
                     ;  lock := None
+                    ;  lock_id := 0
                     ;  wait := []
                     ;  alarm := false
                     |}
     | Initiator name 0 => {| self := n
                          ;  lock := None
+                         ;  lock_id := 0
                          ;  wait := [Initiator name 1]
                          ;  alarm := false
                          |}
     | Initiator name (S i) => {| self := n
                              ;  lock := Some (Initiator name i)
+                             ;  lock_id := 0
                              ;  wait := [Initiator name (S (S i))]
                              ;  alarm := false
                              |}
     end.
 
 
-  Definition make_mon_assg : mon_assg.
-    ltac1:(refine (fun n => (exist _ [] MQ_Clear_nil,
-            exist _
-            {|handle:=Rad.Rad_handle; state:=MRecv (make_mon_state n)|}
-            _
-          ))).
-    attac.
-  Defined.
+  Definition make_instr : instr :=
+    instr_ (fun n => _mon_assg [] MQ_Clear_nil (MRecv (make_mon_state n))).
 
-
-  Definition make_mnet (conf : NetConf) := net_instr make_mon_assg (make_net conf).
+  Definition make_mnet (conf : NetConf) := make_instr (make_net conf).
 
 
   Lemma make_net_dep : forall conf name i0 i1,
@@ -733,50 +729,31 @@ Module Thomas.
     1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
 
     1: destruct (NetMod.get n (make_mnet conf)) eqn:?.
-    2: destruct (NetMod.get n (make_mnet conf)) eqn:?.
+    2: destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
     3: destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
-    4: destruct (NetMod.get n1 (make_mnet conf)) eqn:?.
-    5: destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
-    6: destruct (NetMod.get n0 (make_mnet conf)) eqn:?, (NetMod.get n1 (make_mnet conf)) eqn:?.
+    4: destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
 
-    1, 2: unfold make_mnet, make_mon_assg, net_instr, net_instr_n, instr, make_net in *; try (rewrite NetMod.init_get in * ); simpl in *.
+    1: unfold make_mnet, make_instr, apply_instr, serv_instr, make_net in *; try (rewrite NetMod.init_get in * ); simpl in *.
     - hsimpl in *.
       unfold make_mon_state.
-      blast_cases; attac.
-    - hsimpl in *; auto.
+      blast_cases; compat_hsimpl in *; attac.
     - unfold make_mnet in *.
       rewrite net_deinstr_instr in *.
       apply make_net_lock_inv in H.
       attac.
-      unfold make_net, make_mon_assg, net_instr, net_instr_n, instr in *.
+      unfold make_net, make_instr, apply_instr, serv_instr in *.
       attac.
     - unfold make_mnet in *.
       rewrite net_deinstr_instr in *.
       apply make_net_lock_inv in H.
       attac.
-      unfold make_net, make_mon_assg, net_instr, net_instr_n, instr in *.
+      unfold make_net, make_instr, apply_instr, serv_instr in *.
       attac.
       destruct i; attac.
     - unfold make_mnet in *.
       rewrite net_deinstr_instr in *.
       apply make_net_dep_inv in H.
       attac.
-    - unfold make_mnet.
-      rewrite net_deinstr_instr.
-      destruct n0 as [n0 [|i0]|n0], n1 as [n1 [|i1]|n1].
-      all: try (solve [right; intros Hx; apply make_net_dep_inv in Hx; attac]).
-      + destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst.
-        * left.
-          clear.
-          induction i0.
-          -- constructor; apply make_net_lock_finger.
-          -- econstructor 2; auto using make_net_lock_finger.
-        * right; intros Hx; apply make_net_dep_inv in Hx; attac.
-      + destruct (Compare_dec.lt_dec (S i1) (S i0)).
-        * destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst.
-          -- left. auto using make_net_dep.
-          -- right; intros Hx. apply make_net_dep_inv in Hx; attac.
-        * right; intros Hx. apply make_net_dep_inv in Hx; attac.
   Qed.
 
 
@@ -785,39 +762,39 @@ Module Thomas.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
     1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
 
-    - unfold make_mnet.
-      rewrite net_deinstr_instr.
-      destruct n0 as [n0 [|i0]|n0], n1 as [n1 [|i1]|n1].
-      all: try (solve [right; intros Hx; apply make_net_dep_inv in Hx; attac]).
-      + destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst.
-        * left.
-          clear.
-          induction i0.
-          -- constructor; apply make_net_lock_finger.
-          -- econstructor 2; auto using make_net_lock_finger.
-        * right; intros Hx; apply make_net_dep_inv in Hx; attac.
-      + destruct (Compare_dec.lt_dec (S i1) (S i0)).
-        * destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst.
-          -- left. auto using make_net_dep.
-          -- right; intros Hx. apply make_net_dep_inv in Hx; attac.
-        * right; intros Hx. apply make_net_dep_inv in Hx; attac.
+    (* - unfold make_mnet. *)
+    (*   rewrite net_deinstr_instr. *)
+    (*   destruct n0 as [n0 [|i0]|n0], n1 as [n1 [|i1]|n1]. *)
+    (*   all: try (solve [right; intros Hx; apply make_net_dep_inv in Hx; attac]). *)
+    (*   + destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst. *)
+    (*     * left. *)
+    (*       clear. *)
+    (*       induction i0. *)
+    (*       -- constructor; apply make_net_lock_finger. *)
+    (*       -- econstructor 2; auto using make_net_lock_finger. *)
+    (*     * right; intros Hx; apply make_net_dep_inv in Hx; attac. *)
+    (*   + destruct (Compare_dec.lt_dec (S i1) (S i0)). *)
+    (*     * destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst. *)
+    (*       -- left. auto using make_net_dep. *)
+    (*       -- right; intros Hx. apply make_net_dep_inv in Hx; attac. *)
+    (*     * right; intros Hx. apply make_net_dep_inv in Hx; attac. *)
     - destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
-      unfold make_mnet, make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases; attac.
       blast_cases; attac.
-    - unfold make_mnet, make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
-      blast_cases; attac.
+    (* - unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *. *)
+      (* blast_cases; attac. *)
     - left.
       unfold make_mnet in *.
       rewrite net_deinstr_instr.
-      unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases; attac.
       blast_cases; attac.
       apply make_net_lock_finger.
     -  unfold make_mnet in *.
        rewrite net_deinstr_instr.
-       unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+       unfold make_instr, apply_instr, serv_instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
 
        blast_cases; attac.
        blast_cases; attac.
@@ -825,60 +802,40 @@ Module Thomas.
        apply make_net_lock_finger.
     - unfold make_mnet in *.
       rewrite net_deinstr_instr.
-      unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold make_instr, apply_instr, serv_instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases; attac.
-    - unfold make_mnet, make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
-
+    - unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases; attac.
-    - unfold make_mnet, make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+    - unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases.
       rewrite NetMod.get_map in *.
       rewrite NetMod.init_get in *.
       destruct p.
-      destruct m0.
       simpl in *.
-      blast_cases; simpl in *; kill Heqm; kill Heqm0.
+      bs.
     - unfold make_mnet in *.
       rewrite net_deinstr_instr.
-
-      unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
-
+      unfold make_instr, apply_instr, serv_instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases.
       rewrite NetMod.get_map in *.
       rewrite NetMod.init_get in *.
-      destruct p.
-      destruct m0.
-      simpl in *.
-      blast_cases; simpl in *; kill Heqm; kill Heqm0; simpl in *.
-      all: bs.
-    -  unfold make_mnet in *.
-       rewrite net_deinstr_instr.
-
-       unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
-
-       blast_cases.
-       rewrite NetMod.get_map in *.
-       rewrite NetMod.init_get in *.
-       destruct p.
-       destruct m0.
-       simpl in *.
-       blast_cases; simpl in *; kill Heqm; kill Heqm0; simpl in *.
-       all: bs.
-    -  unfold make_mnet in *.
-       rewrite net_deinstr_instr.
-
-       unfold make_mon_assg, net_instr, net_instr_n, instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
-
-       blast_cases.
-       rewrite NetMod.get_map in *.
-       rewrite NetMod.init_get in *.
-       destruct p.
-       destruct m.
-       simpl in *.
-       blast_cases; simpl in *; kill Heqm; simpl in *.
-       all: bs.
+      bs.
+    - unfold make_mnet in *.
+      rewrite net_deinstr_instr.
+      unfold make_instr, apply_instr, serv_instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      blast_cases.
+      rewrite NetMod.get_map in *.
+      rewrite NetMod.init_get in *.
+      bs.
+    - unfold make_mnet in *.
+      rewrite net_deinstr_instr.
+      unfold make_instr, apply_instr, serv_instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      blast_cases.
+      rewrite NetMod.get_map in *.
+      rewrite NetMod.init_get in *.
+      blast_cases; attac.
   Qed.
 
 
