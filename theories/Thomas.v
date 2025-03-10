@@ -352,14 +352,10 @@ Module Thomas.
 
   Definition Init name to arg := Finger name 0 to arg.
 
+  Record WorkerConf :=
+    wconf { state_t : Set; init : state_t; handle_call : Name -> Val -> state_t -> Handler state_t }.
 
-  Inductive WorkerConf :=
-  | worker_conf [state_t : Set] (init : state_t) (handle_call : Name -> Val -> state_t -> Handler state_t)
-  .
-
-  Inductive InitConf :=
-  | init_conf (to : string) (arg : Val)
-  .
+  Record InitConf := iconf { target : string; arg : Val }.
 
   Record NetConf :=
     { workers : string -> WorkerConf
@@ -372,11 +368,11 @@ Module Thomas.
         fun n => match n with
               | Worker name =>
                   match workers conf name with
-                    worker_conf init_call_ handle_call => serv [] (gen_server init_call_ handle_call) []
+                    wconf _ init_call_ handle_call => serv [] (gen_server init_call_ handle_call) []
                   end
               | Initiator name i =>
                   match inits conf name with
-                  | init_conf to arg => serv [] (Finger name i to arg) []
+                  | iconf to arg => serv [] (Finger name i to arg) []
                   end
               end
       ).
@@ -480,7 +476,7 @@ Module Thomas.
       eapply SRPC_Init.
     - destruct (inits conf name).
       exists (Lock (Initiator name (S (S i))) (Initiator name i)).
-      eapply SRPC_Finger with (to:=to)(arg:=arg).
+      eapply SRPC_Finger with (to:=target0)(arg:=arg0).
     - destruct (workers conf name).
       exists Free.
       apply SRPC_gen_server.
@@ -502,7 +498,7 @@ Module Thomas.
     - destruct (inits conf name).
       exists (Lock (Initiator name (S (S i))) (Initiator name i)).
       constructor; attac.
-      eapply SRPC_Finger with (to:=to)(arg:=arg).
+      eapply SRPC_Finger with (to:=target0)(arg:=arg0).
     - destruct (workers conf name).
       exists Free.
       constructor; attac.
@@ -520,9 +516,9 @@ Module Thomas.
     unfold make_net.
     rewrite NetMod.init_get.
     blast_cases.
-    assert (Decisive (Finger name (S i) to arg)).
+    assert (Decisive (Finger name (S i) target0 arg0)).
     {
-      enough (AnySRPC (Finger name (S i) to arg)) by auto using SRPC_Decisive.
+      enough (AnySRPC (Finger name (S i) target0 arg0)) by auto using SRPC_Decisive.
       eexists; eauto using SRPC_Finger.
     }
     constructor; auto.
@@ -560,7 +556,7 @@ Module Thomas.
     rewrite NetMod.init_get in *.
     blast_cases.
     kill H.
-    assert (SRPC Free (gen_server &init handle_call)) by eauto using SRPC_gen_server.
+    assert (SRPC Free (gen_server &init0 handle_call0)) by eauto using SRPC_gen_server.
     apply lock_SRPC_Lock in H1.
     - attac.
       bs (Lock c other = Free).
@@ -577,9 +573,9 @@ Module Thomas.
     blast_cases.
     constructor; auto.
     destruct i.
-    - assert (SRPC (Work (Initiator name 1)) (Finger name 0 to arg)) by eauto using SRPC_Init.
+    - assert (SRPC (Work (Initiator name 1)) (Finger name 0 target0 arg0)) by eauto using SRPC_Init.
       attac.
-    - assert (SRPC (Lock (Initiator name (S (S i))) (Initiator name i)) (Finger name (S i) to arg)) by eauto using SRPC_Finger.
+    - assert (SRPC (Lock (Initiator name (S (S i))) (Initiator name i)) (Finger name (S i) target0 arg0)) by eauto using SRPC_Finger.
       attac.
   Qed.
 
@@ -592,7 +588,7 @@ Module Thomas.
     unfold make_net in *.
     rewrite NetMod.init_get in *.
     kill H; blast_cases; doubt; attac.
-    assert (SRPC Free (gen_server &init handle_call)) by apply SRPC_gen_server.
+    assert (SRPC Free (gen_server init0 handle_call0)) by apply SRPC_gen_server.
     consider (proc_client _ _).
     bs (Busy _ = Free).
   Qed.
@@ -624,15 +620,15 @@ Module Thomas.
     rewrite NetMod.init_get in *.
     kill H; blast_cases; doubt; attac.
     - destruct n.
-      + assert (SRPC (Work (Initiator s 1)) (Finger s 0 to arg)) by eauto using SRPC_Init.
+      + assert (SRPC (Work (Initiator s 1)) (Finger s 0 target0 arg0)) by eauto using SRPC_Init.
         kill H0.
         assert (Busy x = Work (Initiator s 1)) by attac.
         attac.
-      + assert (SRPC (Lock (Initiator s (S (S n))) (Initiator s n)) (Finger s (S n) to arg)) by eauto using SRPC_Finger.
+      + assert (SRPC (Lock (Initiator s (S (S n))) (Initiator s n)) (Finger s (S n) target0 arg0)) by eauto using SRPC_Finger.
         kill H0.
         eassert (Busy x = Lock _ (Initiator s _)) by attac.
         attac.
-    - assert (SRPC Free (gen_server &init handle_call)) by eauto using SRPC_gen_server.
+    - assert (SRPC Free (gen_server init0 handle_call0)) by eauto using SRPC_gen_server.
       kill H0.
       bs (Busy x = Free).
   Qed.
@@ -762,28 +758,10 @@ Module Thomas.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
     1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
 
-    (* - unfold make_mnet. *)
-    (*   rewrite net_deinstr_instr. *)
-    (*   destruct n0 as [n0 [|i0]|n0], n1 as [n1 [|i1]|n1]. *)
-    (*   all: try (solve [right; intros Hx; apply make_net_dep_inv in Hx; attac]). *)
-    (*   + destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst. *)
-    (*     * left. *)
-    (*       clear. *)
-    (*       induction i0. *)
-    (*       -- constructor; apply make_net_lock_finger. *)
-    (*       -- econstructor 2; auto using make_net_lock_finger. *)
-    (*     * right; intros Hx; apply make_net_dep_inv in Hx; attac. *)
-    (*   + destruct (Compare_dec.lt_dec (S i1) (S i0)). *)
-    (*     * destruct (OrderedTypeEx.String_as_OT.eq_dec n0 n1); subst. *)
-    (*       -- left. auto using make_net_dep. *)
-    (*       -- right; intros Hx. apply make_net_dep_inv in Hx; attac. *)
-    (*     * right; intros Hx. apply make_net_dep_inv in Hx; attac. *)
     - destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
       unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases; attac.
       blast_cases; attac.
-    (* - unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *. *)
-      (* blast_cases; attac. *)
     - left.
       unfold make_mnet in *.
       rewrite net_deinstr_instr.
@@ -861,18 +839,19 @@ Module Thomas.
     Qed.
     Hint Rewrite veq using assumption : LTS LTS_concl.
 
-    Definition echo := worker_conf tt (fun _from msg st => reply msg st).
+    Definition echo := {| state_t := unit; init := tt; handle_call from msg st := reply msg st |}.
 
     Definition service (target : string) :=
-      let init_state := tt in
-      let handle_call (_from : Name) (msg : Val) st :=
-        match valnat_trans msg with
-        | 0 => reply msg st
-        | S msg' =>
-            let? x := target ! msg' in
-            reply x st
-        end
-      in worker_conf init_state handle_call.
+      {| state_t := _;
+        init := tt;
+        handle_call (_from : Name) (msg : Val) st :=
+          match valnat_trans msg with
+          | 0 => reply msg st
+          | S msg' =>
+              let? x := target ! msg' in
+              reply x st
+          end
+      |}.
 
 
     Definition deadlocking_net : PNet := make_net
@@ -884,13 +863,13 @@ Module Thomas.
                                                end;
                                              inits name :=
                                                match name with
-                                               | "i0" => init_conf "e00" 2 | "i1" => init_conf "e01" 2
-                                               | _ => init_conf "" 0
+                                               | "i0" => iconf "e00" 2 | "i1" => iconf "e01" 2
+                                               | _ => iconf "" 0
                                                end
                                            |}.
 
 
-  Lemma ded : exists path N, (deadlocking_net =[path]=> N) /\ Deadlocked N.
+  Lemma ded : exists path N, (deadlocking_net =[path]=> N) /\ Deadlocked N /\ path <> [].
   Proof.
     eexists ?[path], ?[N].
 
@@ -1087,6 +1066,7 @@ Module Thomas.
     }
 
     split; eauto.
+    split > [|bs].
     constructor 1 with (DL:=map Worker ["e00"; "e01"; "e10"; "e11"]).
     constructor. 1: { clear; attac. }
     intros.
@@ -1125,6 +1105,5 @@ Module Thomas.
       auto.
     - bs.
   Qed.
-
   End Example.
 End Thomas.
