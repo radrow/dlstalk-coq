@@ -69,9 +69,11 @@ Module Paper.
 
   CoInductive SRPCC : SRPC_State -> Proc -> Prop :=
   | SRPCC_R P0 : (forall c v P1, P0 =(Recv (c, Q) v)=> P1 -> SRPCC (Work c) P1) -> SRPCI Free P0 -> SRPCC Free P0
-  | SRPCC_W c P0 : (forall v P1, P0 =(Send (c, R) v)=> P1 -> SRPCC Free P1) -> SRPCI (Work c) P0 -> SRPCC (Work c) P0
-  | SRPCC_WT c P0 : (forall P1, P0 =(Tau)=> P1 -> SRPCC (Work c) P1) -> SRPCI (Work c) P0 -> SRPCC (Work c) P0
-  | SRPCC_WQ c P0 : (forall s v P1, P0 =(Send (s, Q) v)=> P1 -> SRPCC (Lock c s) P1) -> SRPCI (Work c) P0 -> SRPCC (Work c) P0
+  | SRPCC_W c P0 :
+    (forall v P1, P0 =(Send (c, R) v)=> P1 -> SRPCC Free P1) ->
+    (forall P1, P0 =(Tau)=> P1 -> SRPCC (Work c) P1) ->
+    (forall s v P1, P0 =(Send (s, Q) v)=> P1 -> SRPCC (Lock c s) P1) ->
+    SRPCI (Work c) P0 -> SRPCC (Work c) P0
   | SRPCC_L c s P0 : (forall v P1, P0 =(Recv (s, R) v)=> P1 -> SRPCC (Work c) P1) -> SRPCI (Lock c s) P0 -> SRPCC (Lock c s) P0
   .
 End Paper.
@@ -178,20 +180,22 @@ Lemma SRPCC_measure : forall srpc P, srpc <> Free -> Paper.SRPCC srpc P -> SRPC_
   eauto using SRPCC_SRPCI, SRPCI_measure.
 Qed.
 
-Fact SRPC_eq_r : forall P srpc, SRPC srpc P -> Paper.SRPCC srpc P.
+Fact SRPC_eq_r : forall P srpc, SRPC srpc P <-> Paper.SRPCC srpc P.
 
 Proof.
-  - ltac1:(cofix C).
+  split; intros.
+  - generalize dependent srpc P.
+    ltac1:(cofix C).
     intros P srpc Hsrpc.
     destruct P > [| destruct n as [n [|]] | | ]; kill Hsrpc > [|kill HBusy].
     all: try (solve [clear C; specialize (HQueryAll some_name some_val); kill HQueryAll; bs]).
     all: try (solve [clear C; specialize (HReplyAll some_val); kill HReplyAll; bs]).
-    + apply Paper.SRPCC_WQ; intros; eauto.
+    + apply Paper.SRPCC_W; intros; eauto.
       econstructor.
       eapply SRPCB_eq.
       eapply HQuery0.
       attac.
-    + eapply Paper.SRPCC_WR; intros; eauto.
+    + eapply Paper.SRPCC_W; intros; eauto.
       eapply SRPCB_eq.
       econstructor; attac.
     + eapply Paper.SRPCC_R; intros.
@@ -209,54 +213,13 @@ Proof.
     + constructor; intros; eauto.
       eapply SRPCB_eq.
       econstructor; intros; eauto.
-    + eapply Paper.SRPCC_WT; intros; eauto.
+    + eapply Paper.SRPCC_W; intros; eauto.
       eapply SRPCB_eq.
       econstructor; intros; eauto.
-Qed.
-
-Fact SRPC_eq_l : forall P srpc, Paper.SRPCC srpc P -> SRPC srpc P.
-
-Proof.
-  - ltac1:(cofix C).
+  - generalize dependent srpc P.
+    ltac1:(cofix C).
     intros P srpc Hsrpc.
-
-    assert (srpc = Free \/ srpc <> Free) as [|] by (destruct srpc; attac).
-    + kill Hsrpc; constructor; intros; doubt.
-      * kill H1.
-        specialize (H3 c v); eattac.
-      * kill H1.
-        attac.
-        destruct n.
-        specialize H4 with (c:=n)(v:=v); attac.
-        specialize (H3 n t ltac:(attac)); attac.
-        assert (cont = cont0). cbv in *. rewrite H4 in H1; attac.
-        assert (Paper.SRPCC (Work n) (cont v)). apply H0 with (v:=v). exists (n, Q), v, cont. attac.
-        exists n, v.
-        eattac.
-    + kill Hsrpc.
-      *
-      constructor; intros; doubt.
-      assert (SRPC_measure P) by (eapply SRPCI_measure with (srpc:=srpc); eattac).
-      ltac1:(dependent induction H0).
-      * kill Hsrpc; doubt.
-        -- constructor; attac.
-           apply SRPCB_eq.
-           eauto.
-        -- apply C.
-           constructor. 2: auto.
-           intros.
-           kill H2.
-           clear H.
-           apply SRPCB_eq in H1.
-
-          constructor; attac.
-
-           eauto.
-           apply SRPCB_eq in H1.
-           kill H1.
-
-
-    
+    kill Hsrpc; constructor; intros; doubt.
     + kill H0.
       specialize (H2 c v); eattac.
     + kill H0.
@@ -264,103 +227,21 @@ Proof.
       destruct n.
       specialize H3 with (c:=n)(v:=v); attac.
       specialize (H2 n t ltac:(attac)); attac.
-      assert (cont = cont0). cbv in *. rewrite H3 in H4; attac.
+      assert (cont0 = cont). cbv in *. rewrite H3 in H4; attac.
+      subst.
       assert (Paper.SRPCC (Work n) (cont v)). apply H with (v:=v). exists (n, Q), v, cont. attac.
       exists n, v.
       eattac.
-    + eapply SRPCB_eq; assumption.
-    + eauto.
-    + kill H1.
-      apply C.
-
-    + eapply SRPCB_eq; assumption.
-      specialize H with (c:=n)(v:=v)(P1:=cont v).
-      eassert (Paper.SRPCC (Work c) _).
-      eattac.
-    + 
-
-    destruct P > [| destruct n as [n [|]] | | ]; kill Hsrpc; try (solve [clear C; bs]).
-    +
-    all: try (solve [clear C; doubt; eapply SRPCB_eq; eauto with LTS]).
-
-    + eapply C.
-      kill H0.
-      kill H1.
-      clear H.
-      constructor. 2: auto.
-
-      remember (BLock c n) as srpc.
-      clear Heqsrpc.
-      assert (SRPC_measure P1) by (eapply SRPCI_measure with (srpc:=Busy srpc); eattac).
-      generalize dependent srpc.
-      ltac1:(induction H0); intros; doubt.
-      * kill H2. eattac.
-        constructor; eattac.
-        eapply H
-      kill H2.
-      constructor; eauto.
-      intros.
-      eapply H1.
-      admit.
-      admit.
-                      
-      kill H0.
-      constructor. 2: eattac.
-      kill H0.
-      
-      remember (BLock c n) as srpc.
-      constructor. 2: eattac.
-      constructor. eattac. 2: eattac.
-      clear H C H1.
-      ltac1:(dependent induction H2).
-      kill H0.
-    (clear C; eapply SRPCB_eq; eauto with LTS).
-    + specialize (H v P). 
-    kill Hsrpc.
-    + admit.
-    + constructor; intros; try (apply SRPCB_eq; assumption); eauto.
-      * eapply C.
-        constructor; intros; eauto.
-        -- constructor; intros; eauto with LTS.
-           ++ 
-          kill H0.
-          apply SRPCB_eq in H0.
-           constructor.
-        -- constructor; intros; eauto; doubt.
-           admit.
-            .
-          eapply SRPCB_eq.
+    + apply SRPCB_eq.
       eauto.
-
-      eauto using SRPCB_eq.
-      eapply SRPCB_eq. apply H0.
-
-
-      eapply HQuery0.
-      attac.
-      assert (SRPC_Busy (BLock c n) P) by eauto with LTS.
-      clear - H.
-      remember (BLock c n) as srpc.
-      clear Heqsrpc.
-      ltac1:(dependent induction H). eauto.
-      * destruct P0.
-        -- bs.
-        -- destruct n0 as [n0 [|]].
-           ++ constructor.
-              eauto with LTS.
-           ++ consider (c = n0) by eauto with LTS.
-              constructor.
-        -- bs.
-        -- constructor.
-           eauto with LTS.
-      *
-
-    + specialize (HReplyAll some_val). kill HReplyAll. bs.
-    + specialize (HQueryAll some_name some_val). kill HQueryAll. bs.
-    + 
-    admit.
-    destruct n as [n [|]].
-    admit. admit.
-
-    kill H > [| kill HBusy].
-    admit.
+    + eauto.
+    + eauto.
+    + eauto.
+    + eapply SRPCB_eq.
+      eauto.
+    + apply C.
+      kill H0.
+      consider ((s0, R) = (s, R)). apply H2; attac.
+      apply H in H1.
+      auto.
+Qed.
