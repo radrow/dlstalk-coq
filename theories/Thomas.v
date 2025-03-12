@@ -352,13 +352,16 @@ Module Thomas.
 
   Definition Init name to arg := Finger name 0 to arg.
 
-  Record WorkerConf :=
-    wconf { state_t : Set; init : state_t; handle_call : Name -> Val -> state_t -> Handler state_t }.
+  Record ServiceConf :=
+    sconf { state_t : Set
+          ; init : state_t
+          ; handle_call (from : Name) (msg : Val) (state : state_t) : Handler state_t
+      }.
 
   Record InitConf := iconf { target : string; arg : Val }.
 
   Record NetConf :=
-    { workers : string -> WorkerConf
+    { services : string -> ServiceConf
     ; inits : string -> InitConf
     }.
 
@@ -367,8 +370,8 @@ Module Thomas.
     NetMod.init (
         fun n => match n with
               | Worker name =>
-                  match workers conf name with
-                    wconf _ init_call_ handle_call => serv [] (gen_server init_call_ handle_call) []
+                  match services conf name with
+                    sconf _ init_call_ handle_call => serv [] (gen_server init_call_ handle_call) []
                   end
               | Initiator name i =>
                   match inits conf name with
@@ -477,7 +480,7 @@ Module Thomas.
     - destruct (inits conf name).
       exists (Lock (Initiator name (S (S i))) (Initiator name i)).
       eapply SRPC_Finger with (to:=target0)(arg:=arg0).
-    - destruct (workers conf name).
+    - destruct (services conf name).
       exists Free.
       apply SRPC_gen_server.
   Qed.
@@ -499,7 +502,7 @@ Module Thomas.
       exists (Lock (Initiator name (S (S i))) (Initiator name i)).
       constructor; attac.
       eapply SRPC_Finger with (to:=target0)(arg:=arg0).
-    - destruct (workers conf name).
+    - destruct (services conf name).
       exists Free.
       constructor; attac.
       apply SRPC_gen_server.
@@ -855,7 +858,7 @@ Module Thomas.
 
 
     Definition deadlocking_net : PNet := make_net
-                                           {| workers name :=
+                                           {| services name :=
                                                match name with
                                                | "e10" => service "e01" | "e11" => service "e00"
                                                | "e00" => service "e10" | "e01" => service "e11"
