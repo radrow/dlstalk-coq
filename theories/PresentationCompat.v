@@ -117,44 +117,6 @@ Proof.
 Qed.
 
 
-From Coq Require Import Program.Equality.
-(* CoInductive bisim_prop (F0 F1 : SRPC_State -> Proc -> Prop) := *)
-(* | bisim_prop_ : *)
-
-Fact SRPCB_eq : forall P c (srpc : SRPC_Busy_State c), SRPC_Busy srpc P <-> Paper.SRPCI (Busy srpc) P.
-
-Proof.
-  split; intros.
-  - ltac1:(dependent induction H). eauto.
-    + destruct P0.
-      * bs.
-      * destruct n as [n [|]].
-        -- constructor.
-           eauto with LTS.
-        -- consider (c = n) by eauto with LTS.
-           constructor.
-      * bs.
-      * constructor.
-        eauto with LTS.
-    + destruct P0.
-      * specialize (HReplyAll some_val) as [? ?]; bs.
-      * specialize (HReplyAll some_val) as [? ?]; bs.
-      * specialize (HReplyAll some_val) as [? ?]; attac.
-        econstructor; eattac.
-        destruct nc.
-        destruct (handle (n, t)) eqn:?; doubt.
-        specialize (HReplyOnly (Recv (n, t) some_val) (p some_val)) as [? ?]; eattac.
-      * specialize (HReplyAll some_val) as [? ?]; bs.
-  - ltac1:(dependent induction H).
-    + constructor; attac.
-    + constructor; attac.
-    + constructor; attac.
-    + constructor; attac.
-      destruct (H n); attac.
-      consider (PRecv _ =(_)=> _).
-      destruct (H n); attac.
-Qed.
-
 Inductive SRPC_measure : Proc -> Prop :=
 | ms_reply n v P : SRPC_measure (PSend (n, R) v P)
 | ms_tau P : SRPC_measure P -> SRPC_measure (STau P)
@@ -180,7 +142,58 @@ Lemma SRPCC_measure : forall srpc P, srpc <> Free -> Paper.SRPCC srpc P -> SRPC_
   eauto using SRPCC_SRPCI, SRPCI_measure.
 Qed.
 
-Fact SRPC_eq_r : forall P srpc, SRPC srpc P <-> Paper.SRPCC srpc P.
+Lemma SRPCB_measure : forall c (srpc : SRPC_Busy_State c) P, SRPC_Busy srpc P -> SRPC_measure P.
+  intros.
+  induction H; intros.
+  - destruct P0; eattac.
+    + destruct n as [n [|]].
+      * constructor; attac.
+      * constructor; attac.
+    + constructor.
+      attac.
+  - specialize (HReplyAll some_val) as [? ?]; attac.
+    constructor.
+    attac.
+Qed.
+
+
+Fact SRPCB_eq : forall P c (srpc : SRPC_Busy_State c), SRPC_Busy srpc P <-> Paper.SRPCI (Busy srpc) P.
+
+Proof.
+  split; intros.
+  - induction H.
+    + destruct P0.
+      * bs.
+      * destruct n as [n [|]].
+        -- constructor.
+           eauto with LTS.
+        -- consider (c = n) by eauto with LTS.
+           constructor.
+      * bs.
+      * constructor.
+        eauto with LTS.
+    + destruct P0.
+      * specialize (HReplyAll some_val) as [? ?]; bs.
+      * specialize (HReplyAll some_val) as [? ?]; bs.
+      * specialize (HReplyAll some_val) as [? ?]; attac.
+        econstructor; eattac.
+        destruct nc.
+        destruct (handle (n, t)) eqn:?; doubt.
+        specialize (HReplyOnly (Recv (n, t) some_val) (p some_val)) as [? ?]; eattac.
+      * specialize (HReplyAll some_val) as [? ?]; bs.
+  - assert (SRPC_measure P) by (apply SRPCI_measure with (srpc:=Busy srpc); attac).
+    generalize dependent srpc.
+    induction H0; intros; consider (Paper.SRPCI _ _); attac.
+    + constructor; attac.
+    + constructor; attac.
+    + constructor; attac.
+    + constructor; eattac.
+      * consider (n = (s, R)); attac.
+      * kill H1.
+        consider (n = (s, R)); attac.
+Qed.
+
+Fact SRPC_eq : forall P srpc, SRPC srpc P <-> Paper.SRPCC srpc P.
 
 Proof.
   split; intros.
