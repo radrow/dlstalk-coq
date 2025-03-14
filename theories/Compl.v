@@ -5382,7 +5382,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   #[export] Hint Immediate KIC_instr_well_formed : LTS.
 
 
-  Lemma ac_to_alarm_DS [MN0 : MNet] [n] :
+  Lemma ac_to_alarm [MN0 : MNet] [n] :
     KIC MN0 ->
     ac n MN0 ->
     dep_on MN0 n n ->
@@ -5417,7 +5417,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma ac_to_alarm [MN0 : MNet] [n] :
+  Lemma ac_to_alarm_instr [MN0 : MNet] [n] :
     KIC MN0 ->
     ac n MN0 ->
     dep_on MN0 n n ->
@@ -5433,7 +5433,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
                  /\ DeadSet DS MN0
                  /\ detect_path DS mpath0
                  /\  alarm (MN1 n) = true
-             ) by eauto using ac_to_alarm_DS with LTS.
+             ) by eauto using ac_to_alarm with LTS.
 
     consider (exists mpath1 (i1 : instr), (MN1 =[mpath1]=> i1 MN1)).
     {
@@ -5465,7 +5465,27 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem detection_completeness : forall (i0 : instr) (N0 N1 : PNet) path (DS : Names),
+  Theorem detection_completeness : forall (i0 : instr) N0 MN1 mpath0 DS,
+      KIC (i0 N0) ->
+      (i0 N0 =[ mpath0 ]=> MN1) ->
+      DeadSet DS MN1 ->
+      exists mpath1 MN2 n, (MN1 =[ mpath1 ]=> MN2) /\ In n DS /\ alarm (MN2 n) = true.
+
+  Proof.
+    intros.
+    assert (KIC MN1) by eauto with LTS.
+    consider (exists n, In n DS /\ dep_on MN1 n n) by (eauto 8 using deadset_dep_self with LTS).
+    consider (exists n', dep_on MN1 n n' /\ ac n' MN1) by (consider (KIC MN1); attac).
+    assert (dep_on MN1 n' n') by (eauto using dep_reloop with LTS).
+    consider (exists DS mpath1 MN2, (MN1 =[ mpath1 ]=> MN2) /\ DeadSet DS MN1 /\ _ /\  alarm (MN2 n') = true)
+      by eauto using ac_to_alarm with LTS.
+
+    exists mpath1, MN2, n'.
+    now eauto with LTS.
+  Qed.
+
+
+  Corollary find_detection  : forall (i0 : instr) (N0 N1 : PNet) path (DS : Names),
       KIC (i0 N0) ->
       (N0 =[ path ]=> N1) ->
       DeadSet DS N1 ->
@@ -5486,7 +5506,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       by (hsimpl; eauto using dep_reloop with LTS).
 
     consider (exists mpath1 (i2 : instr), (i1 N1 =[ mpath1 ]=> i2 _) /\ alarm (i2 _ n') = true)
-      by eauto using ac_to_alarm, apply_instr_flushed, apply_instr_ready_net with LTS.
+      by eauto using ac_to_alarm_instr, apply_instr_flushed, apply_instr_ready_net with LTS.
 
     exists (mpath0 ++ mpath1), i2, n'.
     now eauto using net_preserve_alarm_path with LTS.

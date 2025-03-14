@@ -33,8 +33,15 @@ Open Scope string_scope.
 (* this must be extracted or else coq bugs https://github.com/coq/coq/issues/19994 *)
 Inductive Name_ : Set :=
 | Initiator : string -> nat -> Name_
-| Worker : string -> Name_
+| Worker :> string -> Name_
 .
+
+Definition name_str (n : Name_) : option (list Byte.byte) :=
+  match n with Worker n => Some (list_byte_of_string n) | _ => None end.
+Definition str_name (s : list Byte.byte) : Name_ :=
+  Worker (string_of_list_byte s).
+
+String Notation Name_ str_name name_str : list_scope.
 
 Lemma Name_neq_IW : forall i si sw, Initiator si i <> Worker sw. attac. Qed.
 Lemma Name_neq_WI : forall i si sw, Worker sw <> Initiator si i. attac. Qed.
@@ -82,7 +89,6 @@ Module Name_ <: UsualDecidableSet.
       blast_cases; attac.
   Qed.
 End Name_.
-
 
 Module Thomas.
   Module DetConf <: Compl.DETECT_CONF.
@@ -146,7 +152,7 @@ Module Thomas.
 
   Record GenServer_ (state_t : Set) :=
     { gs_state : GenState state_t
-    ; gs_handler : Name -> Val -> state_t -> Handler state_t
+    ; gs_handler : option string -> Val -> state_t -> Handler state_t
     }.
 
   CoFixpoint run_gen_server [state_t : Set] :=
@@ -155,7 +161,8 @@ Module Thomas.
       | {|gs_state:=GSReady _ gss; gs_handler:=gsh|} =>
           recvq (
               fun from arg =>
-                run_gen_server {|gs_state:=GSHandle _ from (gsh from arg gss); gs_handler:=gsh|}
+                let name := match from with Worker n => Some n | _ => None end in
+                run_gen_server {|gs_state:=GSHandle _ from (gsh name arg gss); gs_handler:=gsh|}
             )
       | {|gs_state:=GSHandle _ client (h_reply _ reply next_state); gs_handler:=gsh|} =>
           PSend (client, R) reply (run_gen_server {|gs_state := GSReady _ next_state; gs_handler := gsh|})
@@ -335,7 +342,7 @@ Module Thomas.
   Qed.
 
 
-  Definition gen_server [state_t : Set] (init : state_t) (handle_call : Name -> Val -> state_t -> Handler state_t) :=
+  Definition gen_server [state_t : Set] (init : state_t) (handle_call : option string -> Val -> state_t -> Handler state_t) :=
     run_gen_server {|gs_state:=GSReady _ init; gs_handler:=handle_call|}.
 
 
@@ -355,7 +362,7 @@ Module Thomas.
   Record ServiceConf :=
     sconf { state_t : Set
           ; init : state_t
-          ; handle_call (from : Name) (msg : Val) (state : state_t) : Handler state_t
+          ; handle_call (from : option string) (msg : Val) (state : state_t) : Handler state_t
       }.
 
   Record InitConf := iconf { target : string; arg : Val }.
@@ -366,7 +373,7 @@ Module Thomas.
     }.
 
 
-  Definition make_net (conf : NetConf) : PNet :=
+  Definition gen_net (conf : NetConf) : PNet :=
     NetMod.init (
         fun n => match n with
               | Worker name =>
@@ -466,12 +473,12 @@ Module Thomas.
   Qed.
 
 
-  Lemma make_net_SRPC : forall conf, SRPC_net (make_net conf).
+  Lemma gen_net_SRPC : forall conf, SRPC_net (gen_net conf).
 
   Proof.
     unfold SRPC_net.
     intros.
-    unfold make_net.
+    unfold gen_net.
     rewrite NetMod.init_get.
     destruct n as [name [|i] | name].
     - destruct (inits conf name).
@@ -486,12 +493,12 @@ Module Thomas.
   Qed.
 
 
-  Lemma make_net_service_wf : forall conf, service_wf_net (make_net conf).
+  Lemma gen_net_service_wf : forall conf, service_wf_net (gen_net conf).
 
   Proof.
     unfold service_wf_net.
     intros.
-    unfold make_net.
+    unfold gen_net.
     rewrite NetMod.init_get.
     destruct n as [name [|i] | name].
     - destruct (inits conf name).
@@ -509,14 +516,14 @@ Module Thomas.
   Qed.
 
 
-  Lemma make_net_lock_finger : forall conf name i,
-      net_lock_on (make_net conf) (Initiator name (S i)) (Initiator name i).
+  Lemma gen_net_lock_finger : forall conf name i,
+      net_lock_on (gen_net conf) (Initiator name (S i)) (Initiator name i).
 
   Proof.
     intros.
     eexists [_]. 1: attac.
     unfold net_lock.
-    unfold make_net.
+    unfold gen_net.
     rewrite NetMod.init_get.
     blast_cases.
     assert (Decisive (Finger name (S i) target0 arg0)).
@@ -529,33 +536,33 @@ Module Thomas.
     eauto using SRPC_Finger.
   Qed.
 
-  Lemma make_net_lock_init : forall conf name other,
-      ~ net_lock_on (make_net conf) (Initiator name 0) other.
+  Lemma gen_net_lock_init : forall conf name other,
+      ~ net_lock_on (gen_net conf) (Initiator name 0) other.
 
   Proof.
     intros.
     intros ?.
     apply lock_singleton in H.
-    2: apply SRPC_net_lock_uniq; eauto using make_net_SRPC.
-    2: apply SRPC_net_lock_neq_nil; eauto using make_net_SRPC.
+    2: apply SRPC_net_lock_uniq; eauto using gen_net_SRPC.
+    2: apply SRPC_net_lock_neq_nil; eauto using gen_net_SRPC.
     unfold net_lock in *.
-    unfold make_net in *.
+    unfold gen_net in *.
     rewrite NetMod.init_get in *.
     blast_cases.
     kill H.
   Qed.
 
-  Lemma make_net_lock_worker : forall conf name other,
-      ~ net_lock_on (make_net conf) (Worker name) other.
+  Lemma gen_net_lock_worker : forall conf name other,
+      ~ net_lock_on (gen_net conf) (Worker name) other.
 
   Proof.
     intros.
     intros ?.
     apply lock_singleton in H.
-    2: apply SRPC_net_lock_uniq; eauto using make_net_SRPC.
-    2: apply SRPC_net_lock_neq_nil; eauto using make_net_SRPC.
+    2: apply SRPC_net_lock_uniq; eauto using gen_net_SRPC.
+    2: apply SRPC_net_lock_neq_nil; eauto using gen_net_SRPC.
     unfold net_lock in *.
-    unfold make_net in *.
+    unfold gen_net in *.
     rewrite NetMod.init_get in *.
     blast_cases.
     kill H.
@@ -566,12 +573,12 @@ Module Thomas.
     - eexists; eauto.
   Qed.
 
-  Lemma make_net_client_finger : forall conf name i,
-      pq_client  (Initiator name (S i)) (NetMod.get (Initiator name i) (make_net conf)).
+  Lemma gen_net_client_finger : forall conf name i,
+      pq_client  (Initiator name (S i)) (NetMod.get (Initiator name i) (gen_net conf)).
 
   Proof.
     intros.
-    unfold make_net.
+    unfold gen_net.
     rewrite NetMod.init_get.
     blast_cases.
     constructor; auto.
@@ -582,13 +589,13 @@ Module Thomas.
       attac.
   Qed.
 
-  Lemma make_net_client_worker : forall conf name other,
-      ~ pq_client other (NetMod.get (Worker name) (make_net conf)).
+  Lemma gen_net_client_worker : forall conf name other,
+      ~ pq_client other (NetMod.get (Worker name) (gen_net conf)).
 
   Proof.
     intros.
     intros ?.
-    unfold make_net in *.
+    unfold gen_net in *.
     rewrite NetMod.init_get in *.
     kill H; blast_cases; doubt; attac.
     assert (SRPC Free (gen_server init0 handle_call0)) by apply SRPC_gen_server.
@@ -597,29 +604,29 @@ Module Thomas.
   Qed.
 
 
-  Lemma make_net_lock_inv : forall conf n0 n1,
-      net_lock_on (make_net conf) n0 n1 ->
+  Lemma gen_net_lock_inv : forall conf n0 n1,
+      net_lock_on (gen_net conf) n0 n1 ->
       exists name i, n0 = Initiator name (S i) /\ n1 = Initiator name i.
 
   Proof.
     intros.
     destruct n0 as [name0 [|i0] | name0].
-    - apply make_net_lock_init in H; bs.
-    - assert (net_lock_on (make_net conf) (Initiator name0 (S i0)) (Initiator name0 i0)) by
-        eauto using make_net_lock_finger.
-      assert (n1 = Initiator name0 i0) by (eapply SRPC_net_lock_uniq; eauto using make_net_SRPC).
+    - apply gen_net_lock_init in H; bs.
+    - assert (net_lock_on (gen_net conf) (Initiator name0 (S i0)) (Initiator name0 i0)) by
+        eauto using gen_net_lock_finger.
+      assert (n1 = Initiator name0 i0) by (eapply SRPC_net_lock_uniq; eauto using gen_net_SRPC).
       attac.
-    - apply make_net_lock_worker in H; bs.
+    - apply gen_net_lock_worker in H; bs.
   Qed.
 
 
-  Lemma make_net_client_inv : forall conf n0 n1,
-      pq_client n0 (NetMod.get n1 (make_net conf)) ->
+  Lemma gen_net_client_inv : forall conf n0 n1,
+      pq_client n0 (NetMod.get n1 (gen_net conf)) ->
       exists name i, n0 = Initiator name (S i) /\ n1 = Initiator name i.
 
   Proof.
     intros.
-    unfold make_net in *.
+    unfold gen_net in *.
     rewrite NetMod.init_get in *.
     kill H; blast_cases; doubt; attac.
     - destruct n.
@@ -637,20 +644,20 @@ Module Thomas.
   Qed.
 
 
-  Lemma make_well_formed : forall conf, (well_formed (make_net conf)).
+  Lemma make_well_formed : forall conf, (well_formed (gen_net conf)).
 
   Proof.
     intros.
     constructor.
-    - apply make_net_service_wf.
+    - apply gen_net_service_wf.
     - intros n0 n1 **.
-      apply (make_net_lock_inv conf n0 n1) in H.
+      apply (gen_net_lock_inv conf n0 n1) in H.
       attac.
-      apply make_net_client_finger.
+      apply gen_net_client_finger.
     - intros n0 n1 **.
-      apply (make_net_client_inv conf n0 n1) in H.
+      apply (gen_net_client_inv conf n0 n1) in H.
       attac.
-      apply make_net_lock_finger.
+      apply gen_net_lock_finger.
   Qed.
 
 
@@ -680,12 +687,12 @@ Module Thomas.
   Definition make_instr : instr :=
     instr_ (fun n => _mon_assg [] MQ_Clear_nil (MRecv (make_mon_state n))).
 
-  Definition make_mnet (conf : NetConf) := make_instr (make_net conf).
+  Definition gen_mnet (conf : NetConf) := make_instr (gen_net conf).
 
 
-  Lemma make_net_dep : forall conf name i0 i1,
+  Lemma gen_net_dep : forall conf name i0 i1,
       lt i1 i0 ->
-      dep_on (make_net conf) (Initiator name i0) (Initiator name i1).
+      dep_on (gen_net conf) (Initiator name i0) (Initiator name i1).
 
   Proof.
     induction i0; intros.
@@ -693,15 +700,15 @@ Module Thomas.
 
     kill H.
     - constructor.
-      eapply make_net_lock_finger.
+      eapply gen_net_lock_finger.
     - econstructor 2.
-      eapply make_net_lock_finger.
+      eapply gen_net_lock_finger.
       eapply IHi0.
       kill H0; attac.
   Qed.
 
-  Lemma make_net_dep_inv : forall conf n0 n1,
-      dep_on (make_net conf) n0 n1 ->
+  Lemma gen_net_dep_inv : forall conf n0 n1,
+      dep_on (gen_net conf) n0 n1 ->
       exists name i0 i1, n0 = Initiator name i0 /\ n1 = Initiator name i1 /\ lt i1 i0.
 
   Proof.
@@ -709,86 +716,86 @@ Module Thomas.
     apply dep_lock_chain in H as [L [H ?]].
     generalize dependent n0.
     induction L; intros; kill H.
-    - apply make_net_lock_inv in H1.
+    - apply gen_net_lock_inv in H1.
       attac.
       exists name, (S i), i.
       attac.
     - hsimpl in *.
       specialize (IHL ltac:(auto) a ltac:(auto)).
-      apply make_net_lock_inv in H1.
+      apply gen_net_lock_inv in H1.
       attac.
       exists name0, (S i0), i1.
       attac.
   Qed.
 
 
-  Lemma make_mnet_KIC : forall conf, (KIC (make_mnet conf)).
+  Lemma gen_mnet_KIC : forall conf, (KIC (gen_mnet conf)).
     intros.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
-    1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
+    1: unfold gen_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
 
-    1: destruct (NetMod.get n (make_mnet conf)) eqn:?.
-    2: destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
-    3: destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
-    4: destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
+    1: destruct (NetMod.get n (gen_mnet conf)) eqn:?.
+    2: destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
+    3: destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
+    4: destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
 
-    1: unfold make_mnet, make_instr, apply_instr, serv_instr, make_net in *; try (rewrite NetMod.init_get in * ); simpl in *.
+    1: unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net in *; try (rewrite NetMod.init_get in * ); simpl in *.
     - hsimpl in *.
       unfold make_mon_state.
       blast_cases; compat_hsimpl in *; attac.
-    - unfold make_mnet in *.
+    - unfold gen_mnet in *.
       rewrite net_deinstr_instr in *.
-      apply make_net_lock_inv in H.
+      apply gen_net_lock_inv in H.
       attac.
-      unfold make_net, make_instr, apply_instr, serv_instr in *.
+      unfold gen_net, make_instr, apply_instr, serv_instr in *.
       attac.
-    - unfold make_mnet in *.
+    - unfold gen_mnet in *.
       rewrite net_deinstr_instr in *.
-      apply make_net_lock_inv in H.
+      apply gen_net_lock_inv in H.
       attac.
-      unfold make_net, make_instr, apply_instr, serv_instr in *.
+      unfold gen_net, make_instr, apply_instr, serv_instr in *.
       attac.
       destruct i; attac.
-    - unfold make_mnet in *.
+    - unfold gen_mnet in *.
       rewrite net_deinstr_instr in *.
-      apply make_net_dep_inv in H.
+      apply gen_net_dep_inv in H.
       attac.
   Qed.
 
 
-  Lemma make_mnet_KIS : forall conf, (KIS (make_mnet conf)).
+  Lemma gen_mnet_KIS : forall conf, (KIS (gen_mnet conf)).
     intros.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
-    1: unfold make_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
+    1: unfold gen_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
 
-    - destruct (NetMod.get n0 (make_mnet conf)) eqn:?.
-      unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+    - destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
+      unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases; attac.
       blast_cases; attac.
     - left.
-      unfold make_mnet in *.
+      unfold gen_mnet in *.
       rewrite net_deinstr_instr.
-      unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases; attac.
       blast_cases; attac.
-      apply make_net_lock_finger.
-    -  unfold make_mnet in *.
+      apply gen_net_lock_finger.
+    -  unfold gen_mnet in *.
        rewrite net_deinstr_instr.
-       unfold make_instr, apply_instr, serv_instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+       unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
 
        blast_cases; attac.
        blast_cases; attac.
-       apply make_net_lock_finger.
-       apply make_net_lock_finger.
-    - unfold make_mnet in *.
+       apply gen_net_lock_finger.
+       apply gen_net_lock_finger.
+    - unfold gen_mnet in *.
       rewrite net_deinstr_instr.
-      unfold make_instr, apply_instr, serv_instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases; attac.
-    - unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+    - unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases; attac.
-    - unfold make_mnet, make_instr, apply_instr, serv_instr, make_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+    - unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases.
       rewrite NetMod.get_map in *.
@@ -796,23 +803,23 @@ Module Thomas.
       destruct p.
       simpl in *.
       bs.
-    - unfold make_mnet in *.
+    - unfold gen_mnet in *.
       rewrite net_deinstr_instr.
-      unfold make_instr, apply_instr, serv_instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases.
       rewrite NetMod.get_map in *.
       rewrite NetMod.init_get in *.
       bs.
-    - unfold make_mnet in *.
+    - unfold gen_mnet in *.
       rewrite net_deinstr_instr.
-      unfold make_instr, apply_instr, serv_instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases.
       rewrite NetMod.get_map in *.
       rewrite NetMod.init_get in *.
       bs.
-    - unfold make_mnet in *.
+    - unfold gen_mnet in *.
       rewrite net_deinstr_instr.
-      unfold make_instr, apply_instr, serv_instr, make_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases.
       rewrite NetMod.get_map in *.
       rewrite NetMod.init_get in *.
@@ -847,7 +854,7 @@ Module Thomas.
     Definition service (target : string) :=
       {| state_t := _;
         init := tt;
-        handle_call (_from : Name) (msg : Val) st :=
+        handle_call (_from : option string) (msg : Val) st :=
           match valnat_trans msg with
           | 0 => reply msg st
           | S msg' =>
@@ -857,39 +864,40 @@ Module Thomas.
       |}.
 
 
-    Definition deadlocking_net : PNet := make_net
-                                           {| services name :=
-                                               match name with
-                                               | "e10" => service "e01" | "e11" => service "e00"
-                                               | "e00" => service "e10" | "e01" => service "e11"
-                                               | _ => echo
-                                               end;
-                                             inits name :=
-                                               match name with
-                                               | "i0" => iconf "e00" 2 | "i1" => iconf "e01" 2
-                                               | _ => iconf "" 0
-                                               end
-                                           |}.
+    Definition example_net : PNet :=
+      gen_net
+        {| services name :=
+            match name with
+            | "C" => service "B" | "D" => service "A"
+            | "A" => service "C" | "B" => service "D"
+            | _ => echo
+            end;
+          inits name :=
+            match name with
+            | "iA" => iconf "A" 2 | "iB" => iconf "B" 2
+            | _ => iconf "" 0
+            end
+        |}.
 
 
-  Lemma ded : exists path N, (deadlocking_net =[path]=> N) /\ Deadlocked N /\ path <> [].
+  Lemma can_deadlock : exists path N, (example_net =[path]=> N) /\ DeadSet ["A"; "B"; "C"; "D"]%list N.
   Proof.
     eexists ?[path], ?[N].
 
-    eassert (deadlocking_net =[?path]=> ?N).
+    eassert (example_net =[?path]=> ?N).
     {
       (* Session 0 *)
-      eapply path_seq1 with (act := NTau (Initiator "i0" 0) Tau).
+      eapply path_seq1 with (act := NTau (Initiator "iA" 0) Tau).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         repeat econstructor.
         rewrite NetMod.init_get.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Initiator "i0" 0) (Worker "e00") Q _).
+      eapply path_seq1 with (act := NComm (Initiator "iA" 0) (Worker "A") Q _).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -900,9 +908,9 @@ Module Thomas.
           eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "e00") Tau).
+      eapply path_seq1 with (act := NTau (Worker "A") Tau).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
         simpl.
         repeat econstructor.
@@ -910,18 +918,18 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "e00") Tau).
+      eapply path_seq1 with (act := NTau (Worker "A") Tau).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
         repeat econstructor.
         compat_hsimpl.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "e00") (Worker "e10") Q _).
+      eapply path_seq1 with (act := NComm (Worker "A") (Worker "C") Q _).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -933,18 +941,18 @@ Module Thomas.
       }
 
       (* Session 1 *)
-      eapply path_seq1 with (act := NTau (Initiator "i1" 0) Tau).
+      eapply path_seq1 with (act := NTau (Initiator "iB" 0) Tau).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         repeat econstructor.
         compat_hsimpl.
         rewrite NetMod.init_get.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Initiator "i1" 0) (Worker "e01") Q _).
+      eapply path_seq1 with (act := NComm (Initiator "iB" 0) (Worker "B") Q _).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -955,9 +963,9 @@ Module Thomas.
           eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "e01") Tau).
+      eapply path_seq1 with (act := NTau (Worker "B") Tau).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
         simpl.
         repeat econstructor.
@@ -965,18 +973,18 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "e01") Tau).
+      eapply path_seq1 with (act := NTau (Worker "B") Tau).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
         repeat econstructor.
         compat_hsimpl.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "e01") (Worker "e11") Q _).
+      eapply path_seq1 with (act := NComm (Worker "B") (Worker "D") Q _).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -988,9 +996,9 @@ Module Thomas.
       }
 
       (* Cross *)
-      eapply path_seq1 with (act := NTau (Worker "e11") Tau).
+      eapply path_seq1 with (act := NTau (Worker "D") Tau).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
         simpl.
         repeat econstructor.
@@ -998,18 +1006,18 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "e11") Tau).
+      eapply path_seq1 with (act := NTau (Worker "D") Tau).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
         repeat econstructor.
         compat_hsimpl.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "e11") (Worker "e00") Q _).
+      eapply path_seq1 with (act := NComm (Worker "D") (Worker "A") Q _).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -1019,9 +1027,9 @@ Module Thomas.
           repeat econstructor.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "e10") Tau).
+      eapply path_seq1 with (act := NTau (Worker "C") Tau).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
         simpl.
         repeat econstructor.
@@ -1029,18 +1037,18 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "e10") Tau).
+      eapply path_seq1 with (act := NTau (Worker "C") Tau).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
         repeat econstructor.
         compat_hsimpl.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "e10") (Worker "e01") Q _).
+      eapply path_seq1 with (act := NComm (Worker "C") (Worker "B") Q _).
       {
-        unfold deadlocking_net, make_net, call, recvr, recvq.
+        unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
         - repeat econstructor.
           compat_hsimpl in *.
@@ -1063,14 +1071,12 @@ Module Thomas.
                                                     destruct (NetMod.get n N);
                                                     eauto).
       enough (SRPC_net N) by eauto.
-      enough (SRPC_net deadlocking_net) by eauto with LTS.
+      enough (SRPC_net example_net) by eauto with LTS.
       clear.
-      eauto using make_net_SRPC.
+      eauto using gen_net_SRPC.
     }
 
     split; eauto.
-    split > [|bs].
-    constructor 1 with (DL:=map Worker ["e00"; "e01"; "e10"; "e11"]).
     constructor. 1: { clear; attac. }
     intros.
     unfold net_lock.
@@ -1078,28 +1084,28 @@ Module Thomas.
     specialize (H0 n).
     clear H.
     repeat (destruct `(_ \/ _)).
-    - exists [Worker "e10"].
+    - exists [Worker "C"].
       subst.
       compat_hsimpl in *.
       split; attac.
       blast_cases. 2: bs.
       apply NAME.eqb_eq in Heqb.
       auto.
-    - exists [Worker "e11"].
+    - exists [Worker "D"].
       subst.
       compat_hsimpl in *.
       split; attac.
       blast_cases. 2: bs.
       apply NAME.eqb_eq in Heqb.
       auto.
-    - exists [Worker "e01"].
+    - exists [Worker "B"].
       subst.
       compat_hsimpl in *.
       split; attac.
       blast_cases. 2: bs.
       apply NAME.eqb_eq in Heqb.
       auto.
-    - exists [Worker "e00"].
+    - exists [Worker "A"].
       subst.
       compat_hsimpl in *.
       split; attac.
