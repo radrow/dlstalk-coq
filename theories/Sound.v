@@ -251,7 +251,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       attac.
     Qed.
 
-    Lemma SRPC_M_net_in_net_R_in_lock [N : MNet] [ n s v MQ M S] :
+    Lemma SRPC_M_net_in_net_R_in_locked [N : MNet] [ n s v MQ M S] :
       well_formed N ->
       NetMod.get n N = mserv MQ M S ->
       List.In (TrRecv (s, R) v) MQ ->
@@ -263,7 +263,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       consider (exists c, srpc = Locked c s); eattac.
     Qed.
 
-    Lemma SRPC_M_net_in_net_Q_out_lock [N : MNet] [ n s v MQ M S] :
+    Lemma SRPC_M_net_in_net_Q_out_locked [N : MNet] [ n s v MQ M S] :
       well_formed N ->
       NetMod.get n N = mserv MQ M S ->
       List.In (TrSend (s, Q) v) MQ ->
@@ -860,19 +860,19 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       (* `self` is correct *)
       (H_self_S : forall n0, self (MN n0) = n0)
       (* Monitor correctly judges the lock, unless there is a reply incoming it is about to see *)
-      (H_lock_S : forall n0 n1, lock (MN n0) = Some n1 -> lock '' MN n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) (mserv_i (MN n0)))
+      (H_lock_S : forall n0 n1, locked (MN n0) = Some n1 -> lock '' MN n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) (mserv_i (MN n0)))
       (* All members of the waiting list are locked on us *)
       (H_wait_S : forall n0 n1, List.In n0 (wait (MN n1)) -> lock '' MN n0 n1)
       (* Monitors send probes only to those locked. *)
       (H_sendp_S : forall n0 n1 p, sends_to MN n1 n0 p -> lock '' MN n0 n1)
-      (* All sent probes have their index no higher than the lock id of the initiator *)
+      (* All sent probes have their index no higher than the locked id of the initiator *)
       (H_index_send_S : forall n0 n1 p, sends_to MN n0 n1 p -> (index p <= lock_id (MN (origin p)))%nat)
-      (* All received probes have their index no higher than the lock id of the initiator *)
+      (* All received probes have their index no higher than the locked id of the initiator *)
       (H_index_recvp_S : forall n0 n1 p, List.In (EvRecv (n1, R) p) (mserv_i (MN n0)) -> (index p <= lock_id (MN (origin p)))%nat)
       (* If we are about to receive a active probe of someone whose monitor considers locked, then we depend on them. *)
-      (H_sendp_active_S : forall n0 n1 n2, sends_to MN n1 n0 (active_probe_of MN n2) -> lock (MN n2) <> None -> trans_lock '' MN n0 n2)
+      (H_sendp_active_S : forall n0 n1 n2, sends_to MN n1 n0 (active_probe_of MN n2) -> locked (MN n2) <> None -> trans_lock '' MN n0 n2)
       (* If we received a active probe of someone whose monitor considers locked, then we depend on them. *)
-      (H_recvp_active_S : forall n0 n1 n2, List.In (active_ev_of MN n2 n0) (mserv_i (MN n1)) -> lock (MN n0) <> None -> trans_lock '' MN n1 n0)
+      (H_recvp_active_S : forall n0 n1 n2, List.In (active_ev_of MN n2 n0) (mserv_i (MN n1)) -> locked (MN n0) <> None -> trans_lock '' MN n1 n0)
       (* No false alarms: if anyone screams, they are indeed deadlocked *)
       (H_alarm_S : forall n, alarm (MN n) = true -> trans_lock '' MN n n)
       : KIS MN.
@@ -884,7 +884,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma KIS_self [MN] : KIS MN -> forall n0, self (MN n0) = n0.
   Proof. intros; consider (KIS _). Qed.
 
-  Lemma KIS_lock [MN] : KIS MN -> forall n0 n1, lock (MN n0) = Some n1 -> lock '' MN n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) (mserv_i (MN n0)).
+  Lemma KIS_locked [MN] : KIS MN -> forall n0 n1, locked (MN n0) = Some n1 -> lock '' MN n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) (mserv_i (MN n0)).
   Proof. intros; consider (KIS _). Qed.
 
   Lemma KIS_wait [MN] : KIS MN -> forall n0 n1, List.In n0 (wait (MN n1)) -> lock '' MN n0 n1.
@@ -899,10 +899,10 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma KIS_index_recvp [MN] : KIS MN -> forall n0 n1 p, List.In (EvRecv (n1, R) p) (mserv_i (MN n0)) -> (index p <= lock_id (MN (origin p)))%nat.
   Proof. intros; consider (KIS _). eauto. Qed.
 
-  Lemma KIS_sendp_active [MN] : KIS MN -> forall n0 n1 n2, sends_to MN n1 n0 (active_probe_of MN n2) -> lock (MN n2) <> None -> trans_lock '' MN n0 n2.
+  Lemma KIS_sendp_active [MN] : KIS MN -> forall n0 n1 n2, sends_to MN n1 n0 (active_probe_of MN n2) -> locked (MN n2) <> None -> trans_lock '' MN n0 n2.
   Proof. intros; consider (KIS _). eauto. Qed.
 
-  Lemma KIS_recvp_active [MN] : KIS MN -> forall n0 n1 n2, List.In (active_ev_of MN n2 n0) (mserv_i (MN n1)) -> lock (MN n0) <> None -> trans_lock '' MN n1 n0.
+  Lemma KIS_recvp_active [MN] : KIS MN -> forall n0 n1 n2, List.In (active_ev_of MN n2 n0) (mserv_i (MN n1)) -> locked (MN n0) <> None -> trans_lock '' MN n1 n0.
   Proof. intros; consider (KIS _). eauto. Qed.
 
   Lemma KIS_alarm [MN] : KIS MN -> forall n, alarm (MN n) = true -> trans_lock '' MN n n.
@@ -935,11 +935,11 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma KIS_lock_get [MN n0 n1] [MQ s S] :
     KIS MN ->
     NetMod.get n0 MN = mserv MQ (s) S ->
-    lock (next_state s) = Some n1 ->
+    locked (next_state s) = Some n1 ->
     lock '' MN n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) MQ.
 
   Proof. intros.
-         assert (lock (MN n0) = Some n1) by (ltac1:(autounfold with LTS_get in * ); attac).
+         assert (locked (MN n0) = Some n1) by (ltac1:(autounfold with LTS_get in * ); attac).
          assert (lock '' MN n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) (mserv_i (MN n0))) by attac.
          ltac1:(autounfold with LTS_get in * ); hsimpl in * |-; auto.
   Qed.
@@ -1004,13 +1004,13 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     index p = lock_id (next_state s2) ->
     origin p = n2 ->
     lock_id (next_state s2) = lock_id' ->
-    lock (next_state s2) <> None ->
+    locked (next_state s2) <> None ->
     trans_lock '' MN n0 n2.
 
   Proof. intros.
          destruct p.
          assert (sends_to MN n1 n0 (active_probe_of MN n2)) by (unfold active_probe_of in *; ltac1:(autounfold with LTS_get in * ); attac).
-         assert (lock (MN n2) <> None) by (ltac1:(autounfold with LTS_get in * ); attac).
+         assert (locked (MN n2) <> None) by (ltac1:(autounfold with LTS_get in * ); attac).
          eauto with LTS.
   Qed.
 
@@ -1023,13 +1023,13 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     index p = lock_id (next_state s2) ->
     origin p = n2 ->
     lock_id (next_state s2) = lock_id' ->
-    lock (next_state s2) <> None ->
+    locked (next_state s2) <> None ->
     trans_lock '' MN n0 n2.
 
   Proof. intros.
          destruct p.
          assert (List.In (active_ev_of MN n1 n2) (mserv_i (MN n0))) by (unfold active_ev_of, active_probe_of in *; ltac1:(autounfold with LTS_get in * ); attac).
-         assert (lock (MN n2) <> None) by (ltac1:(autounfold with LTS_get in * ); attac).
+         assert (locked (MN n2) <> None) by (ltac1:(autounfold with LTS_get in * ); attac).
          eauto with LTS.
   Qed.
 
@@ -1093,8 +1093,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma M_lock_set [MN0 MN1 a n0 n1] :
     KIS MN0 ->
     (MN0 =(a)=> MN1) ->
-    lock (MN0 n0) = None ->
-    lock (MN1 n0) = Some n1 ->
+    locked (MN0 n0) = None ->
+    locked (MN1 n0) = Some n1 ->
     exists v, a = NComm n0 n1 Q (MValP v).
 
   Proof.
@@ -1116,8 +1116,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma M_lock_unset [MN0 MN1 a n0 n1] :
     KIS MN0 ->
     (MN0 =(a)=> MN1) ->
-    lock (MN0 n0) = Some n1 ->
-    lock (MN1 n0) = None ->
+    locked (MN0 n0) = Some n1 ->
+    locked (MN1 n0) = None ->
     exists v, a = NTau n0 (MActP (Recv (n1, R) v)).
 
   Proof.
@@ -1141,7 +1141,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma M_lock_no_send [MN0 MN1 n0 n1 m0 m1 t v] :
     KIS MN0 ->
-    lock (MN0 n0) = Some n1 ->
+    locked (MN0 n0) = Some n1 ->
     (MN0 =(NComm m0 m1 t (MValP v))=> MN1) ->
     n0 <> m0.
 
@@ -1184,8 +1184,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma M_lock_no_reset [MN0 MN1 a n0 n1 n1'] :
     KIS MN0 ->
     (MN0 =(a)=> MN1) ->
-    lock (MN0 n0) = Some n1 ->
-    lock (MN1 n0) = Some n1' ->
+    locked (MN0 n0) = Some n1 ->
+    locked (MN1 n0) = Some n1' ->
     n1' = n1.
 
   Proof.
@@ -1216,19 +1216,19 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma M_lock_set_act [MN0 MN1 n0 n1 v] :
     KIS MN0 ->
     (MN0 =(NComm n0 n1 Q (MValP v))=> MN1) ->
-    lock (MN0 n0) = None /\ lock (MN1 n0) = Some n1.
+    locked (MN0 n0) = None /\ locked (MN1 n0) = Some n1.
 
   Proof.
     intros.
     consider (~ lock '' MN0 n0 n1 /\ lock '' MN1 n0 n1)
-      by (eauto using SRPC_M_net_query_new_lock with LTS).
+      by (eauto using SRPC_M_net_query_new_locked with LTS).
 
     split.
-    - enough (forall n, lock (MN0 n0) <> Some n) by (destruct (lock (MN0 n0)); attac). intros ? ?.
+    - enough (forall n, locked (MN0 n0) <> Some n) by (destruct (locked (MN0 n0)); attac). intros ? ?.
       apply `(~ lock '' MN0 _ _).
       assert (lock '' MN0 n0 n \/ exists v, List.In (TrRecv (n, R) v) (mserv_i (MN0 n0))) as [|]
           by eauto with LTS.
-      + consider (n = n1) by eauto using SRPC_M_net_no_immediate_relock with LTS.
+      + consider (n = n1) by eauto using SRPC_M_net_no_immediate_relocked with LTS.
       + hsimpl in *.
 
         destruct (NetMod.get n0 '' MN0) as [I0 P0 O0] eqn:?.
@@ -1497,10 +1497,10 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma KIS_invariant_lock [MN0 MN1 a] :
+  Lemma KIS_invariant_locked [MN0 MN1 a] :
     (MN0 =(a)=> MN1) ->
     KIS MN0 ->
-    forall n0 n1, lock (MN1 n0) = Some n1 -> lock '' MN1  n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) (mserv_i (MN1 n0)).
+    forall n0 n1, locked (MN1 n0) = Some n1 -> lock '' MN1  n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) (mserv_i (MN1 n0)).
 
   Proof.
     intros.
@@ -1530,7 +1530,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       }
       exfalso.
 
-      destruct (lock (MN0 n0)) as [n1'| ] eqn:?.
+      destruct (locked (MN0 n0)) as [n1'| ] eqn:?.
       + consider (n1' = n1) by (symmetry; eauto using M_lock_no_reset).
         assert (lock '' MN0 n0 n1 \/ exists v, List.In (TrRecv (n1, R) v) (mserv_i (MN0 n0))) by eauto with LTS.
         hsimpl in *.
@@ -1843,7 +1843,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
       consider (exists n1' v, a = NComm (origin p) n1' Q (MValP v)) by eauto using M_lock_id_update.
 
-      consider (lock (MN0 (origin p)) = None /\ lock (MN1 (origin p)) = Some n1') by eauto using M_lock_set_act.
+      consider (locked (MN0 (origin p)) = None /\ locked (MN1 (origin p)) = Some n1') by eauto using M_lock_set_act.
       consider (_ =(_)=> _); compat_hsimpl in *.
       ltac1:(autounfold with LTS_get in * ); hsimpl in *.
       hsimpl_net; hsimpl in *; doubt.
@@ -1874,17 +1874,17 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     - destruct (well_formed_lock_dec N1 n0 n1); eauto with LTS.
       right; intros ?.
       consider (trans_lock N1 n0 _).
-      consider (n1 = n2) by eauto using SRPC_net_no_relock with LTS.
+      consider (n1 = n2) by eauto using SRPC_net_no_relocked with LTS.
     - specialize (IHL ltac:(auto) a0 ltac:(auto)) as [|].
       + destruct (well_formed_lock_dec N1 n0 a0); eauto with LTS.
         right; intros ?.
         consider (trans_lock N1 _ _).
-        * consider (a0 = n1) by eauto using SRPC_net_no_relock with LTS.
-        * consider (a0 = n2) by eauto using SRPC_net_no_relock with LTS.
+        * consider (a0 = n1) by eauto using SRPC_net_no_relocked with LTS.
+        * consider (a0 = n2) by eauto using SRPC_net_no_relocked with LTS.
       + right; intros ?.
         consider (trans_lock N1 n0 n1).
-        * consider (a0 = n1) by eauto using SRPC_net_no_relock with LTS.
-        * consider (a0 = n2) by eauto using SRPC_net_no_relock with LTS.
+        * consider (a0 = n1) by eauto using SRPC_net_no_relocked with LTS.
+        * consider (a0 = n2) by eauto using SRPC_net_no_relocked with LTS.
   Qed.
 
   Lemma dep_dec_after_M : forall MN0 MN1 ma n0 n1,
@@ -1907,7 +1907,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     (MN0 =(a)=> MN1) ->
     KIS MN0 ->
     forall n0 n1 n2, List.In (active_ev_of MN1 n1 n2) (mserv_i (MN1 n0)) ->
-                                  lock (MN1 n2) <> None ->
+                                  locked (MN1 n2) <> None ->
                                   trans_lock '' MN1 n0 n2.
 
   Proof.
@@ -1950,10 +1950,10 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         consider (exists v, NComm n1 n0 R ^ (active_probe_of MN1 n2) = NComm n1 n0 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
         bs.
       }
-      assert (lock (MN0 n2) <> None).
+      assert (locked (MN0 n2) <> None).
       {
         intros ?.
-        destruct (lock (MN1 n2)) as [n3|] eqn:?; doubt.
+        destruct (locked (MN1 n2)) as [n3|] eqn:?; doubt.
         consider (exists v, NComm n1 n0 R ^ (active_probe_of MN1 n2) = NComm n2 n3 Q (MValP v)) by eauto using M_lock_set.
       }
       assert (active_probe_of MN1 n2 = active_probe_of MN0 n2).
@@ -1971,7 +1971,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       eapply net_deinstr_act_skip; attac.
     }
 
-    destruct (lock (MN1 n2)) as [n3|] eqn:?. 2: doubt.
+    destruct (locked (MN1 n2)) as [n3|] eqn:?. 2: doubt.
 
     assert ((exists v, a = NComm n2 n3 Q (MValP v)) \/ forall v, a <> NComm n2 n3 Q (MValP v)) as [|].
     {
@@ -1994,19 +1994,19 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       {
         destruct (PeanoNat.Nat.eq_dec (lock_id (MN0 n2)) (lock_id (MN1 n2))) as [He|He]; auto.
         consider (exists n3' v, a = NComm n2 n3' Q (MValP v)) by eauto using M_lock_id_update.
-        consider (lock (MN0 n2) = None /\ lock (MN1 n2) = Some n3') by eauto using M_lock_set_act.
+        consider (locked (MN0 n2) = None /\ locked (MN1 n2) = Some n3') by eauto using M_lock_set_act.
         attac.
       }
       replace (active_ev_of MN1 n1 n2) with (active_ev_of MN0 n1 n2) by (unfold active_ev_of, active_probe_of; attac).
-      assert (lock (MN0 n2) = Some n3).
+      assert (locked (MN0 n2) = Some n3).
       {
-        destruct (lock (MN0 n2)) as [n3'|] eqn:?.
+        destruct (locked (MN0 n2)) as [n3'|] eqn:?.
         - enough (n3 = n3') by attac.
           eauto using M_lock_no_reset.
         - consider (exists v, a = NComm n2 n3 Q (MValP v)) by eauto using M_lock_set.
           bs.
       }
-      assert (trans_lock '' MN0 n0 n2) by (assert (lock (MN0 n2) <> None) by attac; eauto with LTS).
+      assert (trans_lock '' MN0 n0 n2) by (assert (locked (MN0 n2) <> None) by attac; eauto with LTS).
       assert (trans_lock '' MN1 n0 n2 \/ ~ trans_lock '' MN1 n0 n2) as [|]; eauto using dep_dec_after_M with LTS.
 
       consider (exists n0' v, (n0 = n0' \/ trans_lock '' MN1 n0 n0') /\ a = NComm n2 n0' R (MValP v)).
@@ -2015,7 +2015,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
           consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ trans_lock '' MN1 n0 n0')).
           {
-            eapply net_trans_lock_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
+            eapply net_trans_lock_unlocked with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
           }
 
           exists n0', v.
@@ -2034,7 +2034,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma KIS_invariant_sendp_active [MN0 MN1 a] :
     (MN0 =(a)=> MN1) ->
     KIS MN0 ->
-    (forall n0 n1 n2, sends_to MN1 n1 n0 (active_probe_of MN1 n2) -> lock (MN1 n2) <> None -> trans_lock '' MN1 n0 n2).
+    (forall n0 n1 n2, sends_to MN1 n1 n0 (active_probe_of MN1 n2) -> locked (MN1 n2) <> None -> trans_lock '' MN1 n0 n2).
 
   Proof.
     intros.
@@ -2055,10 +2055,10 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       assert ((exists v, a = NTau n1 (MActP (Recv (n0, Q) v))) \/ a = NTau n1 (MActM Tau))
         by eauto using M_sends_to_send_set with LTS.
 
-      assert (lock (MN0 n2) <> None).
+      assert (locked (MN0 n2) <> None).
       {
         intros ?.
-        destruct (lock (MN1 n2)) as [n3|] eqn:?; doubt.
+        destruct (locked (MN1 n2)) as [n3|] eqn:?; doubt.
         consider (exists v, a = NComm n2 n3 Q (MValP v)) by eauto using M_lock_set.
         destruct `(_ \/ _); bs.
       }
@@ -2108,7 +2108,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
             consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ trans_lock '' MN1 n0 n0')).
             {
-              eapply net_trans_lock_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
+              eapply net_trans_lock_unlocked with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
             }
             bs.
           - replace ('' MN1) with ('' MN0) by eauto using eq_sym, net_deinstr_act_skip.
@@ -2117,7 +2117,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         hsimpl in *; bs.
     }
 
-    destruct (lock (MN1 n2)) as [n3|] eqn:?. 2: doubt.
+    destruct (locked (MN1 n2)) as [n3|] eqn:?. 2: doubt.
 
     assert ((exists v, a = NComm n2 n3 Q (MValP v)) \/ forall v, a <> NComm n2 n3 Q (MValP v)) as [|].
     {
@@ -2139,19 +2139,19 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       {
         destruct (PeanoNat.Nat.eq_dec (lock_id (MN0 n2)) (lock_id (MN1 n2))) as [He|He]; auto.
         consider (exists n3' v, a = NComm n2 n3' Q (MValP v)) by eauto using M_lock_id_update.
-        consider (lock (MN0 n2) = None /\ lock (MN1 n2) = Some n3') by eauto using M_lock_set_act.
+        consider (locked (MN0 n2) = None /\ locked (MN1 n2) = Some n3') by eauto using M_lock_set_act.
         attac.
       }
       replace (active_probe_of MN1 n2) with (active_probe_of MN0 n2) by (unfold active_probe_of; attac).
-      assert (lock (MN0 n2) = Some n3).
+      assert (locked (MN0 n2) = Some n3).
       {
-        destruct (lock (MN0 n2)) as [n3'|] eqn:?.
+        destruct (locked (MN0 n2)) as [n3'|] eqn:?.
         - enough (n3 = n3') by attac.
           eauto using M_lock_no_reset.
         - consider (exists v, a = NComm n2 n3 Q (MValP v)) by eauto using M_lock_set.
           bs.
       }
-      assert (trans_lock '' MN0 n0 n2) by (assert (lock (MN0 n2) <> None) by attac; eauto with LTS).
+      assert (trans_lock '' MN0 n0 n2) by (assert (locked (MN0 n2) <> None) by attac; eauto with LTS).
 
       assert (trans_lock '' MN1 n0 n2 \/ ~ trans_lock '' MN1 n0 n2) as [|] by eauto using dep_dec_after_M with LTS; auto.
 
@@ -2161,7 +2161,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
           consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ trans_lock '' MN1 n0 n0')).
           {
-            eapply net_trans_lock_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
+            eapply net_trans_lock_unlocked with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
           }
 
           exists n0', v.
@@ -2199,7 +2199,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     assert (List.In (active_ev_of MN0 n1 n) (mserv_i (MN0 n))) by eauto with LTS.
 
-    enough (lock (MN0 n) <> None) by eauto with LTS.
+    enough (locked (MN0 n) <> None) by eauto with LTS.
 
     consider (_ =(_)=> _); compat_hsimpl in *.
     ltac1:(autounfold with LTS_get in * ); hsimpl in *.
