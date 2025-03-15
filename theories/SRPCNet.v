@@ -76,14 +76,14 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Lemma SRPC_lock_set [N n0 n1] :
       SRPC_net N ->
       lock N n0 n1 ->
-      exists c, SRPC_serv (Lock c n1) (NetMod.get n0 N).
+      exists c, SRPC_serv (Locked c n1) (NetMod.get n0 N).
 
     Proof.
       unfold lock, lock_set.
       intros; hsimpl in *.
 
       consider (exists s, serv_lock [s] (NetMod.get n0 N)) by eauto using SRPC_serv_get_lock.
-      enough (n1 = s) by (subst; eauto using lock_SRPC_Lock_serv with LTS).
+      enough (n1 = s) by (subst; eauto using lock_SRPC_Locked_serv with LTS).
 
       enough (In n1 [s]) by attac.
       enough (incl L [s]) by attac.
@@ -114,9 +114,9 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       unfold SRPC_net, lock_uniq_type.
       intros.
       assert (AnySRPC_serv (NetMod.get n N)) by eauto with LTS.
-      consider (exists c0, SRPC_serv (Lock c0 m0) (NetMod.get n N)) by eauto using SRPC_lock_set.
-      consider (exists c1, SRPC_serv (Lock c1 m1) (NetMod.get n N)) by eauto using SRPC_lock_set.
-      enough (Lock c0 m0 = Lock c1 m1) by attac.
+      consider (exists c0, SRPC_serv (Locked c0 m0) (NetMod.get n N)) by eauto using SRPC_lock_set.
+      consider (exists c1, SRPC_serv (Locked c1 m1) (NetMod.get n N)) by eauto using SRPC_lock_set.
+      enough (Locked c0 m0 = Locked c1 m1) by attac.
       eauto with LTS.
     Qed.
 
@@ -301,13 +301,13 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
     Definition service_wf_Q_in (S : Serv) := forall c v v' I', Deq (c, Q) v (serv_i S) I' -> ~ List.In (c, Q, v') I'.
     Definition service_wf_R_in (S : Serv) := forall s s' v v' I', Deq (s, R) v (serv_i S) I' -> ~ List.In (s', R, v') I'.
-    Definition service_wf_R_in_lock (S : Serv) := forall s v, List.In (s, R, v) (serv_i S) -> exists c, SRPC_serv (Lock c s) S.
-    Definition service_wf_Q_out_lock (S : Serv) := forall s v, List.In (s, Q, v) (serv_o S) -> exists c, SRPC_serv (Lock c s) S.
+    Definition service_wf_R_in_lock (S : Serv) := forall s v, List.In (s, R, v) (serv_i S) -> exists c, SRPC_serv (Locked c s) S.
+    Definition service_wf_Q_out_lock (S : Serv) := forall s v, List.In (s, Q, v) (serv_o S) -> exists c, SRPC_serv (Locked c s) S.
     Definition service_wf_Q_out_last (S : Serv) := forall s v, ~ List.In (s, Q, v) (List.removelast (serv_o S)).
     Definition service_wf_R_out_uniq (S : Serv) := forall c v v' O', Deq (c, R) v (serv_o S) O' -> ~ List.In (c, R, v') O'.
     Definition service_wf_R_Q (S : Serv) := forall s v v', List.In (s, R, v) (serv_i S) -> ~ List.In (s, Q, v') (serv_o S).
     Definition service_wf_Q_R (S : Serv) := forall s v v', List.In (s, Q, v) (serv_o S) -> ~ List.In (s, R, v') (serv_i S).
-    Definition service_wf_lock_Q (S : Serv) := forall c s, SRPC_serv (Lock c s) S -> serv_o S <> [] -> exists v, List.In (s, Q, v) (serv_o S).
+    Definition service_wf_lock_Q (S : Serv) := forall c s, SRPC_serv (Locked c s) S -> serv_o S <> [] -> exists v, List.In (s, Q, v) (serv_o S).
 
     Definition service_wf_in_Q_no_client (S : Serv) := forall c v, List.In (c, Q, v) (serv_i S) -> ~ proc_client c (serv_p S).
     Definition service_wf_in_Q_no_out_R (S : Serv) := forall c v v', List.In (c, Q, v) (serv_i S) -> ~ List.In (c, R, v') (serv_o S).
@@ -372,14 +372,14 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Lemma service_wf_R_in_lock_inv [srpc : SRPC_State] [s v I P O] :
       service_wf srpc (serv I P O) ->
       List.In (s, R, v) I ->
-      exists c, srpc = Lock c s.
-    Proof. intros. kill H. assert (exists c, SRPC_serv (Lock c s) (serv &I P &O)); eattac 1. Qed.
+      exists c, srpc = Locked c s.
+    Proof. intros. kill H. assert (exists c, SRPC_serv (Locked c s) (serv &I P &O)); eattac 1. Qed.
 
     Lemma service_wf_Q_out_lock_inv [srpc : SRPC_State] [s v I P O] :
       service_wf srpc (serv I P O) ->
       List.In (s, Q, v) O ->
-      exists c, srpc = Lock c s.
-    Proof. intros. kill H. assert (exists c, SRPC_serv (Lock c s) (serv &I P &O)); eattac 1. Qed.
+      exists c, srpc = Locked c s.
+    Proof. intros. kill H. assert (exists c, SRPC_serv (Locked c s) (serv &I P &O)); eattac 1. Qed.
 
     Lemma service_wf_Q_out_last_inv [srpc : SRPC_State] [s v I P O] :
       service_wf srpc (serv I P O) ->
@@ -403,7 +403,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Proof. intros. kill H. eattac 1. Qed.
 
     Lemma service_wf_lock_Q_inv [c s I P O] :
-      service_wf (Lock c s) (serv I P O) ->
+      service_wf (Locked c s) (serv I P O) ->
       O <> [] ->
       exists v, List.In (s, Q, v) O.
     Proof. intros. kill H. eattac 1. Qed.
@@ -603,25 +603,25 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
 
     Lemma service_wf__R_in_lock_inv [c s s'] [S] [I0] [v] :
-      service_wf (Lock c s) S ->
+      service_wf (Locked c s) S ->
       serv_i S = I0 ->
       List.In (s', R, v) I0 ->
       s' = s.
     Proof.
       intros.
       destruct S.
-      consider (exists c', (Lock c s) = (Lock c' s')) by eattac.
+      consider (exists c', (Locked c s) = (Locked c' s')) by eattac.
     Qed.
 
     Lemma service_wf__Q_out_lock_inv [c s s'] [S] [O0] [v] :
-      service_wf (Lock c s) S ->
+      service_wf (Locked c s) S ->
       serv_o S = O0 ->
       List.In (s', Q, v) O0 ->
       s' = s.
     Proof.
       intros.
       destruct S.
-      consider (exists c', (Lock c s) = (Lock c' s')) by eattac.
+      consider (exists c', (Locked c s) = (Locked c' s')) by eattac.
     Qed.
 
     Lemma service_wf__Q_out_last_inv [srpc] [S] [O0 O1 s v] :
@@ -754,7 +754,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
         assert (AnySRPC_serv (serv I1 P1 [(n', R, v)])) as Hsrpc0' by attac.
 
-        specialize (lock_SRPC_Lock `(AnySRPC P1) `(proc_lock [n] P1)) as [c Hsrpc_L].
+        specialize (lock_SRPC_Locked `(AnySRPC P1) `(proc_lock [n] P1)) as [c Hsrpc_L].
 
         apply (SRPC_inv Hsrpc) in Hsrpc_L. subst.
         edestruct H_lock_Q; eauto; doubt.
@@ -772,7 +772,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       intros.
       destruct S as [I0 P0 O0].
       simpl in *.
-      consider (exists c, srpc = Lock c s) by attac.
+      consider (exists c, srpc = Locked c s) by attac.
       destruct O0; auto.
       assert (p::O0 <> []) by attac.
       remember (p::O0) as O1; clear HeqO1.
@@ -789,11 +789,11 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Proof.
       intros; intros ?.
       consider (exists s, serv_lock [s] S1) by eauto using SRPC_serv_get_lock with LTS.
-      consider (exists c, SRPC_serv (Lock c s) S1) by eauto using lock_SRPC_Lock_serv with LTS.
+      consider (exists c, SRPC_serv (Locked c s) S1) by eauto using lock_SRPC_Locked_serv with LTS.
       consider (_ =(_)=> _); simpl in *.
       consider (serv_lock _ _).
       assert (SRPC_serv srpc (serv I0 P0 [(n, R, v)])) by eattac; simpl in *.
-      consider (srpc = Lock c s) by eauto using SRPC_inv.
+      consider (srpc = Locked c s) by eauto using SRPC_inv.
       consider (exists v', In (s, Q, v') [(n, R, v)]) by eattac.
     Qed.
 
@@ -809,7 +809,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       consider (_ =(_)=> _).
       assert (service_wf srpc (serv I0 P0 ([] ++ (n, Q, v) :: O1))) by auto.
       consider (O1 = []) by (eapply service_wf__Q_out_last_nil_inv with (O0:=[]); unfold serv_o; eauto).
-      consider (exists c, srpc = Lock c n) by eauto with LTS.
+      consider (exists c, srpc = Locked c n) by eauto with LTS.
       simpl in *.
       eattac.
     Qed.
@@ -818,13 +818,13 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Lemma service_wf_send_Q_SRPC_lock [srpc S0 S1 s v] :
       service_wf srpc S0 ->
       (S0 =(Send (s, Q) v)=> S1) ->
-      exists c, srpc = Lock c s.
+      exists c, srpc = Locked c s.
 
     Proof.
       intros.
       assert (AnySRPC_serv S1) by eattac.
       assert (serv_lock [s] S1) by eauto using service_wf_send_Q_lock.
-      consider (exists c, SRPC_serv (Lock c s) S1) by eauto using lock_SRPC_Lock_serv.
+      consider (exists c, SRPC_serv (Locked c s) S1) by eauto using lock_SRPC_Locked_serv.
       attac.
     Qed.
 
@@ -941,17 +941,17 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         well_formed N ->
         NetMod.get n N = serv I P O ->
         List.In (s, R, v) I ->
-        exists c, SRPC_serv (Lock c s) (NetMod.get n N).
-      Proof. intros. kill H; specialize (H_wf_SRPC n) as [srpc H]. rewrite H0 in *. consider (exists c, srpc = Lock c s); eattac.
+        exists c, SRPC_serv (Locked c s) (NetMod.get n N).
+      Proof. intros. kill H; specialize (H_wf_SRPC n) as [srpc H]. rewrite H0 in *. consider (exists c, srpc = Locked c s); eattac.
       Qed.
 
       Lemma well_formed_in_net_Q_out_lock [N n s v I P O] :
         well_formed N ->
         NetMod.get n N = serv I P O ->
         List.In (s, Q, v) O ->
-        exists c, SRPC_serv (Lock c s) (NetMod.get n N).
+        exists c, SRPC_serv (Locked c s) (NetMod.get n N).
       Proof.
-        intros. kill H; specialize (H_wf_SRPC n) as [srpc H]. rewrite H0 in *. consider (exists c, srpc = Lock c s); eattac.
+        intros. kill H; specialize (H_wf_SRPC n) as [srpc H]. rewrite H0 in *. consider (exists c, srpc = Locked c s); eattac.
       Qed.
 
       Lemma well_formed_in_net_Q_out_last [N n s v I P O] :
@@ -1304,16 +1304,16 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Lemma well_formed_recv_R_SRPC [n0 n1 v] [N0 N1 : PNet] :
       well_formed N0 ->
       (N0 =(NComm n0 n1 R v)=> N1) ->
-      exists n', service_wf (Lock n' n0) (NetMod.get n1 N0).
+      exists n', service_wf (Locked n' n0) (NetMod.get n1 N0).
 
     Proof.
       intros.
       consider (exists srpc, service_wf srpc (NetMod.get n1 N0)) by attac.
       assert (SRPC_serv srpc (NetMod.get n1 N0)) by attac.
 
-      enough (exists n', srpc = Lock n' n0) by attac.
-      enough (exists n', SRPC_serv (Lock n' n0) (NetMod.get n1 N0)) by attac.
-      enough (serv_lock [n0] (NetMod.get n1 N0)) by eauto using lock_SRPC_Lock_serv with LTS.
+      enough (exists n', srpc = Locked n' n0) by attac.
+      enough (exists n', SRPC_serv (Locked n' n0) (NetMod.get n1 N0)) by attac.
+      enough (serv_lock [n0] (NetMod.get n1 N0)) by eauto using lock_SRPC_Locked_serv with LTS.
       enough (lock_set N0 [n0] n1) by attac.
       enough (lock N0 n1 n0) by eauto using lock_singleton with LTS.
       eauto using well_formed_send_R_lock_l.
@@ -1424,11 +1424,11 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       repeat (intros ?).
 
       assert (List.In (s, R, v) I0) by (consider (_ =(Tau)=> _); eapply Deq_neq_In; eattac; intros ?; eattac).
-      consider (exists c, srpc0 = Lock c s) by eauto using service_wf_R_in_lock_inv.
+      consider (exists c, srpc0 = Locked c s) by eauto using service_wf_R_in_lock_inv.
       exists c.
-      assert (SRPC (Lock c s) P0) by (consider (service_wf _ _); eattac).
+      assert (SRPC (Locked c s) P0) by (consider (service_wf _ _); eattac).
       destruct S as [I1 P1 O1].
-      enough (SRPC (Lock c s) P1) by attac.
+      enough (SRPC (Locked c s) P1) by attac.
       consider (_ =(Tau)=> _); hsimpl in *; doubt.
       destruct n0 as [? [|]]; doubt.
     Qed.
@@ -1446,38 +1446,38 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
       repeat (intros ?).
       consider (_ =(Tau)=> _); destruct `(NameTag) as [? [|]] eqn:?; subst; doubt.
-      - consider (exists c, srpc0 = Lock c s) by eattac.
+      - consider (exists c, srpc0 = Locked c s) by eattac.
         exists c; consider (service_wf _ _); attac.
-      - assert (exists c, srpc0 = Lock c s) by eattac.
-        assert (exists c', srpc0 = Lock c' n1) by eattac.
+      - assert (exists c, srpc0 = Locked c s) by eattac.
+        assert (exists c', srpc0 = Locked c' n1) by eattac.
         hsimpl in *.
         bs.
       - enough (n1 = s) by eattac.
         assert (List.In (s, Q, v) O0 \/ List.In (s, Q, v) [(n1, Q, v0)]) as [|] by (hsimpl in * |-; eattac).
         2: { eattac. }
 
-        assert (exists c, SRPC (Lock c s) P0) by (consider (service_wf _ _); eattac).
-        assert (exists c, SRPC (Work c) P0) by eattac.
+        assert (exists c, SRPC (Locked c s) P0) by (consider (service_wf _ _); eattac).
+        assert (exists c, SRPC (Working c) P0) by eattac.
         attac.
 
-      - assert (exists c, SRPC (Lock c s) P0).
+      - assert (exists c, SRPC (Locked c s) P0).
         {
           assert (List.In (s, Q, v) O0 \/ List.In (s, Q, v) [(n1, R, v0)]) as [|] by (hsimpl in * |-; eattac).
           2: { eattac. }
-          consider (exists c, srpc0 = Lock c s) by eattac.
+          consider (exists c, srpc0 = Locked c s) by eattac.
           consider (service_wf _ _); eattac.
         }
-        consider (exists c, SRPC (Work c) P0) by attac.
+        consider (exists c, SRPC (Working c) P0) by attac.
 
         hsimpl in *.
         bs.
 
-      - assert (exists c, SRPC (Lock c n0) P0).
+      - assert (exists c, SRPC (Locked c n0) P0).
         {
-          consider (exists c, srpc0 = Lock c n0) by eattac.
+          consider (exists c, srpc0 = Locked c n0) by eattac.
           consider (service_wf _ _); eattac.
         }
-        consider (exists c, SRPC (Work c) P0) by attac.
+        consider (exists c, SRPC (Working c) P0) by attac.
         hsimpl in *; bs.
     Qed.
 
@@ -1503,8 +1503,8 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
           rewrite app_nil_r in *. (* coq bug *)
           attac.
         }
-        assert (exists c, SRPC (Lock c s) P0) by (consider (service_wf _ _); eattac).
-        assert (exists c, SRPC (Work c) P0) by (eattac).
+        assert (exists c, SRPC (Locked c s) P0) by (consider (service_wf _ _); eattac).
+        assert (exists c, SRPC (Working c) P0) by (eattac).
         hsimpl in *; bs.
 
       - assert (List.In (s, Q, v) O0).
@@ -1515,8 +1515,8 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
           rewrite app_nil_r in *. (* coq bug *)
           attac.
         }
-        assert (exists c, SRPC (Lock c s) P0) by (consider (service_wf _ _); eattac).
-        assert (exists c, SRPC (Work c) P0) by (eattac).
+        assert (exists c, SRPC (Locked c s) P0) by (consider (service_wf _ _); eattac).
+        assert (exists c, SRPC (Working c) P0) by (eattac).
         hsimpl in *.
         bs.
     Qed.
@@ -1566,11 +1566,11 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); doubt.
       destruct `(NameTag) as [? [|]] eqn:?; repeat (intros ?); subst; doubt.
-      - assert (exists c, SRPC (Lock c s) P0) by (consider (service_wf _ _); eattac).
-        assert (exists c', SRPC (Work c') P0) by eattac.
+      - assert (exists c, SRPC (Locked c s) P0) by (consider (service_wf _ _); eattac).
+        assert (exists c', SRPC (Working c') P0) by eattac.
         hsimpl in *; bs.
-      - assert (exists c, SRPC (Lock c s) P0) by (consider (service_wf _ _); eattac).
-        assert (exists c', SRPC (Work c') P0) by eattac.
+      - assert (exists c, SRPC (Locked c s) P0) by (consider (service_wf _ _); eattac).
+        assert (exists c', SRPC (Working c') P0) by eattac.
         hsimpl in *; bs.
     Qed.
 
@@ -1588,11 +1588,11 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       destruct S as [I1 P1 O1]; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); doubt.
       destruct `(NameTag) as [? [|]] eqn:?; repeat (intros ?); subst; doubt.
-      - assert (exists c, SRPC (Lock c s) P0) by (consider (service_wf _ _); eattac).
-        assert (exists c', SRPC (Work c') P0) by eattac.
+      - assert (exists c, SRPC (Locked c s) P0) by (consider (service_wf _ _); eattac).
+        assert (exists c', SRPC (Working c') P0) by eattac.
         hsimpl in *; bs.
-      - assert (exists c, SRPC (Lock c s) P0) by (consider (service_wf _ _); eattac).
-        assert (exists c', SRPC (Work c') P0) by eattac.
+      - assert (exists c, SRPC (Locked c s) P0) by (consider (service_wf _ _); eattac).
+        assert (exists c', SRPC (Working c') P0) by eattac.
         hsimpl in *; bs.
     Qed.
 
@@ -1610,20 +1610,20 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       destruct O1' as [|[[? ?] ?] O1]; doubt.
       consider (_ =(Tau)=> _);
         destruct `(NameTag) as [? [|]] eqn:?; repeat (intros ?); subst; doubt.
-      - consider (exists c', SRPC (Work c') P1) by eattac.
-        bs (Lock c s = Work c').
-      - consider (exists c', SRPC (Work c') P1) by eattac.
-        bs (Lock c s = Work c').
-      - consider (exists c', SRPC (Lock c' n2) P1) by eattac.
-        consider (Lock c s = Lock c' n2) by eattac.
+      - consider (exists c', SRPC (Working c') P1) by eattac.
+        bs (Locked c s = Working c').
+      - consider (exists c', SRPC (Working c') P1) by eattac.
+        bs (Locked c s = Working c').
+      - consider (exists c', SRPC (Locked c' n2) P1) by eattac.
+        consider (Locked c s = Locked c' n2) by eattac.
         hsimpl in *.
         destruct O0; doubt; hsimpl in *; eattac.
-      - assert (SRPC Free P1) by eattac.
-        bs (Lock c s = Free) by eattac.
-      - consider (exists c', SRPC (Work c') P1) by eattac.
-        bs (Lock c s = Work c').
-      - consider (exists c', SRPC (Work c') P1) by eattac.
-        bs (Lock c s = Work c').
+      - assert (SRPC Ready P1) by eattac.
+        bs (Locked c s = Ready) by eattac.
+      - consider (exists c', SRPC (Working c') P1) by eattac.
+        bs (Locked c s = Working c').
+      - consider (exists c', SRPC (Working c') P1) by eattac.
+        bs (Locked c s = Working c').
     Qed.
 
     Lemma trans_invariant_well_formed_tau__in_Q_no_client [n N0 N1] :
@@ -1638,32 +1638,32 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       assert (AnySRPC P0) by (consider (service_wf _ _); eattac).
       destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); hsimpl in *; try (destruct `(Que.Channel.NameTag) as [? [|]] eqn:?); repeat (intros ?); subst; consider (proc_client _ _); doubt.
-      - assert (SRPC (Work n1) (cont v)) by eattac.
+      - assert (SRPC (Working n1) (cont v)) by eattac.
         destruct `(SRPC_Busy_State _).
-        + assert (SRPC (Work n1) (cont v)) by eattac.
-          consider (Work n1 = Work c) by attac.
+        + assert (SRPC (Working n1) (cont v)) by eattac.
+          consider (Working n1 = Working c) by attac.
           bs.
-        + bs (Work n1 = Lock c s) by attac.
-      - consider (exists c', SRPC (Lock c' n1) (PRecv h) /\ SRPC (Work c') (cont v)) by eauto using SRPC_recv_R with LTS.
+        + bs (Working n1 = Locked c s) by attac.
+      - consider (exists c', SRPC (Locked c' n1) (PRecv h) /\ SRPC (Working c') (cont v)) by eauto using SRPC_recv_R with LTS.
         destruct `(SRPC_Busy_State _).
-        + assert (SRPC (Work c) (cont v)) by eattac.
-          consider (Work c' = Work c) by attac.
+        + assert (SRPC (Working c) (cont v)) by eattac.
+          consider (Working c' = Working c) by attac.
           enough (proc_client c (cont v)); eattac.
-        + bs (Work c' = Lock c s) by attac.
-      - consider (exists c', SRPC (Work c') (PSend (n1, Q) v P1) /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q with LTS.
+        + bs (Working c' = Locked c s) by attac.
+      - consider (exists c', SRPC (Working c') (PSend (n1, Q) v P1) /\ SRPC (Locked c' n1) P1) by eauto using SRPC_send_Q with LTS.
         destruct `(SRPC_Busy_State _).
-        + bs (Work c = Lock c' n1) by attac.
-        + consider (Lock c' n1 = Lock c s) by attac.
+        + bs (Working c = Locked c' n1) by attac.
+        + consider (Locked c' n1 = Locked c s) by attac.
           eenough (proc_client c _); eattac.
-      - consider (SRPC (Work n1) _ /\ SRPC Free _) by eattac.
+      - consider (SRPC (Working n1) _ /\ SRPC Ready _) by eattac.
         destruct `(SRPC_Busy_State _).
-        + bs (Work c = Free) by attac.
-        + bs (Lock c s = Free) by attac.
-      - consider (exists c', SRPC (Work c') (STau P1) /\ SRPC (Work c') P1) by eauto using SRPC_tau with LTS.
+        + bs (Working c = Ready) by attac.
+        + bs (Locked c s = Ready) by attac.
+      - consider (exists c', SRPC (Working c') (STau P1) /\ SRPC (Working c') P1) by eauto using SRPC_tau with LTS.
         destruct `(SRPC_Busy_State _).
-        + consider (Work c' = Work c) by attac.
+        + consider (Working c' = Working c) by attac.
           attac.
-        + bs (Work c' = Lock c s) by attac.
+        + bs (Working c' = Locked c s) by attac.
     Qed.
 
     Lemma trans_invariant_well_formed_tau__in_Q_no_out_R [n N0 N1] :
@@ -1679,9 +1679,9 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       destruct S as [I1 P1 O1']; hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); doubt; hsimpl in *.
       destruct `(NameTag) as [? [|]] eqn:?; repeat (intros ?); subst; doubt.
-      - consider (exists c', SRPC (Work c') (PSend (n1, Q) v P1) /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q with LTS.
+      - consider (exists c', SRPC (Working c') (PSend (n1, Q) v P1) /\ SRPC (Locked c' n1) P1) by eauto using SRPC_send_Q with LTS.
         enough (List.In (c, R, v') O0 \/ List.In (c, R, v') [(n1, Q, v)]) as [|]; eattac.
-      - consider (SRPC (Work n1) _ /\ SRPC Free _) by eauto using SRPC_send_R with LTS.
+      - consider (SRPC (Working n1) _ /\ SRPC Ready _) by eauto using SRPC_send_R with LTS.
         assert (List.In (c, R, v') O0 \/ List.In (c, R, v') [(n1, R, v)]) as [|]; eattac.
     Qed.
 
@@ -1698,33 +1698,33 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       destruct S as [I1 P1 O1']; compat_hsimpl in *; simpl in *.
       consider (_ =(Tau)=> _); repeat (intros ?);
         destruct `(NameTag) as [? [|]] eqn:?; subst; consider (proc_client _ _); doubt.
-        - assert (SRPC (Work n1) _) by eattac.
+        - assert (SRPC (Working n1) _) by eattac.
         destruct `(SRPC_Busy_State _).
-        + assert (SRPC (Work n1) _) by eattac.
-          consider (Work n1 = Work c) by attac.
+        + assert (SRPC (Working n1) _) by eattac.
+          consider (Working n1 = Working c) by attac.
           bs.
-        + bs (Work n1 = Lock c s) by attac.
-      - consider (exists c', SRPC (Lock c' n1) P0 /\ SRPC (Work c') P1) by eauto using SRPC_recv_R.
+        + bs (Working n1 = Locked c s) by attac.
+      - consider (exists c', SRPC (Locked c' n1) P0 /\ SRPC (Working c') P1) by eauto using SRPC_recv_R.
         destruct `(SRPC_Busy_State _).
-        + assert (SRPC (Work c) P1) by eattac.
-          consider (Work c' = Work c) by attac.
+        + assert (SRPC (Working c) P1) by eattac.
+          consider (Working c' = Working c) by attac.
           assert (proc_client c P0) by eattac.
           bs.
-        + bs (Work c' = Lock c s) by attac.
-      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q.
+        + bs (Working c' = Locked c s) by attac.
+      - consider (exists c', SRPC (Working c') P0 /\ SRPC (Locked c' n1) P1) by eauto using SRPC_send_Q.
         destruct `(SRPC_Busy_State _).
-        + bs (Work c = Lock c' n1) by attac.
-        + consider (Lock c' n1 = Lock c s) by attac.
+        + bs (Working c = Locked c' n1) by attac.
+        + consider (Locked c' n1 = Locked c s) by attac.
           assert (List.In (c, R, v0) O0 \/ List.In (c, R, v0) [(s, Q, v)]) as [|]; (hsimpl in *|-; eattac).
-      - consider (SRPC (Work n1) P0 /\ SRPC Free P1) by eattac.
+      - consider (SRPC (Working n1) P0 /\ SRPC Ready P1) by eattac.
         destruct `(SRPC_Busy_State _).
-        + bs (Work c = Free) by attac.
-        + bs (Lock c s = Free) by attac.
-      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Work c') P1) by eauto using SRPC_tau.
+        + bs (Working c = Ready) by attac.
+        + bs (Locked c s = Ready) by attac.
+      - consider (exists c', SRPC (Working c') P0 /\ SRPC (Working c') P1) by eauto using SRPC_tau.
         destruct `(SRPC_Busy_State _).
-        + consider (Work c' = Work c) by attac.
+        + consider (Working c' = Working c) by attac.
           attac.
-        + bs (Work c' = Lock c s) by attac.
+        + bs (Working c' = Locked c s) by attac.
     Qed.
 
 
@@ -1781,7 +1781,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         try (solve [eattac]);
         try (destruct `(NameTag) as [n [|]]); doubt.
 
-      - consider (SRPC Free P /\ SRPC (Work n) P1) by eauto using SRPC_recv_Q.
+      - consider (SRPC Ready P /\ SRPC (Working n) P1) by eauto using SRPC_recv_Q.
         smash_eq c n; eauto with LTS.
         enough (exists v', List.In (c, Q, v') I1) by eattac.
         exists v.
@@ -1791,29 +1791,29 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         exists v.
         unshelve eapply (Deq_neq_In _ `(Deq _ _ &I I1)); eattac.
 
-      - consider (SRPC Free P /\ SRPC (Work n) P1) by eauto using SRPC_recv_Q.
+      - consider (SRPC Ready P /\ SRPC (Working n) P1) by eauto using SRPC_recv_Q.
         smash_eq c n; attac.
 
         consider (proc_client c (PRecv h)).
-        bs (Free = Busy `(_)).
+        bs (Ready = Busy `(_)).
 
-      - consider (exists c', SRPC (Lock c' n) P /\ SRPC (Work c') P1) by eauto using SRPC_recv_R.
+      - consider (exists c', SRPC (Locked c' n) P /\ SRPC (Working c') P1) by eauto using SRPC_recv_R.
         smash_eq c c'.
         + attac.
         + hsimpl in *.
           consider (proc_client c (PRecv &handle)).
           attac.
-      - consider (exists c', SRPC (Work c') P /\ SRPC (Lock c' n) P1) by eauto using SRPC_send_Q.
+      - consider (exists c', SRPC (Working c') P /\ SRPC (Locked c' n) P1) by eauto using SRPC_send_Q.
         consider (proc_client c P) by attac.
-        consider (Work c' = Busy `(_)) by attac.
+        consider (Working c' = Busy `(_)) by attac.
         attac.
 
-      - consider (SRPC (Work n) P /\ SRPC Free P1) by eauto using SRPC_send_R.
+      - consider (SRPC (Working n) P /\ SRPC Ready P1) by eauto using SRPC_send_R.
         enough (c = n) by attac.
         enough (proc_client n P) by attac.
         attac.
 
-      - consider (exists c', SRPC (Work c') P /\ SRPC (Work c') P1) by eauto using SRPC_tau.
+      - consider (exists c', SRPC (Working c') P /\ SRPC (Working c') P1) by eauto using SRPC_tau.
         enough (c = c') by attac.
         enough (proc_client c' P) by attac.
         attac.
@@ -1866,7 +1866,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       consider (_ =(Tau)=> _);
         try (destruct `(NameTag) as [n1 [|]]).
 
-      - consider (SRPC Free P0 /\ SRPC (Work n1) P1) by eauto using SRPC_recv_Q.
+      - consider (SRPC Ready P0 /\ SRPC (Working n1) P1) by eauto using SRPC_recv_Q.
         smash_eq n0 n1; eauto with LTS.
         consider (pq_client n0 _).
         + enough (List.In (n0, Q, v0) I0) by eattac.
@@ -1874,7 +1874,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         + consider (proc_client n0 P1); eattac.
         + attac.
 
-      - consider (exists c', SRPC (Lock c' n1) P0 /\ SRPC (Work c') P1) by eauto using SRPC_recv_R.
+      - consider (exists c', SRPC (Locked c' n1) P0 /\ SRPC (Working c') P1) by eauto using SRPC_recv_R.
         smash_eq n0 c'; eauto with LTS.
         consider (pq_client n0 _).
         + enough (List.In (n0, Q, v0) I0) by eattac.
@@ -1883,22 +1883,22 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
           consider (proc_client n0 (cont0 _)); eattac.
         + attac.
 
-      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Lock c' n1) P1) by eauto using SRPC_send_Q.
+      - consider (exists c', SRPC (Working c') P0 /\ SRPC (Locked c' n1) P1) by eauto using SRPC_send_Q.
         smash_eq n0 c'; eauto with LTS.
         consider (pq_client n0 _).
         + attac.
         + consider (proc_client n0 P1); eattac.
         + assert (List.In (n0, R, v0) O0 \/ List.In (n0, R, v0) [(n1, Q, v)]) as [|] by (hsimpl in * |-; eattac); eattac.
 
-      - consider (SRPC (Work n1) P0 /\ SRPC Free P1) by eauto using SRPC_send_R.
+      - consider (SRPC (Working n1) P0 /\ SRPC Ready P1) by eauto using SRPC_send_R.
         smash_eq n0 n1; eauto with LTS.
         consider (pq_client n0 _).
         + attac.
         + consider (proc_client n0 P1); eattac.
-          bs (Free = Busy `(_)) by eattac.
+          bs (Ready = Busy `(_)) by eattac.
         + assert (List.In (n0, R, v0) O0 \/ List.In (n0, R, v0) [(n1, R, v)]) as [|] by (hsimpl in * |-; eattac); eattac.
 
-      - consider (exists c', SRPC (Work c') P0 /\ SRPC (Work c') P1) by eauto using SRPC_tau.
+      - consider (exists c', SRPC (Working c') P0 /\ SRPC (Working c') P1) by eauto using SRPC_tau.
         smash_eq n0 c'; eauto with LTS.
         consider (pq_client n0 _).
         + attac.
@@ -1933,13 +1933,13 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Proof.
       intros.
       assert (lock N1 n0 n1) by eauto using well_formed_send_Q_new_lock.
-      consider (exists n', SRPC_serv (Lock n' n1) (NetMod.get n0 N1)).
+      consider (exists n', SRPC_serv (Locked n' n1) (NetMod.get n0 N1)).
       {
         assert (serv_lock [n1] (NetMod.get n0 N1)) by attac.
-        eauto using lock_SRPC_Lock_serv with LTS.
+        eauto using lock_SRPC_Locked_serv with LTS.
       }
 
-      exists (Lock n' n1).
+      exists (Locked n' n1).
 
       destruct (NetMod.get n0 N0) as [I0 P0 O0] eqn:?.
       consider (exists srpc0, service_wf srpc0 (NetMod.get n0 N0)) by attac.
@@ -1953,10 +1953,10 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         bs (serv_o (serv I2 P2 ((n1, Q, v) :: O2)) = []) by eauto using service_wf_R_in_out_nil.
 
       - enough (s = n1) by eattac.
-        consider (exists c, srpc0 = Lock c s) by attac.
+        consider (exists c, srpc0 = Locked c s) by attac.
         hsimpl in *.
-        assert (SRPC_serv (Lock c s) (serv I2 P2 ((n1, Q, v)::O2))) by attac.
-        consider (Lock n' n1 = Lock c s) by attac.
+        assert (SRPC_serv (Locked c s) (serv I2 P2 ((n1, Q, v)::O2))) by attac.
+        consider (Locked n' n1 = Locked c s) by attac.
 
       - hsimpl in *.
         assert (~ In (s, Q, v0) (removelast (serv_o (serv I2 P2 ((n1, Q, v) :: O2))))) by eauto using service_wf_Q_out_last_inv.
@@ -1990,7 +1990,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
       assert (lock N0 n1 n0) by eauto using well_formed_send_R_lock_l.
 
-      consider (exists n', service_wf (Lock n' n0) (NetMod.get n1 N0))
+      consider (exists n', service_wf (Locked n' n0) (NetMod.get n1 N0))
         by eauto using well_formed_recv_R_SRPC.
 
       destruct (NetMod.get n0 N0) as [I00 P00 O00] eqn:?.
@@ -2005,11 +2005,11 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       - attac.
       - attac.
       - assert (In (s, R, v0) (serv_i (serv I00 P00 ((n1, R, v)::O01)))) by attac.
-        consider (exists c', srpc = Lock c' s) by eauto using service_wf_R_in_lock_inv.
-        assert (SRPC_serv (Lock c' s) (serv I00 P00 ((n1, R, v) :: O01))) by eauto using service_wf_SRPC_inv with LTS.
+        consider (exists c', srpc = Locked c' s) by eauto using service_wf_R_in_lock_inv.
+        assert (SRPC_serv (Locked c' s) (serv I00 P00 ((n1, R, v) :: O01))) by eauto using service_wf_SRPC_inv with LTS.
         attac.
-      - consider (exists c', srpc = Lock c' s) by eauto using service_wf_Q_out_lock_inv with datatypes LTS.
-        assert (SRPC_serv (Lock c' s) (serv I00 P00 ((n1, R, v) :: O01))) by eauto using service_wf_SRPC_inv with LTS.
+      - consider (exists c', srpc = Locked c' s) by eauto using service_wf_Q_out_lock_inv with datatypes LTS.
+        assert (SRPC_serv (Locked c' s) (serv I00 P00 ((n1, R, v) :: O01))) by eauto using service_wf_SRPC_inv with LTS.
         attac.
       - enough (~ In (s, Q, v0) (removelast ((n1, R, v)::O01))) by (destruct O01; eattac).
         eauto using service_wf_Q_out_last_inv.
@@ -2022,7 +2022,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       - attac.
       - enough (exists v0, In (s, Q, v0) ((n1, R, v)::O01)) by (hsimpl in *; destruct `(_ \/ _); attac).
         assert (serv_o (serv I00 P00 ((n1, R, v)::O01)) <> []) by attac.
-        enough (srpc = Lock c s) by (subst; eauto using service_wf_lock_Q_inv).
+        enough (srpc = Locked c s) by (subst; eauto using service_wf_lock_Q_inv).
         enough (SRPC_serv srpc (serv I00 P00 ((n1, R, v)::O01))) by attac.
         eauto using service_wf_SRPC_inv with LTS.
       - attac.
@@ -2093,13 +2093,13 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         assert (~ In (s, R, v') I'') by attac.
         intros ?.
         assert (In (s', R, v') I'' \/ In (s', R, v') [(n0, Q, v)]) as [|] by attac; bs.
-      - enough (exists c, SRPC_serv (Lock c s) (serv I10 P10 O10)) by attac.
-        enough (exists c, srpc = Lock c s) by (hsimpl in * |-; eauto using service_wf_SRPC_inv with LTS).
+      - enough (exists c, SRPC_serv (Locked c s) (serv I10 P10 O10)) by attac.
+        enough (exists c, srpc = Locked c s) by (hsimpl in * |-; eauto using service_wf_SRPC_inv with LTS).
         enough (In (s, R, v0) (serv_i (serv I10 P10 O10))) by eauto using service_wf_R_in_lock_inv.
         simpl in *.
         assert (In (s, R, v0) I10 \/ In (s, R, v0) [(n0, Q, v)]) as [|]; attac.
-      - enough (exists c, SRPC_serv (Lock c s) (serv I10 P10 O10)) by attac.
-        enough (exists c, srpc = Lock c s) by (hsimpl in * |-; eauto using service_wf_SRPC_inv with LTS).
+      - enough (exists c, SRPC_serv (Locked c s) (serv I10 P10 O10)) by attac.
+        enough (exists c, srpc = Locked c s) by (hsimpl in * |-; eauto using service_wf_SRPC_inv with LTS).
         enough (In (s, Q, v0) (serv_o (serv I10 P10 O10))) by eauto using service_wf_Q_out_lock_inv.
         attac.
 
@@ -2114,7 +2114,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       - compat_hsimpl; attac.
 
       - assert (serv_o (serv I10 P10 O10) <> []) by attac.
-        enough (srpc = Lock c s) by attac.
+        enough (srpc = Locked c s) by attac.
         assert (SRPC_serv srpc (serv I10 P10 O10)) by eauto using service_wf_SRPC_inv.
         attac.
 
@@ -2154,14 +2154,14 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       intros.
       assert (SRPC_serv srpc &S) by attac.
       consider (exists s, serv_lock [s] &S) by eauto 4 using SRPC_serv_get_lock with LTS.
-      consider (exists c, SRPC_serv (Lock c s) &S) by eauto using lock_SRPC_Lock_serv with LTS.
+      consider (exists c, SRPC_serv (Locked c s) &S) by eauto using lock_SRPC_Locked_serv with LTS.
       destruct S as [I0 P0 O0]; hsimpl in *.
       intros ?.
       smash_eq n s.
       - hsimpl in *; bs.
-      - assert (SRPC (Lock c s) P0) by attac.
-        consider (exists c', srpc = Lock c' n) by eauto using service_wf_R_in_lock_inv.
-        bs (Lock c' n = Lock c s) by attac.
+      - assert (SRPC (Locked c s) P0) by attac.
+        consider (exists c', srpc = Locked c' n) by eauto using service_wf_R_in_lock_inv.
+        bs (Locked c' n = Locked c s) by attac.
     Qed.
 
     Lemma well_formed_lock_no_R [n0 n1 m1 v N I] :
@@ -2240,7 +2240,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       exists srpc. (* The process did not change! *)
 
       assert (lock N0 n1 n0) by eauto using well_formed_reply_lock.
-      consider (exists n', service_wf (Lock n' n0) (NetMod.get n1 N0))
+      consider (exists n', service_wf (Locked n' n0) (NetMod.get n1 N0))
         by eauto using well_formed_recv_R_SRPC.
 
       destruct (NetMod.get n0 N0) as [I00 P00 O00] eqn:?.
@@ -2309,10 +2309,10 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         2: { attac. }
         bs (n0 <> n0) by eauto using lock_no_send.
       }
-      consider (exists n', SRPC_serv (Lock n' n0) (NetMod.get n0 N1)).
+      consider (exists n', SRPC_serv (Locked n' n0) (NetMod.get n0 N1)).
       {
         assert (serv_lock [n0] (NetMod.get n0 N1)) by attac.
-        eauto using lock_SRPC_Lock_serv with LTS.
+        eauto using lock_SRPC_Locked_serv with LTS.
       }
 
       destruct (NetMod.get n0 N0) as [I0 P0 O0] eqn:?.
@@ -2345,9 +2345,9 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       bs (serv_o (serv I0 P1 ((n0, Q, v) :: O1)) = []) by eauto using service_wf_R_in_out_nil.
 
     - enough (s = n0) by eattac.
-      consider (exists c, srpc = Lock c s) by attac.
-      assert (SRPC_serv (Lock c s) (serv I0 P1 ((n0, Q, v)::O1))) by attac.
-      consider (Lock n' n0 = Lock c s) by attac.
+      consider (exists c, srpc = Locked c s) by attac.
+      assert (SRPC_serv (Locked c s) (serv I0 P1 ((n0, Q, v)::O1))) by attac.
+      consider (Locked n' n0 = Locked c s) by attac.
     - assert (~ In (s, Q, v0) (removelast (serv_o (serv I0 P1 ((n0, Q, v) :: O1))))) by eauto using service_wf_Q_out_last_inv.
       destruct O1; attac.
     - assert (Deq (c, R) v0 ((n0, Q, v)::O1) ((n0, Q, v)::O')) by attac.
@@ -2587,15 +2587,15 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
           intros ?.
           assert (In (n, R, v0) Im10 \/ In (n, R, v0) [(n0, R, v)]) as [|]; eattac.
           assert (AnySRPC_serv (serv Im10 Pm01 [])) by attac.
-          consider (exists c, SRPC_serv (Lock c n0) (serv Im10 Pm01 [])) by eauto using lock_SRPC_Lock_serv.
-          consider (exists c', SRPC_serv (Lock c' n) (serv Im10 Pm01 [])).
+          consider (exists c, SRPC_serv (Locked c n0) (serv Im10 Pm01 [])) by eauto using lock_SRPC_Locked_serv.
+          consider (exists c', SRPC_serv (Locked c' n) (serv Im10 Pm01 [])).
           {
             consider (exists srpc, service_wf srpc (serv Im10 Pm01 [])) by attac.
-            consider (exists c', srpc = Lock c' n) by attac.
+            consider (exists c', srpc = Locked c' n) by attac.
             exists c'; eauto using service_wf_SRPC_inv.
           }
 
-          bs (Lock c' n = Lock c n0).
+          bs (Locked c' n = Locked c n0).
       - enough (serv_lock [m0] (NetMod.get m0 N0)) by bs.
         enough (pq_client m0 (NetMod.get m0 N0)) by attac.
         rewrite `(NetMod.get m0 N0 = _).
@@ -2625,15 +2625,15 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         + intros ?.
           assert (In (n, R, v0) Im10 \/ In (n, R, v0) [(n0, R, v)]) as [|]; attac.
           assert (AnySRPC_serv (serv Im10 Pm10 [])) by attac.
-          consider (exists c, SRPC_serv (Lock c n0) (serv Im10 Pm10 [])) by eauto using lock_SRPC_Lock_serv.
-          consider (exists c', SRPC_serv (Lock c' n) (serv Im10 Pm10 [])).
+          consider (exists c, SRPC_serv (Locked c n0) (serv Im10 Pm10 [])) by eauto using lock_SRPC_Locked_serv.
+          consider (exists c', SRPC_serv (Locked c' n) (serv Im10 Pm10 [])).
           {
             consider (exists srpc, service_wf srpc (serv Im10 Pm10 [])) by attac.
-            consider (exists c', srpc = Lock c' n) by eattac.
+            consider (exists c', srpc = Locked c' n) by eattac.
             exists c'; eauto using service_wf_SRPC_inv.
           }
 
-          bs (Lock c' n = Lock c n0).
+          bs (Locked c' n = Locked c n0).
       - rewrite <- `(NetMod.get m1 _ = _).
         attac.
         (* TODO compress those cases *)

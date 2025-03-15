@@ -95,7 +95,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Transparent lock : LTS.
 
 
-    (** Lock sets are equivalent  *)
+    (** Locked sets are equivalent  *)
     Lemma lock_set_equiv [N L0 L1 n] :
       lock_set N L0 n ->
       lock_set N L1 n ->
@@ -769,7 +769,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Resolve lock_chain_seq : LTS.
 
 
-    (** Lock chain can be split if there is a known node in the middle *)
+    (** Locked chain can be split if there is a known node in the middle *)
     Lemma lock_chain_split [N L0 L1 n0 n1 n2] :
       lock_chain N n0 (L0 ++ n1::L1) n2 ->
       lock_chain N n0 L0 n1 /\ lock_chain N n1 L1 n2.
@@ -790,7 +790,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Rewrite -> @lock_chain_seq_inv using assumption : LTS.
 
 
-    (** Lock chain can be split if there is a known node in the middle *)
+    (** Locked chain can be split if there is a known node in the middle *)
     Lemma lock_chain_split_in [N L n0 n1 n2] :
       List.In n1 L ->
       lock_chain N n0 L n2 ->
@@ -832,7 +832,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Qed.
 
 
-    (** Lock chain indicates an indirect lock *)
+    (** Locked chain indicates an indirect lock *)
     Lemma lock_chain_dep [N n0 n1 L] :
       lock_chain N n0 L n1 ->
       trans_lock N n0 n1.
@@ -847,7 +847,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Immediate lock_chain_dep : LTS.
 
 
-    (** Lock chain can be split to dependency relation on any intermediate node *)
+    (** Locked chain can be split to dependency relation on any intermediate node *)
     Lemma lock_chain_dep_in [N n0 n1 n2 L] :
       lock_chain N n0 L n2 ->
       List.In n1 L ->

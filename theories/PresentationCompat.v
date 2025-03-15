@@ -47,7 +47,7 @@ Import SrpcDefs.
 
 Module Paper.
   Definition serv_lock (n : Name) (S : Serv) :=
-    (forall v E, ~ Deq (n, R) v (serv_i S) E) /\ (exists c, SRPC (Lock c n) (serv_p S)) /\ (serv_o S = []).
+    (forall v E, ~ Deq (n, R) v (serv_i S) E) /\ (exists c, SRPC (Locked c n) (serv_p S)) /\ (serv_o S = []).
 
   Definition dead_set (DS : list Name) N :=
     DS <> []  /\  (forall n0, In n0 DS -> exists n1, lock N n0 n1 /\ In n1 DS).
@@ -55,26 +55,26 @@ Module Paper.
   Inductive SRPCI : SRPC_State -> Proc -> Prop :=
   | SRPCI_R h :
     (forall c t, h (c, t) <> None -> t = Q) ->
-    (forall c v, exists cont, h (c, Q) = Some cont /\ SRPCI (Work c) (cont v)) ->
-    SRPCI Free (PRecv h)
-  | SRPCI_WR c v P : SRPCI (Work c) (PSend (c, R) v P)
-  | SRPCI_WT c P : SRPCI (Work c) P -> SRPCI (Work c) (STau P)
-  | SRPCI_WQ c s v P : SRPCI (Lock c s) P -> SRPCI (Work c) (PSend (s, Q) v P)
+    (forall c v, exists cont, h (c, Q) = Some cont /\ SRPCI (Working c) (cont v)) ->
+    SRPCI Ready (PRecv h)
+  | SRPCI_WR c v P : SRPCI (Working c) (PSend (c, R) v P)
+  | SRPCI_WT c P : SRPCI (Working c) P -> SRPCI (Working c) (STau P)
+  | SRPCI_WQ c s v P : SRPCI (Locked c s) P -> SRPCI (Working c) (PSend (s, Q) v P)
   | SRPCI_L c s h cont :
     (forall nc, h nc <> None -> nc = (s, R)) ->
     (h (s, R) = Some cont) ->
-    (forall v, SRPCI (Work c) (cont v)) ->
-    SRPCI (Lock c s) (PRecv h)
+    (forall v, SRPCI (Working c) (cont v)) ->
+    SRPCI (Locked c s) (PRecv h)
   .
 
   CoInductive SRPCC : SRPC_State -> Proc -> Prop :=
-  | SRPCC_R P0 : (forall c v P1, P0 =(Recv (c, Q) v)=> P1 -> SRPCC (Work c) P1) -> SRPCI Free P0 -> SRPCC Free P0
+  | SRPCC_R P0 : (forall c v P1, P0 =(Recv (c, Q) v)=> P1 -> SRPCC (Working c) P1) -> SRPCI Ready P0 -> SRPCC Ready P0
   | SRPCC_W c P0 :
-    (forall v P1, P0 =(Send (c, R) v)=> P1 -> SRPCC Free P1) ->
-    (forall P1, P0 =(Tau)=> P1 -> SRPCC (Work c) P1) ->
-    (forall s v P1, P0 =(Send (s, Q) v)=> P1 -> SRPCC (Lock c s) P1) ->
-    SRPCI (Work c) P0 -> SRPCC (Work c) P0
-  | SRPCC_L c s P0 : (forall v P1, P0 =(Recv (s, R) v)=> P1 -> SRPCC (Work c) P1) -> SRPCI (Lock c s) P0 -> SRPCC (Lock c s) P0
+    (forall v P1, P0 =(Send (c, R) v)=> P1 -> SRPCC Ready P1) ->
+    (forall P1, P0 =(Tau)=> P1 -> SRPCC (Working c) P1) ->
+    (forall s v P1, P0 =(Send (s, Q) v)=> P1 -> SRPCC (Locked c s) P1) ->
+    SRPCI (Working c) P0 -> SRPCC (Working c) P0
+  | SRPCC_L c s P0 : (forall v P1, P0 =(Recv (s, R) v)=> P1 -> SRPCC (Working c) P1) -> SRPCI (Locked c s) P0 -> SRPCC (Locked c s) P0
   .
 End Paper.
 
@@ -85,7 +85,7 @@ Proof.
   - consider (serv_lock _ _).
     repeat split; repeat (intros ?); simpl in *.
     + bs (In (n, R, v) &I).
-    + eauto using lock_SRPC_Lock with LTS.
+    + eauto using lock_SRPC_Locked with LTS.
   - destruct S.
     consider (Paper.serv_lock _ _).
     hsimpl in *.
@@ -124,7 +124,7 @@ Inductive SRPC_measure : Proc -> Prop :=
 | ms_recv h : (forall v nc cont, h nc = Some cont -> SRPC_measure (cont v)) -> SRPC_measure (PRecv h)
 .
 
-Lemma SRPCI_measure : forall srpc P, srpc <> Free -> Paper.SRPCI srpc P -> SRPC_measure P.
+Lemma SRPCI_measure : forall srpc P, srpc <> Ready -> Paper.SRPCI srpc P -> SRPC_measure P.
 Proof.
   intros.
   induction H0; intros; constructor; eattac.
@@ -137,7 +137,7 @@ Lemma SRPCC_SRPCI : forall srpc P, Paper.SRPCC srpc P -> Paper.SRPCI srpc P.
   intros. kill H.
 Qed.
 
-Lemma SRPCC_measure : forall srpc P, srpc <> Free -> Paper.SRPCC srpc P -> SRPC_measure P.
+Lemma SRPCC_measure : forall srpc P, srpc <> Ready -> Paper.SRPCC srpc P -> SRPC_measure P.
   intros.
   eauto using SRPCC_SRPCI, SRPCI_measure.
 Qed.
@@ -242,7 +242,7 @@ Proof.
       specialize (H2 n t ltac:(attac)); attac.
       assert (cont0 = cont). cbv in *. rewrite H3 in H4; attac.
       subst.
-      assert (Paper.SRPCC (Work n) (cont v)). apply H with (v:=v). exists (n, Q), v, cont. attac.
+      assert (Paper.SRPCC (Working n) (cont v)). apply H with (v:=v). exists (n, Q), v, cont. attac.
       exists n, v.
       eattac.
     + apply SRPCB_eq.

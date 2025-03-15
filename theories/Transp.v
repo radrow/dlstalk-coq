@@ -1442,7 +1442,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     Net_Vis_corr_psend : LTS.
 
 
-  Lemma Net_path_corr1 : forall [ma] [MN0 MN1 : MNet],
+  Lemma transp_sound1 : forall [ma] [MN0 MN1 : MNet],
       (MN0 =(ma)=> MN1) ->
       exists pnpath,
         (net_deinstr MN0 =[pnpath]=> net_deinstr MN1).
@@ -1554,7 +1554,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** Process path is replicable under deinstrumentation *)
-  Theorem Net_path_corr : forall [mnpath] [MN0 MN1 : MNet],
+  Theorem transp_sound : forall [mnpath] [MN0 MN1 : MNet],
       (MN0 =[ mnpath ]=> MN1) ->
       exists pnpath,
         (net_deinstr MN0 =[pnpath]=> net_deinstr MN1).
@@ -1569,7 +1569,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     rename T1 into TNM1.
     rename N1 into MN0'.
 
-    destruct (Net_path_corr1 TNM0) as (pnpath0 & TN0).
+    destruct (transp_sound1 TNM0) as (pnpath0 & TN0).
     apply (IHmnpath) in TNM1 as (pnpath1 & TN1).
 
     exists (pnpath0 ++ pnpath1).
@@ -1582,7 +1582,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   #[export] Hint Resolve assg_mq_Clear : LTS. (* TODO to Model *)
 
   (** Soundness of network transparency *)
-  Theorem Net_Transp_soundness : forall {mnpath0} {I0} {N0 : PNet} {MN1 : MNet},
+  Theorem transp_sound_instr : forall {mnpath0} {I0} {N0 : PNet} {MN1 : MNet},
       (apply_instr I0 N0 =[ mnpath0 ]=> MN1) ->
       exists mnpath1 pnpath I2 N2,
         (MN1 =[ mnpath1 ]=> apply_instr I2 N2)
@@ -1625,7 +1625,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
     assert (apply_instr I0 N0 =[ mnpath0 ++ mnpath1 ]=> apply_instr I1 N2) as NTM by attac.
 
-    consider (exists pnpath, net_deinstr (apply_instr I0 N0) =[ pnpath ]=> net_deinstr (apply_instr I1 N2)) by eauto using Net_path_corr.
+    consider (exists pnpath, net_deinstr (apply_instr I0 N0) =[ pnpath ]=> net_deinstr (apply_instr I1 N2)) by eauto using transp_sound.
 
     exists mnpath1, pnpath, I1, N2.
     attac.
@@ -2255,7 +2255,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** Network transparency completeness over a single action *)
-  Lemma Net_Transp_completeness1 : forall I0 {na} {N0 N1 : PNet},
+  Lemma transp_complete1 : forall I0 {na} {N0 N1 : PNet},
       (N0 =(na)=> N1) ->
       exists nmpath I1,
         (apply_instr I0 N0 =[nmpath]=> apply_instr I1 N1).
@@ -2411,7 +2411,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** Network transparency completeness *)
-  Theorem Net_Transp_completeness : forall {path} I0 {N0 N1 : PNet},
+  Theorem transp_complete : forall {path} I0 {N0 N1 : PNet},
       (N0 =[ path ]=> N1) ->
       exists mpath I1,
         (apply_instr I0 N0 =[ mpath ]=> apply_instr I1 N1).
@@ -2421,7 +2421,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     1: exists [], I0...
 
     kill H.
-    apply (Net_Transp_completeness1 I0) in T0 as (mpath0 & I0' & NT0).
+    apply (transp_complete1 I0) in T0 as (mpath0 & I0' & NT0).
     apply (IHpath I0') in T1 as (mpath1 & I1 & NT1). clear IHpath.
 
     exists (mpath0 ++ mpath1), I1...

@@ -33,18 +33,18 @@ Open Scope string_scope.
 (* this must be extracted or else coq bugs https://github.com/coq/coq/issues/19994 *)
 Inductive Name_ : Set :=
 | Initiator : string -> nat -> Name_
-| Worker :> string -> Name_
+| Workinger :> string -> Name_
 .
 
 Definition name_str (n : Name_) : option (list Byte.byte) :=
-  match n with Worker n => Some (list_byte_of_string n) | _ => None end.
+  match n with Workinger n => Some (list_byte_of_string n) | _ => None end.
 Definition str_name (s : list Byte.byte) : Name_ :=
-  Worker (string_of_list_byte s).
+  Workinger (string_of_list_byte s).
 
 String Notation Name_ str_name name_str : list_scope.
 
-Lemma Name_neq_IW : forall i si sw, Initiator si i <> Worker sw. attac. Qed.
-Lemma Name_neq_WI : forall i si sw, Worker sw <> Initiator si i. attac. Qed.
+Lemma Name_neq_IW : forall i si sw, Initiator si i <> Workinger sw. attac. Qed.
+Lemma Name_neq_WI : forall i si sw, Workinger sw <> Initiator si i. attac. Qed.
 Hint Resolve Name_neq_WI Name_neq_IW : core.
 
 Module Name_ <: UsualDecidableSet.
@@ -138,7 +138,7 @@ Module Thomas.
 
 
   Definition call (to : string) (arg : Val) (cont : Val -> Proc) :=
-    PSend (Worker to, Q) arg (recvr (Worker to) cont).
+    PSend (Workinger to, Q) arg (recvr (Workinger to) cont).
 
 
   Inductive Handler (state_t : Set) :=
@@ -161,7 +161,7 @@ Module Thomas.
       | {|gs_state:=GSReady _ gss; gs_handler:=gsh|} =>
           recvq (
               fun from arg =>
-                let name := match from with Worker n => Some n | _ => None end in
+                let name := match from with Workinger n => Some n | _ => None end in
                 run_gen_server {|gs_state:=GSHandle _ from (gsh name arg gss); gs_handler:=gsh|}
             )
       | {|gs_state:=GSHandle _ client (h_reply _ reply next_state); gs_handler:=gsh|} =>
@@ -180,8 +180,8 @@ Module Thomas.
 
 
   Lemma SRPC_recvr_h client serv cont :
-    (forall v, SRPC (Work client) (cont v)) ->
-    SRPC_Busy (BLock client serv) (recvr serv cont).
+    (forall v, SRPC (Working client) (cont v)) ->
+    SRPC_Busy (BLocked client serv) (recvr serv cont).
 
   Proof.
     intros.
@@ -202,8 +202,8 @@ Module Thomas.
   Qed.
 
   Lemma SRPC_recvr client serv cont :
-    (forall v, SRPC (Work client) (cont v)) ->
-    SRPC (Lock client serv) (recvr serv cont).
+    (forall v, SRPC (Working client) (cont v)) ->
+    SRPC (Locked client serv) (recvr serv cont).
 
   Proof.
     intros.
@@ -217,13 +217,13 @@ Module Thomas.
   Qed.
 
   Lemma SRPC_call client cont :
-    (forall v, SRPC (Work client) (cont v)) ->
-    forall to arg, SRPC (Work client) (call to arg cont).
+    (forall v, SRPC (Working client) (cont v)) ->
+    forall to arg, SRPC (Working client) (call to arg cont).
 
   Proof.
     intros.
     unfold call.
-    assert (SRPC (Lock client (Worker to)) (recvr (Worker to) cont)) by eauto using SRPC_recvr.
+    assert (SRPC (Locked client (Workinger to)) (recvr (Workinger to) cont)) by eauto using SRPC_recvr.
     clear H.
     constructor; intros; doubt.
     - constructor; intros; doubt.
@@ -234,7 +234,7 @@ Module Thomas.
 
   Lemma SRPC_gen_server_hwork [state_t] :
     forall client st gsh,
-      SRPC_Busy (BWork client) (@run_gen_server state_t {|gs_state:=GSHandle _ client st; gs_handler:=gsh|}).
+      SRPC_Busy (BWorking client) (@run_gen_server state_t {|gs_state:=GSHandle _ client st; gs_handler:=gsh|}).
 
   Proof.
     intros.
@@ -276,11 +276,11 @@ Module Thomas.
 
   CoFixpoint SRPC_gen_server [state_t] :
     forall st gsh,
-    SRPC Free (@run_gen_server state_t {|gs_state:=GSReady _ st; gs_handler:=gsh|})
+    SRPC Ready (@run_gen_server state_t {|gs_state:=GSReady _ st; gs_handler:=gsh|})
   with
   SRPC_gen_server_work [state_t] :
     forall client st gsh,
-      SRPC (Work client) (@run_gen_server state_t {|gs_state:=GSHandle _ client st; gs_handler:=gsh|}).
+      SRPC (Working client) (@run_gen_server state_t {|gs_state:=GSHandle _ client st; gs_handler:=gsh|}).
 
   Proof.
     all: intros.
@@ -376,7 +376,7 @@ Module Thomas.
   Definition gen_net (conf : NetConf) : PNet :=
     NetMod.init (
         fun n => match n with
-              | Worker name =>
+              | Workinger name =>
                   match services conf name with
                     sconf _ init_call_ handle_call => serv [] (gen_server init_call_ handle_call) []
                   end
@@ -389,7 +389,7 @@ Module Thomas.
 
 
   Lemma SRPC_Finger : forall name to arg i,
-      SRPC (Lock (Initiator name (S (S i))) (Initiator name i)) (Finger name (S i) to arg).
+      SRPC (Locked (Initiator name (S (S i))) (Initiator name i)) (Finger name (S i) to arg).
 
   Proof.
     intros.
@@ -422,7 +422,7 @@ Module Thomas.
 
 
   Lemma SRPC_Init : forall name to arg,
-      SRPC (Work (Initiator name 1)) (Init name to arg).
+      SRPC (Working (Initiator name 1)) (Init name to arg).
 
   Proof.
     intros.
@@ -482,13 +482,13 @@ Module Thomas.
     rewrite NetMod.init_get.
     destruct n as [name [|i] | name].
     - destruct (inits conf name).
-      exists (Work (Initiator name 1)).
+      exists (Working (Initiator name 1)).
       eapply SRPC_Init.
     - destruct (inits conf name).
-      exists (Lock (Initiator name (S (S i))) (Initiator name i)).
+      exists (Locked (Initiator name (S (S i))) (Initiator name i)).
       eapply SRPC_Finger with (to:=target0)(arg:=arg0).
     - destruct (services conf name).
-      exists Free.
+      exists Ready.
       apply SRPC_gen_server.
   Qed.
 
@@ -502,15 +502,15 @@ Module Thomas.
     rewrite NetMod.init_get.
     destruct n as [name [|i] | name].
     - destruct (inits conf name).
-      exists (Work (Initiator name 1)).
+      exists (Working (Initiator name 1)).
       constructor; attac.
       eapply SRPC_Init.
     - destruct (inits conf name).
-      exists (Lock (Initiator name (S (S i))) (Initiator name i)).
+      exists (Locked (Initiator name (S (S i))) (Initiator name i)).
       constructor; attac.
       eapply SRPC_Finger with (to:=target0)(arg:=arg0).
     - destruct (services conf name).
-      exists Free.
+      exists Ready.
       constructor; attac.
       apply SRPC_gen_server.
   Qed.
@@ -532,7 +532,7 @@ Module Thomas.
       eexists; eauto using SRPC_Finger.
     }
     constructor; auto.
-    eapply SRPC_Lock_lock.
+    eapply SRPC_Locked_lock.
     eauto using SRPC_Finger.
   Qed.
 
@@ -553,7 +553,7 @@ Module Thomas.
   Qed.
 
   Lemma gen_lock_set_worker : forall conf name other,
-      ~ lock (gen_net conf) (Worker name) other.
+      ~ lock (gen_net conf) (Workinger name) other.
 
   Proof.
     intros.
@@ -566,10 +566,10 @@ Module Thomas.
     rewrite NetMod.init_get in *.
     blast_cases.
     kill H.
-    assert (SRPC Free (gen_server &init0 handle_call0)) by eauto using SRPC_gen_server.
-    apply lock_SRPC_Lock in H1.
+    assert (SRPC Ready (gen_server &init0 handle_call0)) by eauto using SRPC_gen_server.
+    apply lock_SRPC_Locked in H1.
     - attac.
-      bs (Lock c other = Free).
+      bs (Locked c other = Ready).
     - eexists; eauto.
   Qed.
 
@@ -583,14 +583,14 @@ Module Thomas.
     blast_cases.
     constructor; auto.
     destruct i.
-    - assert (SRPC (Work (Initiator name 1)) (Finger name 0 target0 arg0)) by eauto using SRPC_Init.
+    - assert (SRPC (Working (Initiator name 1)) (Finger name 0 target0 arg0)) by eauto using SRPC_Init.
       attac.
-    - assert (SRPC (Lock (Initiator name (S (S i))) (Initiator name i)) (Finger name (S i) target0 arg0)) by eauto using SRPC_Finger.
+    - assert (SRPC (Locked (Initiator name (S (S i))) (Initiator name i)) (Finger name (S i) target0 arg0)) by eauto using SRPC_Finger.
       attac.
   Qed.
 
   Lemma gen_net_client_worker : forall conf name other,
-      ~ pq_client other (NetMod.get (Worker name) (gen_net conf)).
+      ~ pq_client other (NetMod.get (Workinger name) (gen_net conf)).
 
   Proof.
     intros.
@@ -598,9 +598,9 @@ Module Thomas.
     unfold gen_net in *.
     rewrite NetMod.init_get in *.
     kill H; blast_cases; doubt; attac.
-    assert (SRPC Free (gen_server init0 handle_call0)) by apply SRPC_gen_server.
+    assert (SRPC Ready (gen_server init0 handle_call0)) by apply SRPC_gen_server.
     consider (proc_client _ _).
-    bs (Busy _ = Free).
+    bs (Busy _ = Ready).
   Qed.
 
 
@@ -630,17 +630,17 @@ Module Thomas.
     rewrite NetMod.init_get in *.
     kill H; blast_cases; doubt; attac.
     - destruct n.
-      + assert (SRPC (Work (Initiator s 1)) (Finger s 0 target0 arg0)) by eauto using SRPC_Init.
+      + assert (SRPC (Working (Initiator s 1)) (Finger s 0 target0 arg0)) by eauto using SRPC_Init.
         kill H0.
-        assert (Busy x = Work (Initiator s 1)) by attac.
+        assert (Busy x = Working (Initiator s 1)) by attac.
         attac.
-      + assert (SRPC (Lock (Initiator s (S (S n))) (Initiator s n)) (Finger s (S n) target0 arg0)) by eauto using SRPC_Finger.
+      + assert (SRPC (Locked (Initiator s (S (S n))) (Initiator s n)) (Finger s (S n) target0 arg0)) by eauto using SRPC_Finger.
         kill H0.
-        eassert (Busy x = Lock _ (Initiator s _)) by attac.
+        eassert (Busy x = Locked _ (Initiator s _)) by attac.
         attac.
-    - assert (SRPC Free (gen_server init0 handle_call0)) by eauto using SRPC_gen_server.
+    - assert (SRPC Ready (gen_server init0 handle_call0)) by eauto using SRPC_gen_server.
       kill H0.
-      bs (Busy x = Free).
+      bs (Busy x = Ready).
   Qed.
 
 
@@ -663,7 +663,7 @@ Module Thomas.
 
   Definition make_mon_state n : MState :=
     match n with
-    | Worker name => {| self := n
+    | Workinger name => {| self := n
                     ;  lock := None
                     ;  lock_id := 0
                     ;  wait := []
@@ -895,7 +895,7 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Initiator "iA" 0) (Worker "A") Q _).
+      eapply path_seq1 with (act := NComm (Initiator "iA" 0) (Workinger "A") Q _).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
@@ -908,7 +908,7 @@ Module Thomas.
           eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "A") Tau).
+      eapply path_seq1 with (act := NTau (Workinger "A") Tau).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
@@ -918,7 +918,7 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "A") Tau).
+      eapply path_seq1 with (act := NTau (Workinger "A") Tau).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
@@ -927,7 +927,7 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "A") (Worker "C") Q _).
+      eapply path_seq1 with (act := NComm (Workinger "A") (Workinger "C") Q _).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
@@ -950,7 +950,7 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Initiator "iB" 0) (Worker "B") Q _).
+      eapply path_seq1 with (act := NComm (Initiator "iB" 0) (Workinger "B") Q _).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
@@ -963,7 +963,7 @@ Module Thomas.
           eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "B") Tau).
+      eapply path_seq1 with (act := NTau (Workinger "B") Tau).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
@@ -973,7 +973,7 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "B") Tau).
+      eapply path_seq1 with (act := NTau (Workinger "B") Tau).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
@@ -982,7 +982,7 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "B") (Worker "D") Q _).
+      eapply path_seq1 with (act := NComm (Workinger "B") (Workinger "D") Q _).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
@@ -996,7 +996,7 @@ Module Thomas.
       }
 
       (* Cross *)
-      eapply path_seq1 with (act := NTau (Worker "D") Tau).
+      eapply path_seq1 with (act := NTau (Workinger "D") Tau).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
@@ -1006,7 +1006,7 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "D") Tau).
+      eapply path_seq1 with (act := NTau (Workinger "D") Tau).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
@@ -1015,7 +1015,7 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "D") (Worker "A") Q _).
+      eapply path_seq1 with (act := NComm (Workinger "D") (Workinger "A") Q _).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
@@ -1027,7 +1027,7 @@ Module Thomas.
           repeat econstructor.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "C") Tau).
+      eapply path_seq1 with (act := NTau (Workinger "C") Tau).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (gen_server _ _)).
@@ -1037,7 +1037,7 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NTau (Worker "C") Tau).
+      eapply path_seq1 with (act := NTau (Workinger "C") Tau).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         rewrite (unfold_Proc (run_gen_server _)); simpl.
@@ -1046,7 +1046,7 @@ Module Thomas.
         eattac.
       }
 
-      eapply path_seq1 with (act := NComm (Worker "C") (Worker "B") Q _).
+      eapply path_seq1 with (act := NComm (Workinger "C") (Workinger "B") Q _).
       {
         unfold example_net, gen_net, call, recvr, recvq.
         eapply NComm_neq; eattac.
@@ -1084,28 +1084,28 @@ Module Thomas.
     specialize (H0 n).
     clear H.
     repeat (destruct `(_ \/ _)).
-    - exists [Worker "C"].
+    - exists [Workinger "C"].
       subst.
       compat_hsimpl in *.
       split; attac.
       blast_cases. 2: bs.
       apply NAME.eqb_eq in Heqb.
       auto.
-    - exists [Worker "D"].
+    - exists [Workinger "D"].
       subst.
       compat_hsimpl in *.
       split; attac.
       blast_cases. 2: bs.
       apply NAME.eqb_eq in Heqb.
       auto.
-    - exists [Worker "B"].
+    - exists [Workinger "B"].
       subst.
       compat_hsimpl in *.
       split; attac.
       blast_cases. 2: bs.
       apply NAME.eqb_eq in Heqb.
       auto.
-    - exists [Worker "A"].
+    - exists [Workinger "A"].
       subst.
       compat_hsimpl in *.
       split; attac.

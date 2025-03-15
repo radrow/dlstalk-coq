@@ -255,24 +255,24 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       well_formed N ->
       NetMod.get n N = mserv MQ M S ->
       List.In (TrRecv (s, R) v) MQ ->
-      exists c, SRPC_serv (Lock c s) (NetMod.get n N).
+      exists c, SRPC_serv (Locked c s) (NetMod.get n N).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *.
       hsimpl in *.
-      consider (exists c, srpc = Lock c s); eattac.
+      consider (exists c, srpc = Locked c s); eattac.
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_out_lock [N : MNet] [ n s v MQ M S] :
       well_formed N ->
       NetMod.get n N = mserv MQ M S ->
       List.In (TrSend (s, Q) v) MQ ->
-      exists c, SRPC_serv (Lock c s) (NetMod.get n N).
+      exists c, SRPC_serv (Locked c s) (NetMod.get n N).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
       unfold net_deinstr, deinstr in *.
       hsimpl in *.
-      consider (exists c, srpc = Lock c s); eattac.
+      consider (exists c, srpc = Locked c s); eattac.
     Qed.
 
     Lemma SRPC_M_net_in_net_Q_out_uniq_M [N : MNet] [ n c v v' MQ0 MQ1 M I P O] :
@@ -2359,7 +2359,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
 
-    consider (exists mpath1 path (i2 : instr) N2, (MN1 =[ mpath1 ]=> i2 N2) /\ (N0 =[ path ]=> N2)) by eauto using Net_Transp_soundness.
+    consider (exists mpath1 path (i2 : instr) N2, (MN1 =[ mpath1 ]=> i2 N2) /\ (N0 =[ path ]=> N2)) by eauto using transp_sound_instr.
     assert ('' (i0 N0) =[mpath0 ++ mpath1]=> '' (i2 N2)) by eauto using MNPath_do with LTS.
 
     hsimpl in *.
@@ -2368,7 +2368,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     assert (DeadSet DS '' (i2 N2)).
     {
-      consider (exists ppath, '' MN1 =[ppath]=> '' (i2 N2)) by eauto using Net_path_corr.
+      consider (exists ppath, '' MN1 =[ppath]=> '' (i2 N2)) by eauto using transp_sound.
       attac.
     }
 

@@ -149,7 +149,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 (*         We also consider only decisive processes here. *)
 (*    *)
   Inductive serv_lock (L : Names) : Serv -> Prop :=
-  | PQ_Lock [I P] :
+  | PQ_Locked [I P] :
     Decisive P ->
     proc_lock L P ->
     (forall n v, List.In n L -> not (List.In (n, R, v) I)) ->
@@ -286,7 +286,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   #[export] Hint Rewrite -> proc_lock_STau_inv proc_lock_PSend_inv using spank : LTS LTS_concl.
 
 
-  (** Locked process can only receive from its lock set *)
+  (** Lockeded process can only receive from its lock set *)
   Theorem proc_lock_recv [L P a P'] :
     proc_lock L P ->
     (P =(a)=> P') ->
@@ -453,7 +453,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   #[export] Hint Resolve proc_lock_invariant : LTS inv.
 
 
-  (** Locked services only receive *)
+  (** Lockeded services only receive *)
   Proposition serv_lock_recv [L a S0 S1] :
     serv_lock L S0 ->
     (S0 =(a)=> S1) ->
@@ -510,7 +510,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   #[export] Hint Resolve serv_lock_invariant : LTS inv.
 
 
-  (** Lock sets are equivalent *)
+  (** Locked sets are equivalent *)
   Lemma proc_lock_incl [P L0 L1] :
     proc_lock L0 P ->
     proc_lock L1 P ->
@@ -533,7 +533,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   #[export] Hint Resolve proc_lock_incl : LTS.
 
 
-  (** Lock sets are *actually* equivalent *)
+  (** Locked sets are *actually* equivalent *)
   Lemma proc_lock_equiv [P L0 L1] :
     proc_lock L0 P ->
     proc_lock L1 P ->
@@ -572,7 +572,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   #[export] Hint Immediate proc_lock_equiv_inv : LTS.
 
 
-  (** Lock sets are equivalent *)
+  (** Locked sets are equivalent *)
   Lemma serv_lock_incl [S L0 L1] :
     serv_lock L0 S ->
     serv_lock L1 S ->
@@ -591,7 +591,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   #[export] Hint Resolve serv_lock_incl : LTS.
 
 
-  (** Lock sets are *actually* equivalent *)
+  (** Locked sets are *actually* equivalent *)
   Lemma serv_lock_equiv [S L0 L1] :
     serv_lock L0 S ->
     serv_lock L1 S ->

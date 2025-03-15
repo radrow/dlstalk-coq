@@ -45,8 +45,8 @@ End SRPC_PARAMS.
 Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   (** SRPC process handling a request from the client [c] *)
     Inductive SRPC_Busy_State (c : Name) :=
-    | BWork : SRPC_Busy_State c
-    | BLock (s : Name) : SRPC_Busy_State c
+    | BWorking : SRPC_Busy_State c
+    | BLocked (s : Name) : SRPC_Busy_State c
     .
 
     #[export] Hint Constructors SRPC_Busy_State : LTS.
@@ -54,15 +54,15 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
     (** Behavioral description of an Single-threaded RPC process *)
     Inductive SRPC_Busy [c] : SRPC_Busy_State c -> Proc -> Prop :=
-    | SRPC_Busy_Work [P0]
+    | SRPC_Busy_Working [P0]
         (* If sends a reply, then to the client. *)
         (HReply : forall c' v P1, (P0 =(Send (c', R) v)=> P1) -> c = c')
 
         (* If sends a query, then locked. *)
-        (HQuery : forall s v P1, (P0 =(Send (s, Q) v)=> P1) -> SRPC_Busy (BLock c s) P1)
+        (HQuery : forall s v P1, (P0 =(Send (s, Q) v)=> P1) -> SRPC_Busy (BLocked c s) P1)
 
         (* If taus, then still working *)
-        (HTau : forall P1, (P0 =(Tau)=> P1) -> SRPC_Busy (BWork c) P1)
+        (HTau : forall P1, (P0 =(Tau)=> P1) -> SRPC_Busy (BWorking c) P1)
 
         (* Is not a receiving process. Note that the below does not work: *)
         (* (forall n v P1, P0 =(Recv n v)=> P1 -> False) -> *)
@@ -73,55 +73,55 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
         (* We assume 100% uptime. We are in academia, after all. *)
         (HNoEnd : P0 <> PEnd)
-      : SRPC_Busy (BWork c) P0
+      : SRPC_Busy (BWorking c) P0
 
-    | SRPC_Busy_Lock [s P0]
+    | SRPC_Busy_Locked [s P0]
         (* Accepts ALL replies from server *)
         (HReplyAll : forall v, exists P1, (P0 =(Recv (s, R) v)=> P1))
         (* Accepts ONLY replies and ONLY from server *)
         (HReplyOnly : forall a P1, P0 =(a)=> P1 -> exists v, a = Recv (s, R) v)
         (* If recvs a reply, moves to busy *)
-        (HRecvR : forall a P1, P0 =(a)=> P1 -> SRPC_Busy (BWork c) P1)
-      : SRPC_Busy (BLock c s) P0
+        (HRecvR : forall a P1, P0 =(a)=> P1 -> SRPC_Busy (BWorking c) P1)
+      : SRPC_Busy (BLocked c s) P0
     .
 
 
     (** SRPC state of any service *)
     Inductive SRPC_State :=
-    | Free : SRPC_State
+    | Ready : SRPC_State
     | Busy [c] : SRPC_Busy_State c -> SRPC_State
     .
 
     #[export] Hint Constructors SRPC_State : LTS.
 
 
-    Notation "'Work'" := (fun c => Busy (BWork c)) (at level 30).
-    Notation "'Lock'" := (fun c s => Busy (BLock c s)) (at level 30).
+    Notation "'Working'" := (fun c => Busy (BWorking c)) (at level 30).
+    Notation "'Locked'" := (fun c s => Busy (BLocked c s)) (at level 30).
 
-    Notation "'Work' c" := (Busy (BWork c)) (at level 200) : type_scope.
-    Notation "'Lock' c s" := (Busy (BLock c s)) (at level 200) : type_scope.
+    Notation "'Working' c" := (Busy (BWorking c)) (at level 200) : type_scope.
+    Notation "'Locked' c s" := (Busy (BLocked c s)) (at level 200) : type_scope.
 
 
     (** Behavioral description of an Single-threaded RPC process *)
     CoInductive SRPC : SRPC_State -> Proc -> Prop :=
-    | SRPC_Free [P0]
+    | SRPC_Ready [P0]
       (* Accepts ALL queries *)
       (HQueryAll : forall c v, exists P1, (P0 =(Recv (c, Q) v)=> P1))
       (* Accepts ONLY queries *)
       (HQueryOnly : forall a P1, (P0 =(a)=> P1) ->
                             exists c v,
                               a = Recv (c, Q) v
-                              /\ SRPC (Work c) P1
+                              /\ SRPC (Working c) P1
       )
-      : SRPC Free P0
+      : SRPC Ready P0
 
     | SRPC_Busy_ [P0 c]
         (srpc : SRPC_Busy_State c)
         (HBusy : SRPC_Busy srpc P0)
-        (HReply : forall v P1, P0 =(Send (c, R) v)=> P1 -> SRPC Free P1)
-        (HQuery : forall s v P1, P0 =(Send (s, Q) v)=> P1 -> SRPC (Lock c s ) P1)
-        (HRecv : forall s v P1, P0 =(Recv (s, R) v)=> P1 -> SRPC (Work c) P1)
-        (HTau : forall P1, P0 =(Tau)=> P1 -> SRPC (Work c) P1)
+        (HReply : forall v P1, P0 =(Send (c, R) v)=> P1 -> SRPC Ready P1)
+        (HQuery : forall s v P1, P0 =(Send (s, Q) v)=> P1 -> SRPC (Locked c s ) P1)
+        (HRecv : forall s v P1, P0 =(Recv (s, R) v)=> P1 -> SRPC (Working c) P1)
+        (HTau : forall P1, P0 =(Tau)=> P1 -> SRPC (Working c) P1)
       : SRPC (Busy srpc) P0
     .
 
@@ -145,31 +145,31 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
                   | Some cont => forall v, cont v = hq c v
                   end
             ) ->
-            (forall c v, SRPC (Work c) (hq c v)) ->
+            (forall c v, SRPC (Working c) (hq c v)) ->
             (forall c, h (c, R) = None) ->
             P0 = PRecv h ->
-            srpc = Free ->
+            srpc = Ready ->
             P
         ) ->
 
         (forall (P1 : Proc) c,
-            SRPC (Work c) P1 ->
+            SRPC (Working c) P1 ->
             STau P1 = P0 ->
-            srpc = Work c ->
+            srpc = Working c ->
             P
         ) ->
 
         (forall (P1 : Proc) c s v,
-            SRPC (Lock c s) P1 ->
+            SRPC (Locked c s) P1 ->
             P0 = PSend (s, Q) v P1 ->
-            srpc = Work c ->
+            srpc = Working c ->
             P
         ) ->
 
         (forall (P1 : Proc) c v,
-           SRPC Free P1 ->
+           SRPC Ready P1 ->
            P0 = PSend (c, R) v P1 ->
-           srpc = Work c ->
+           srpc = Working c ->
            P
         ) ->
 
@@ -181,11 +181,11 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
              | Some cont => forall v, cont v = hr s v
              end
             ) ->
-            (forall v, SRPC (Work c) (hr s v)) ->
+            (forall v, SRPC (Working c) (hr s v)) ->
             (forall n t, n <> s -> h (n, t) = None) ->
             (forall n, h (n, Q) = None) ->
             P0 = PRecv h ->
-            srpc = Free ->
+            srpc = Ready ->
             P
         ) ->
 
@@ -408,7 +408,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Lemma SRPC_recv_Q [P0 P1] [c v] :
     (P0 =(Recv (c, Q) v)=> P1) ->
     AnySRPC P0 ->
-    SRPC Free P0 /\ SRPC (Work c) P1.
+    SRPC Ready P0 /\ SRPC (Working c) P1.
 
   Proof.
     intros T Hsrpc.
@@ -422,7 +422,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Lemma SRPC_recv_R [P0 P1] [s v] :
     (P0 =(Recv (s, R) v)=> P1) ->
     AnySRPC P0 ->
-    exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1.
+    exists c, SRPC (Locked c s) P0 /\ SRPC (Working c) P1.
   Proof.
     intros T Hsrpc.
 
@@ -434,7 +434,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   Lemma SRPC_recv_R' [P0 P1] [c s v] :
     (P0 =(Recv (s, R) v)=> P1) ->
-    SRPC (Lock c s) P0 -> SRPC (Work c) P1.
+    SRPC (Locked c s) P0 -> SRPC (Working c) P1.
   Proof.
     intros T Hsrpc.
     destruct SRPC Hsrpc T; eattac.
@@ -444,7 +444,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Lemma SRPC_send_Q [P0 P1] [s v] :
     (P0 =(Send (s, Q) v)=> P1) ->
     AnySRPC P0 ->
-    exists c, (SRPC (Work c) P0 /\ SRPC (Lock c s) P1).
+    exists c, (SRPC (Working c) P0 /\ SRPC (Locked c s) P1).
 
   Proof.
     intros T Hsrpc.
@@ -459,8 +459,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   Lemma SRPC_send_Q' [P0 P1] [c s v] :
     (P0 =(Send (s, Q) v)=> P1) ->
-    SRPC (Work c) P0 ->
-    SRPC (Lock c s) P1.
+    SRPC (Working c) P0 ->
+    SRPC (Locked c s) P1.
 
   Proof.
     intros T Hsrpc.
@@ -471,7 +471,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Lemma SRPC_send_R [P0 P1] [c v] :
     (P0 =(Send (c, R) v)=> P1) ->
     AnySRPC P0 ->
-    SRPC (Work c) P0 /\ SRPC Free P1.
+    SRPC (Working c) P0 /\ SRPC Ready P1.
 
   Proof.
     intros T Hsrpc.
@@ -487,7 +487,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Lemma SRPC_tau [P0 P1] :
     (P0 =(Tau)=> P1) ->
     AnySRPC P0 ->
-    exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1.
+    exists c, SRPC (Working c) P0 /\ SRPC (Working c) P1.
 
   Proof.
     intros T Hsrpc.
@@ -502,8 +502,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   Lemma SRPC_tau' [P0 P1 c] :
     (P0 =(Tau)=> P1) ->
-    SRPC (Work c) P0 ->
-    SRPC (Work c) P1.
+    SRPC (Working c) P0 ->
+    SRPC (Working c) P1.
 
   Proof.
     intros T Hsrpc.
@@ -512,7 +512,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   Lemma AnySRPC_STau_inv P :
-    AnySRPC (STau P) <-> exists c, SRPC (Work c) (STau P).
+    AnySRPC (STau P) <-> exists c, SRPC (Working c) (STau P).
 
   Proof.
     split; intros.
@@ -530,7 +530,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   Lemma AnySRPC_PSend_inv n v P :
-    AnySRPC (PSend n v P) <-> exists c, SRPC (Work c) (PSend n v P).
+    AnySRPC (PSend n v P) <-> exists c, SRPC (Working c) (PSend n v P).
 
   Proof.
     split; intros.
@@ -548,7 +548,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   Lemma SRPC_Busy_work_act [P0 : Proc] [c] :
-    SRPC_Busy (BWork c) P0 ->
+    SRPC_Busy (BWorking c) P0 ->
     exists P1, (exists v, P0 =(Send (c, R) v)=> P1) \/ (P0 =(Tau)=> P1) \/ (exists s v, P0 =(Send (s, Q) v)=> P1).
 
   Proof.
@@ -628,7 +628,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     ltac1:(dependent destruction H0).
 
     ltac1:(dependent induction HBusy); intros.
-    - assert (SRPC_Busy (BWork c) P0) as Hsrpc by (constructor; eattac).
+    - assert (SRPC_Busy (BWorking c) P0) as Hsrpc by (constructor; eattac).
       specialize (SRPC_Busy_work_act Hsrpc) as [P1 [[v T]|[T|[s [v T]]]]].
       + exists [], P0, P1, v...
       + specialize (H0 P1 T).
@@ -754,70 +754,70 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Lemma SRPC_inv_tau_l [P0 P1] :
     AnySRPC P0 ->
     (P0 =(Tau)=> P1) ->
-    exists c, SRPC (Work c) P0.
+    exists c, SRPC (Working c) P0.
   Proof.
     intros.
-    consider (exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1) by (eapply SRPC_tau; eattac).
+    consider (exists c, SRPC (Working c) P0 /\ SRPC (Working c) P1) by (eapply SRPC_tau; eattac).
     attac.
   Qed.
 
   Lemma SRPC_inv_tau_r [P0 P1] :
     AnySRPC P0 ->
     (P0 =(Tau)=> P1) ->
-    exists c, SRPC (Work c) P1.
+    exists c, SRPC (Working c) P1.
   Proof.
     intros.
-    consider (exists c, SRPC (Work c) P0 /\ SRPC (Work c) P1) by (eapply SRPC_tau; eattac).
+    consider (exists c, SRPC (Working c) P0 /\ SRPC (Working c) P1) by (eapply SRPC_tau; eattac).
     attac.
   Qed.
 
   Lemma SRPC_inv_send_R_l [P0 c v P1] :
     AnySRPC P0 ->
     (P0 =(Send (c, R) v)=> P1) ->
-    SRPC (Work c) P0.
-  Proof. intros. assert (SRPC (Work c) P0 /\ SRPC Free P1) by eauto using SRPC_send_R. attac. Qed.
+    SRPC (Working c) P0.
+  Proof. intros. assert (SRPC (Working c) P0 /\ SRPC Ready P1) by eauto using SRPC_send_R. attac. Qed.
 
   Lemma SRPC_inv_send_R_r [P0 c v P1] :
     AnySRPC P0 ->
     (P0 =(Send (c, R) v)=> P1) ->
-    SRPC Free P1.
-  Proof. intros. assert (SRPC (Work c) P0 /\ SRPC Free P1) by eauto using SRPC_send_R. attac. Qed.
+    SRPC Ready P1.
+  Proof. intros. assert (SRPC (Working c) P0 /\ SRPC Ready P1) by eauto using SRPC_send_R. attac. Qed.
 
   Lemma SRPC_inv_send_Q_l [P0 s v P1] :
     AnySRPC P0 ->
     (P0 =(Send (s, Q) v)=> P1) ->
-    exists c, SRPC (Work c) P0.
-  Proof. intros. consider (exists c, SRPC (Work c) P0 /\ SRPC (Lock c s) P1) by eauto using SRPC_send_Q. attac. Qed.
+    exists c, SRPC (Working c) P0.
+  Proof. intros. consider (exists c, SRPC (Working c) P0 /\ SRPC (Locked c s) P1) by eauto using SRPC_send_Q. attac. Qed.
 
   Lemma SRPC_inv_send_Q_r [P0 s v P1] :
     AnySRPC P0 ->
     (P0 =(Send (s, Q) v)=> P1) ->
-    exists c, SRPC (Lock c s) P1.
-  Proof. intros. consider (exists c, SRPC (Work c) P0 /\ SRPC (Lock c s) P1) by eauto using SRPC_send_Q. attac. Qed.
+    exists c, SRPC (Locked c s) P1.
+  Proof. intros. consider (exists c, SRPC (Working c) P0 /\ SRPC (Locked c s) P1) by eauto using SRPC_send_Q. attac. Qed.
 
   Lemma SRPC_inv_recv_Q_l [P0 P1] [c v] :
     (P0 =(Recv (c, Q) v)=> P1) ->
     AnySRPC P0 ->
-    SRPC Free P0.
-  Proof. intros. assert (SRPC Free P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_Q. attac. Qed.
+    SRPC Ready P0.
+  Proof. intros. assert (SRPC Ready P0 /\ SRPC (Working c) P1) by eauto using SRPC_recv_Q. attac. Qed.
 
   Lemma SRPC_inv_recv_Q_r [P0 P1] [c v] :
     (P0 =(Recv (c, Q) v)=> P1) ->
     AnySRPC P0 ->
-    SRPC (Work c) P1.
-  Proof. intros. assert (SRPC Free P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_Q. attac. Qed.
+    SRPC (Working c) P1.
+  Proof. intros. assert (SRPC Ready P0 /\ SRPC (Working c) P1) by eauto using SRPC_recv_Q. attac. Qed.
 
   Lemma SRPC_inv_recv_R_l [P0 P1] [s v] :
     (P0 =(Recv (s, R) v)=> P1) ->
     AnySRPC P0 ->
-    exists c, SRPC (Lock c s) P0.
-  Proof. intros. consider (exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_R. attac. Qed.
+    exists c, SRPC (Locked c s) P0.
+  Proof. intros. consider (exists c, SRPC (Locked c s) P0 /\ SRPC (Working c) P1) by eauto using SRPC_recv_R. attac. Qed.
 
   Lemma SRPC_inv_recv_R_r [P0 P1] [s v] :
     (P0 =(Recv (s, R) v)=> P1) ->
     AnySRPC P0 ->
-    exists c, SRPC (Work c) P1.
-  Proof. intros. consider (exists c, SRPC (Lock c s) P0 /\ SRPC (Work c) P1) by eauto using SRPC_recv_R. attac. Qed.
+    exists c, SRPC (Working c) P1.
+  Proof. intros. consider (exists c, SRPC (Locked c s) P0 /\ SRPC (Working c) P1) by eauto using SRPC_recv_R. attac. Qed.
 
   #[export] Hint Resolve
     SRPC_inv_tau_l
@@ -832,31 +832,31 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     SRPC_inv_recv_R_r
     : LTS.
 
-  Lemma SRPC_Free_recv_t_inv [P0 P1] [c t v] :
+  Lemma SRPC_Ready_recv_t_inv [P0 P1] [c t v] :
     (P0 =(Recv (c, t) v)=> P1) ->
-    SRPC Free P0 ->
+    SRPC Ready P0 ->
     t = Q.
   Proof. intros. consider (SRPC _ _). specialize (HQueryOnly (Recv (c, &t) v) P1) as [? ?]; eattac. Qed.
-  Lemma SRPC_Lock_recv_t_inv [P0 P1] [c s s' t v] :
+  Lemma SRPC_Locked_recv_t_inv [P0 P1] [c s s' t v] :
     (P0 =(Recv (s, t) v)=> P1) ->
-    SRPC (Lock c s') P0 ->
+    SRPC (Locked c s') P0 ->
     t = R.
   Proof. intros. consider (SRPC _ _). kill HBusy. attac. specialize (HReplyOnly (Recv (s, &t) v) P1) as [? ?]; eattac. Qed.
 
-  #[export] Hint Rewrite -> SRPC_Free_recv_t_inv SRPC_Lock_recv_t_inv using spank : LTS.
+  #[export] Hint Rewrite -> SRPC_Ready_recv_t_inv SRPC_Locked_recv_t_inv using spank : LTS.
 
 
   Lemma SRPC_recv_Q_c_inv [P0 P1] [c c' t v] :
     (P0 =(Recv (c, t) v)=> P1) ->
-    SRPC Free P0 ->
-    SRPC (Work c') P1 ->
+    SRPC Ready P0 ->
+    SRPC (Working c') P1 ->
     c' = c.
   Proof. intros. assert (AnySRPC P0) by eauto with LTS.
-         hsimpl in *; assert (SRPC (Work c) (cont v)); eattac.
+         hsimpl in *; assert (SRPC (Working c) (cont v)); eattac.
   Qed.
   Lemma SRPC_recv_R_s_inv [P0 P1] [c s' s t' v] :
     (P0 =(Recv (s', t') v)=> P1) ->
-    SRPC (Lock c s) P0 ->
+    SRPC (Locked c s) P0 ->
     s' = s.
   Proof. intros. hsimpl in *.
          enough (exists v', Recv (s', R) v = Recv (s, R) v') by eattac.
@@ -864,86 +864,86 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Qed.
   Lemma SRPC_recv_R_c_inv [P0 P1] [c c' s' s t v] :
     (P0 =(Recv (s', t) v)=> P1) ->
-    SRPC (Lock c s) P0 ->
-    SRPC (Work c') P1 ->
+    SRPC (Locked c s) P0 ->
+    SRPC (Working c') P1 ->
     c' = c.
   Proof.
-    intros. enough (SRPC (Work c) P1) by eattac.
+    intros. enough (SRPC (Working c) P1) by eattac.
     hsimpl in *. consider (SRPC _ (PRecv _)); eattac.
   Qed.
 
   #[export] Hint Rewrite -> SRPC_recv_Q_c_inv SRPC_recv_R_s_inv SRPC_recv_R_c_inv using spank : LTS.
 
 
-  Lemma SRPC_Work_PRecv_bs h c :
-    SRPC (Work c) (PRecv h) <-> False.
+  Lemma SRPC_Working_PRecv_bs h c :
+    SRPC (Working c) (PRecv h) <-> False.
   Proof. split; intros. consider (SRPC _ _). consider (SRPC_Busy _ _); attac. bs. Qed.
 
-  Lemma SRPC_Free_PSend_bs n v P1 :
-    SRPC Free (PSend n v P1) <-> False.
+  Lemma SRPC_Ready_PSend_bs n v P1 :
+    SRPC Ready (PSend n v P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). destruct n. specialize (HQueryAll n v). eattac. contradiction. Qed.
 
-  Lemma SRPC_Free_STau_bs P1 :
-    SRPC Free (STau P1) <-> False.
+  Lemma SRPC_Ready_STau_bs P1 :
+    SRPC Ready (STau P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). specialize (HQueryAll some_name some_val). eattac. contradiction. Qed.
 
-  Lemma SRPC_Lock_PSend_bs n v P1 c s :
-    SRPC (Lock c s) (PSend n v P1) <-> False.
+  Lemma SRPC_Locked_PSend_bs n v P1 c s :
+    SRPC (Locked c s) (PSend n v P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). destruct n.  consider (SRPC_Busy _ _); attac. specialize (HReplyAll v); attac. contradiction. Qed.
 
-  Lemma SRPC_Lock_STau_bs P1 c s :
-    SRPC (Lock c s) (STau P1) <-> False.
+  Lemma SRPC_Locked_STau_bs P1 c s :
+    SRPC (Locked c s) (STau P1) <-> False.
   Proof. split; intros. consider (SRPC _ _); attac. consider (SRPC_Busy _ _); attac. specialize (HReplyAll some_val); attac. contradiction. Qed.
 
   #[export] Hint Rewrite ->
-    SRPC_Work_PRecv_bs
-    SRPC_Free_PSend_bs
-    SRPC_Free_STau_bs
-    SRPC_Lock_PSend_bs
-    SRPC_Lock_STau_bs
+    SRPC_Working_PRecv_bs
+    SRPC_Ready_PSend_bs
+    SRPC_Ready_STau_bs
+    SRPC_Locked_PSend_bs
+    SRPC_Locked_STau_bs
     using spank
     : bs.
 
-  Lemma SRPC_Work_recv_bs P0 P1 n v c :
+  Lemma SRPC_Working_recv_bs P0 P1 n v c :
     (P0 =(Recv n v)=> P1) ->
-    SRPC (Work c) P0 <->
+    SRPC (Working c) P0 <->
     False.
   Proof. attac. Qed.
 
-  Lemma SRPC_Free_send_bs n v P1 :
-    SRPC Free (PSend n v P1) <-> False.
+  Lemma SRPC_Ready_send_bs n v P1 :
+    SRPC Ready (PSend n v P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). eattac. Qed.
-  Lemma SRPC_Free_tau_bs P1 :
-    SRPC Free (STau P1) <-> False.
+  Lemma SRPC_Ready_tau_bs P1 :
+    SRPC Ready (STau P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). attac. Qed.
-  Lemma SRPC_Free_recv_R_None_bs h n :
-    h (n, R) <> None -> SRPC Free (PRecv h) <-> False.
+  Lemma SRPC_Ready_recv_R_None_bs h n :
+    h (n, R) <> None -> SRPC Ready (PRecv h) <-> False.
   Proof. split; intros. consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; doubt; specialize (HQueryOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. contradiction. Qed.
-  Lemma SRPC_Free_recv_R_Some_bs h n cont :
-    h (n, R) = Some cont -> SRPC Free (PRecv h) <-> False.
+  Lemma SRPC_Ready_recv_R_Some_bs h n cont :
+    h (n, R) = Some cont -> SRPC Ready (PRecv h) <-> False.
   Proof. split; intros. consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; doubt; specialize (HQueryOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. contradiction. Qed.
 
-  Lemma SRPC_Lock_send_bs n v c s P1 :
-    SRPC (Lock c s) (PSend n v P1) <-> False.
+  Lemma SRPC_Locked_send_bs n v c s P1 :
+    SRPC (Locked c s) (PSend n v P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). destruct n. kill HBusy. specialize (HReply0 n v). eattac. destruct (HReplyAll v). attac. contradiction. Qed.
-  Lemma SRPC_Lock_tau_bs c s P1 :
-    SRPC (Lock c s) (STau P1) <-> False.
+  Lemma SRPC_Locked_tau_bs c s P1 :
+    SRPC (Locked c s) (STau P1) <-> False.
   Proof. split; intros. consider (SRPC _ _). kill HBusy. specialize (HReply0 some_name some_val). eattac. destruct (HReplyAll some_val). attac. contradiction. Qed.
-  Lemma SRPC_Lock_recv_Q_None_bs h n c s :
-    h (n, Q) <> None -> SRPC (Lock c s) (PRecv h) <-> False.
+  Lemma SRPC_Locked_recv_Q_None_bs h n c s :
+    h (n, Q) <> None -> SRPC (Locked c s) (PRecv h) <-> False.
   Proof. split; intros. consider (SRPC _ _). destruct (h (n, Q)) eqn:P1v; hsimpl in *; doubt; kill HBusy; doubt; specialize (HReplyOnly (Recv (n, Q) some_val) (p some_val)) as [? ?]; eattac. contradiction. Qed.
-  Lemma SRPC_Lock_recv_Q_Some_bs h n c s cont :
-    h (n, Q) = Some cont -> SRPC (Lock c s) (PRecv h) <-> False.
+  Lemma SRPC_Locked_recv_Q_Some_bs h n c s cont :
+    h (n, Q) = Some cont -> SRPC (Locked c s) (PRecv h) <-> False.
   Proof. split; intros. consider (SRPC _ _). destruct (h (n, Q)) eqn:P1v; try (solve [hsimpl in *; bs]); kill HBusy; try (solve [hsimpl in *; bs]); specialize (HReplyOnly (Recv (n, Q) some_val) (p some_val)) as [? ?]; eattac. contradiction. Qed.
-  Lemma SRPC_Lock_recv_other_None_bs h n c s t :
-    h (n, t) <> None -> n <> s -> SRPC (Lock c s) (PRecv h) <-> False.
-  Proof. split; intros. destruct t. eapply SRPC_Lock_recv_Q_None_bs; eauto. apply H.
+  Lemma SRPC_Locked_recv_other_None_bs h n c s t :
+    h (n, t) <> None -> n <> s -> SRPC (Locked c s) (PRecv h) <-> False.
+  Proof. split; intros. destruct t. eapply SRPC_Locked_recv_Q_None_bs; eauto. apply H.
          consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; try (solve [hsimpl in *; bs]).
          kill HBusy; try (solve [hsimpl in *; bs]). specialize (HReplyOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. contradiction.
   Qed.
-  Lemma SRPC_Lock_recv_other_Some_bs h n c s t cont :
-    h (n, t) = Some cont -> n <> s -> SRPC (Lock c s) (PRecv h) <-> False.
-  Proof. split; intros. destruct t. eapply SRPC_Lock_recv_Q_Some_bs; eauto.
+  Lemma SRPC_Locked_recv_other_Some_bs h n c s t cont :
+    h (n, t) = Some cont -> n <> s -> SRPC (Locked c s) (PRecv h) <-> False.
+  Proof. split; intros. destruct t. eapply SRPC_Locked_recv_Q_Some_bs; eauto.
          destruct (h (n, R)) eqn:?;
            consider (SRPC _ _). destruct (h (n, R)) eqn:P1v; try (solve [hsimpl in *; bs]).
          kill HBusy; try (solve [hsimpl in *; bs]). specialize (HReplyOnly (Recv (n, R) some_val) (p some_val)) as [? ?]; eattac. hsimpl in *.
@@ -952,17 +952,17 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Qed.
 
   #[export] Hint Rewrite ->
-    SRPC_Work_recv_bs
-    SRPC_Free_send_bs
-    SRPC_Free_tau_bs
-    SRPC_Free_recv_R_None_bs
-    SRPC_Free_recv_R_Some_bs
-    SRPC_Lock_send_bs
-    SRPC_Lock_tau_bs
-    SRPC_Lock_recv_Q_None_bs
-    SRPC_Lock_recv_Q_Some_bs
-    SRPC_Lock_recv_other_None_bs
-    SRPC_Lock_recv_other_Some_bs
+    SRPC_Working_recv_bs
+    SRPC_Ready_send_bs
+    SRPC_Ready_tau_bs
+    SRPC_Ready_recv_R_None_bs
+    SRPC_Ready_recv_R_Some_bs
+    SRPC_Locked_send_bs
+    SRPC_Locked_tau_bs
+    SRPC_Locked_recv_Q_None_bs
+    SRPC_Locked_recv_Q_Some_bs
+    SRPC_Locked_recv_other_None_bs
+    SRPC_Locked_recv_other_Some_bs
     using spank
     : bs.
 
@@ -1065,8 +1065,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
 
   (** SRPC-locked state is correct for processes *)
-  Lemma SRPC_Lock_lock [P : Proc] [s c] :
-    SRPC (Lock c s) P -> proc_lock [s] P.
+  Lemma SRPC_Locked_lock [P : Proc] [s c] :
+    SRPC (Locked c s) P -> proc_lock [s] P.
 
   Proof.
     intros Hsrpc.
@@ -1096,13 +1096,13 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
       kill HEq'.
   Qed.
 
-  #[export] Hint Immediate SRPC_Lock_lock : LTS.
+  #[export] Hint Immediate SRPC_Locked_lock : LTS.
 
 
   (** SRPC-lock state is complete for all SRPC processes *)
-  Lemma lock_SRPC_Lock [P : Proc] [s] :
+  Lemma lock_SRPC_Locked [P : Proc] [s] :
     AnySRPC P ->
-    proc_lock [s] P -> (exists c, SRPC (Lock c s) P).
+    proc_lock [s] P -> (exists c, SRPC (Locked c s) P).
 
   Proof.
     intros Hsrpc HL.
@@ -1145,22 +1145,22 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   (** You can't judge locks of a service based on its SRPC-state, because the code may be in a *)
   (*   locked state, but there are messages to be sent *)
-  Example SRPC_Lock_serv_lock [S : Serv] [s c] :
-    SRPC_serv (Lock c s) S -> serv_lock [s] S.
+  Example SRPC_Locked_serv_lock [S : Serv] [s c] :
+    SRPC_serv (Locked c s) S -> serv_lock [s] S.
   Abort.
 
 
   (** SRPC-lock state is complete for all SRPC services *)
-  Lemma lock_SRPC_Lock_serv [S : Serv] [s] :
+  Lemma lock_SRPC_Locked_serv [S : Serv] [s] :
     AnySRPC_serv S ->
-    serv_lock [s] S -> (exists c, SRPC_serv (Lock c s) S).
+    serv_lock [s] S -> (exists c, SRPC_serv (Locked c s) S).
 
   Proof.
     intros Hsrpc HL.
 
     destruct HL as [I P HD HL Ho].
 
-    destruct (lock_SRPC_Lock Hsrpc HL) as [c Hsrpc_L].
+    destruct (lock_SRPC_Locked Hsrpc HL) as [c Hsrpc_L].
     exists c; eauto with LTS.
   Qed.
 
@@ -1175,14 +1175,14 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Proof.
     intros.
     destruct SRPC H H2.
-    - absurd (exists c', SRPC (Lock c' n1) P1).
+    - absurd (exists c', SRPC (Locked c' n1) P1).
       + intros Hx; hsimpl in Hx.
-        bs (Lock c' n1 = Work c) by attac.
-      + eapply lock_SRPC_Lock; eattac.
-    - absurd (exists c', SRPC (Lock c' n1) P1).
+        bs (Locked c' n1 = Working c) by attac.
+      + eapply lock_SRPC_Locked; eattac.
+    - absurd (exists c', SRPC (Locked c' n1) P1).
       + intros Hx; hsimpl in Hx.
-        bs (Lock c' n1 = Work c) by attac.
-      + eapply lock_SRPC_Lock; eattac.
+        bs (Locked c' n1 = Working c) by attac.
+      + eapply lock_SRPC_Locked; eattac.
   Qed.
 
 
@@ -1196,11 +1196,11 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
   Proof.
     intros.
-    consider (exists c0, SRPC_serv (Lock c0 n0) S0) by eauto using lock_SRPC_Lock_serv with LTS.
-    consider (exists c1, SRPC_serv (Lock c1 n1) S1) by eauto using lock_SRPC_Lock_serv with LTS.
+    consider (exists c0, SRPC_serv (Locked c0 n0) S0) by eauto using lock_SRPC_Locked_serv with LTS.
+    consider (exists c1, SRPC_serv (Locked c1 n1) S1) by eauto using lock_SRPC_Locked_serv with LTS.
     destruct S0, S1; simpl in *.
     consider (_ =(a)=> _);
-      try (consider (Lock c0 n0 = Lock c1 n1) by eattac).
+      try (consider (Locked c0 n0 = Locked c1 n1) by eattac).
     eauto using SRPC_no_relock with LTS.
   Qed.
 
@@ -1219,13 +1219,13 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
 
     specialize (SRPC_get_lock Hsrpc1 HL1) as [s HL1s].
 
-    apply (lock_SRPC_Lock Hsrpc1) in HL1s as [c Hsrpc1_L].
+    apply (lock_SRPC_Locked Hsrpc1) in HL1s as [c Hsrpc1_L].
 
     destruct Hsrpc0 as [srpc0 Hsrpc0].
     clear Hsrpc1.
 
     kill Hsrpc0 > [|kill HBusy ].
-    - (* It was Free and became locked --- can't be locked and busy at once *)
+    - (* It was Ready and became locked --- can't be locked and busy at once *)
       apply HQueryOnly in T as (c' & v & HEq & Hsrpc1_B). subst.
       kill Hsrpc1_L.
       kill Hsrpc1_B.
@@ -1247,7 +1247,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
         (* ...a reply! *)
         erewrite (HReply0 n) in *...
 
-        assert (SRPC Free P1) as Hsrpc by eattac.
+        assert (SRPC Ready P1) as Hsrpc by eattac.
 
         kill Hsrpc1_L.
         ltac1:(dependent destruction H0).
@@ -1357,15 +1357,15 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Proof.
     intros; intros ?.
     consider (exists s, serv_lock [s] S1) by eauto using SRPC_serv_get_lock with LTS.
-    consider (exists c, SRPC_serv (Lock c s) S1) by eauto using lock_SRPC_Lock_serv with LTS.
+    consider (exists c, SRPC_serv (Locked c s) S1) by eauto using lock_SRPC_Locked_serv with LTS.
     consider (_ =(_)=> _); consider (serv_lock _ _); doubt; simpl in *.
     - destruct n as [n [|]].
-      + assert (SRPC (Work n) P1) by eauto using SRPC_inv_recv_Q_r.
-        bs (Work n = Lock c s) by attac.
-      + consider (exists c', SRPC (Work c') P1) by eauto using SRPC_inv_recv_R_r.
-        bs (Work c' = Lock c s) by attac.
-    - consider (exists c', SRPC (Work c') P1) by eauto using SRPC_inv_tau_r.
-      bs (Work c' = Lock c s) by attac.
+      + assert (SRPC (Working n) P1) by eauto using SRPC_inv_recv_Q_r.
+        bs (Working n = Locked c s) by attac.
+      + consider (exists c', SRPC (Working c') P1) by eauto using SRPC_inv_recv_R_r.
+        bs (Working c' = Locked c s) by attac.
+    - consider (exists c', SRPC (Working c') P1) by eauto using SRPC_inv_tau_r.
+      bs (Working c' = Locked c s) by attac.
   Qed.
 
 

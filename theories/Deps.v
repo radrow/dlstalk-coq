@@ -39,11 +39,11 @@ Set DependGraph File "../graphs/Transp_soundness.dpd".
 Print DependGraph Deps.Compl.Transp.Mon.Transp_soundness_base. (* todo, full *)
 
 
-Set DependGraph File "../graphs/Net_Transp_completeness.dpd".
-Print DependGraph Deps.Compl.Transp.Net_Transp_completeness.
+Set DependGraph File "../graphs/transp_complete.dpd".
+Print DependGraph Deps.Compl.Transp.transp_complete.
 
-Set DependGraph File "../graphs/Net_Transp_soundness.dpd".
-Print DependGraph Deps.Compl.Transp.Net_Transp_soundness.
+Set DependGraph File "../graphs/transp_sound_instr.dpd".
+Print DependGraph Deps.Compl.Transp.transp_sound_instr.
 
 
 Set DependGraph File "../graphs/deadset_dep_self.dpd".
@@ -85,8 +85,8 @@ Module Preview.
   Import SrpcNet.
   Check Transp_completeness.
   Check Transp_soundness_base.
-  Check Net_Transp_completeness.
-  Check Net_Transp_soundness.
+  Check transp_complete.
+  Check transp_sound_instr.
   Check deadset_dep_self.
   Check dep_self_deadset.
 (* Set DependGraph File "modules.dpd". *)
