@@ -187,8 +187,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Network is deadlocked when it has a deadlocked set *)
     Inductive has_dead_set N : Prop :=
-    | deadnet (DL : Names) :
-      dead_set DL N ->
+    | deadnet (DS : Names) :
+      dead_set DS N ->
       has_dead_set N
     .
 
@@ -297,15 +297,15 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** No members of a deadlocked set do tau *)
-    Corollary deadset_no_tau [N0 N1 DL n a] :
-      dead_set DL N0 ->
-      List.In n DL ->
+    Corollary deadset_no_tau [N0 N1 DS n a] :
+      dead_set DS N0 ->
+      List.In n DS ->
       not (N0 =(NTau n a)=> N1).
 
     Proof with attac.
       unfold not.
-      intros HDL HIn T.
-      consider (exists (L : list Name), lock_set N0 L n /\ incl L DL).
+      intros HDS HIn T.
+      consider (exists (L : list Name), lock_set N0 L n /\ incl L DS).
       unfold lock_set in *.
       hsimpl in *.
       rewrite serv_lock_recv_inv in T; eauto.
@@ -314,9 +314,9 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** No members of a deadlocked set send *)
-    Corollary deadset_no_send [N0 N1 DL ns nr t v] :
-      dead_set DL N0 ->
-      List.In ns DL ->
+    Corollary deadset_no_send [N0 N1 DS ns nr t v] :
+      dead_set DS N0 ->
+      List.In ns DS ->
       not (N0 =(NComm ns nr t v)=> N1).
 
     Proof with attac.
@@ -341,30 +341,30 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** If a member of a deadlocked set is involved in a communication, then it's not the sender *)
-    Corollary deadset_no_send' [N0 N1 DL ns nr n t v] :
-      dead_set DL N0 ->
-      List.In n DL ->
+    Corollary deadset_no_send' [N0 N1 DS ns nr n t v] :
+      dead_set DS N0 ->
+      List.In n DS ->
       (N0 =(NComm ns nr t v)=> N1) ->
       n <> ns.
 
     Proof.
       unfold not.
-      intros HDL HIn T HEq.
+      intros HDS HIn T HEq.
       subst.
       eapply deadset_no_send; eauto.
     Qed.
 
 
     (** If a member of a deadlocked set is involved in an action, then it's a receiver *)
-    Corollary deadset_recv [N0 N1 DL nr a] :
-      dead_set DL N0 ->
-      List.In nr DL ->
+    Corollary deadset_recv [N0 N1 DS nr a] :
+      dead_set DS N0 ->
+      List.In nr DS ->
       (N0 =(a)=> N1) ->
       List.In nr (act_particip a) ->
       exists ns t v, a = NComm ns nr t v.
 
     Proof with attac.
-      intros HDL HInD T HInP.
+      intros HDS HInD T HInP.
 
       destruct a; simpl in HInP.
       - destruct HInP; auto; subst.
@@ -382,21 +382,21 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** A member of a deadlocked set remains deadlocked after any transition *)
-    Theorem deadset_stay1 [a N0 N1 DL n I0 P0 O0] :
-      dead_set DL N0 ->
-      List.In n DL ->
+    Theorem deadset_stay1 [a N0 N1 DS n I0 P0 O0] :
+      dead_set DS N0 ->
+      List.In n DS ->
       (N0 =(a)=> N1) ->
       NetMod.get n N0 = (serv I0 P0 O0) ->
       exists I', NetMod.get n N1 = (serv (I0 ++ I') P0 O0).
 
     Proof with eattac.
-      intros HDL HInD T HEq0.
+      intros HDS HInD T HEq0.
 
       destruct (in_dec NAME.eq_dec n (act_particip a)).
-      - destruct (deadset_recv HDL HInD T i) as (ns & t & v & HEq).
+      - destruct (deadset_recv HDS HInD T i) as (ns & t & v & HEq).
         subst.
 
-        specialize (deadset_no_send' HDL HInD T) as HNeq.
+        specialize (deadset_no_send' HDS HInD T) as HNeq.
         clear i.
         exists [(ns, &t, v)].
 
@@ -416,26 +416,26 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Members of a deadlocked set retain their locksets *)
-    Theorem deadset_invariant_lock [N0 N1 DL L a n] :
-      dead_set DL N0 ->
+    Theorem deadset_invariant_lock [N0 N1 DS L a n] :
+      dead_set DS N0 ->
       lock_set N0 L n ->
-      List.In n DL ->
+      List.In n DS ->
       (N0 =(a)=> N1) ->
       lock_set N1 L n.
 
     Proof.
-      intros HDL HL HInD T.
+      intros HDS HL HInD T.
 
       destruct (NetMod.get n N0) as [I0 P0 O0] eqn:HEq0.
-      destruct (deadset_stay1 HDL HInD T HEq0) as [I' HEq1].
+      destruct (deadset_stay1 HDS HInD T HEq0) as [I' HEq1].
 
       destruct (in_dec NAME.eq_dec n (act_particip a)).
-      - destruct (deadset_recv HDL HInD T i) as (ns & t & v & HEq).
+      - destruct (deadset_recv HDS HInD T i) as (ns & t & v & HEq).
         subst.
 
         have (N0 =( NComm ns n &t v )=> N1).
 
-        specialize (deadset_no_send' HDL HInD T) as HNeq.
+        specialize (deadset_no_send' HDS HInD T) as HNeq.
         clear i.
 
         hsimpl in *.
@@ -458,9 +458,9 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         intros Hx; kill Hx; hsimpl in *.
 
-        assert (exists (L : list Name), lock_set N0 L n /\ incl L DL) by attac; hsimpl in *.
+        assert (exists (L : list Name), lock_set N0 L n /\ incl L DS) by attac; hsimpl in *.
         assert (incl L L0) by (unfold lock_set in *; eapply serv_lock_incl; eauto).
-        assert (List.In n0 DL) by attac.
+        assert (List.In n0 DS) by attac.
         re_have (eapply deadset_no_send'; eauto with LTS).
 
       - eapply act_particip_stay in n0; eauto.
@@ -471,7 +471,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Deadlocked set remains after any transition *)
-    Theorem deadset_invariant DL : trans_invariant (dead_set DL) always.
+    Theorem deadset_invariant DS : trans_invariant (dead_set DS) always.
 
     Proof with attac.
       unfold trans_invariant.
@@ -490,9 +490,9 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Deadlocked processes can only change their inbox *)
-    Theorem deadset_stay [path N0 N1 DL n I0 P0 O0] :
-      dead_set DL N0 ->
-      List.In n DL ->
+    Theorem deadset_stay [path N0 N1 DS n I0 P0 O0] :
+      dead_set DS N0 ->
+      List.In n DS ->
       (N0 =[path]=> N1) ->
       NetMod.get n N0 = (serv I0 P0 O0) ->
       exists I', NetMod.get n N1 = (serv (I0 ++ I') P0 O0).
@@ -500,11 +500,11 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Proof.
       generalize dependent I0.
       generalize dependent N0.
-      induction path; intros N0 I0 HDL HInD T HEq0.
+      induction path; intros N0 I0 HDS HInD T HEq0.
       - kill T. exists []. rewrite app_nil_r. auto.
       - apply path_split1 in T as [N0' [T0 T1]].
 
-        destruct (deadset_stay1 HDL HInD T0 HEq0) as [I' HEq1].
+        destruct (deadset_stay1 HDS HInD T0 HEq0) as [I' HEq1].
         specialize (IHpath N0' (I0 ++ I') ltac:(eattac) HInD T1 HEq1) as [I'' HEq]; eattac.
         exists (I' ++ I'').
         rewrite HEq.
@@ -552,9 +552,9 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Corollary deadlock_invariant : trans_invariant has_dead_set always.
 
     Proof.
-      unfold trans_invariant; intros N0 N1 a T HDL _.
-      kill HDL.
-      apply (deadnet N1 DL); auto.
+      unfold trans_invariant; intros N0 N1 a T HDS _.
+      kill HDS.
+      apply (deadnet N1 DS); auto.
       eapply (deadset_invariant); eauto.
     Qed.
 
