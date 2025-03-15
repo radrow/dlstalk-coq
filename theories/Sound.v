@@ -731,8 +731,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     SRPC_M_net_in_net_R_in_MP
     SRPC_M_net_in_net_R_in_PM
     SRPC_M_net_in_net_R_in_PP
-    SRPC_M_net_in_net_R_in_lock
-    SRPC_M_net_in_net_Q_out_lock
+    SRPC_M_net_in_net_R_in_locked
+    SRPC_M_net_in_net_Q_out_locked
     SRPC_M_net_in_net_Q_out_uniq_M0
     SRPC_M_net_in_net_Q_out_uniq_M1
     SRPC_M_net_in_net_Q_out_uniq_MP
@@ -911,7 +911,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   #[export] Hint Immediate
     KIS_well_formed
     KIS_self
-    KIS_lock
+    KIS_locked
     KIS_wait
     KIS_sendp
     KIS_index_sendp
@@ -1228,7 +1228,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       apply `(~ lock '' MN0 _ _).
       assert (lock '' MN0 n0 n \/ exists v, List.In (TrRecv (n, R) v) (mserv_i (MN0 n0))) as [|]
           by eauto with LTS.
-      + consider (n = n1) by eauto using SRPC_M_net_no_immediate_relocked with LTS.
+      + consider (n = n1) by eauto using SRPC_M_net_no_immediate_relock with LTS.
       + hsimpl in *.
 
         destruct (NetMod.get n0 '' MN0) as [I0 P0 O0] eqn:?.
@@ -1749,8 +1749,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
       destruct p.
 
-      destruct (NetMod.get &init MN0) as [MQp0 sp0 Sp0] eqn:?.
-      destruct (NetMod.get &init MN1) as [MQp1 sp1 Sp1] eqn:?.
+      destruct (NetMod.get &origin MN0) as [MQp0 sp0 Sp0] eqn:?.
+      destruct (NetMod.get &origin MN1) as [MQp1 sp1 Sp1] eqn:?.
 
       destruct_mna a;
         consider (MN0 =(_)=> _);
@@ -1874,17 +1874,17 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     - destruct (well_formed_lock_dec N1 n0 n1); eauto with LTS.
       right; intros ?.
       consider (trans_lock N1 n0 _).
-      consider (n1 = n2) by eauto using SRPC_net_no_relocked with LTS.
+      consider (n1 = n2) by eauto using SRPC_net_no_relock with LTS.
     - specialize (IHL ltac:(auto) a0 ltac:(auto)) as [|].
       + destruct (well_formed_lock_dec N1 n0 a0); eauto with LTS.
         right; intros ?.
         consider (trans_lock N1 _ _).
-        * consider (a0 = n1) by eauto using SRPC_net_no_relocked with LTS.
-        * consider (a0 = n2) by eauto using SRPC_net_no_relocked with LTS.
+        * consider (a0 = n1) by eauto using SRPC_net_no_relock with LTS.
+        * consider (a0 = n2) by eauto using SRPC_net_no_relock with LTS.
       + right; intros ?.
         consider (trans_lock N1 n0 n1).
-        * consider (a0 = n1) by eauto using SRPC_net_no_relocked with LTS.
-        * consider (a0 = n2) by eauto using SRPC_net_no_relocked with LTS.
+        * consider (a0 = n1) by eauto using SRPC_net_no_relock with LTS.
+        * consider (a0 = n2) by eauto using SRPC_net_no_relock with LTS.
   Qed.
 
   Lemma dep_dec_after_M : forall MN0 MN1 ma n0 n1,
@@ -2085,7 +2085,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         assert (self (MN0 n1) = n1) by eauto with LTS.
         unfold active_ev_of, active_probe_of in *; ltac1:(autounfold with LTS_get in * ).
         destruct s.
-        destruct &lock.
+        destruct &locked.
         consider (sends_to_mon _ _ _); attac 2.
         consider (sends_to_mon _ _ _).
         bs.
@@ -2216,7 +2216,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       eauto using
         KIS_invariant_well_formed
       , KIS_invariant_self
-      , KIS_invariant_lock
+      , KIS_invariant_locked
       , KIS_invariant_wait
       , KIS_invariant_sendp
       , KIS_invariant_index_sendp
