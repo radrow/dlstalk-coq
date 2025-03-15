@@ -431,7 +431,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   (** Monitor is going to send a probe (inevitably) *)
   Inductive sends_probe : NameTag -> MProbe -> MServ -> Prop :=
   | sp_init MQ MQ' c S n n' v p :
-    NoRecvR_from n' MQ -> (* We won't unlocked *)
+    NoRecvR_from n' MQ -> (* We won't unlock *)
     NoSends_MQ MQ -> (* We won't change the lock_id *)
     locked c = Some n' -> (* We are locked *)
     origin p = self c -> index p = lock_id c -> (* Our active probe *)
@@ -444,7 +444,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       )
 
   | sp_prop MQ MQ' c S n n' p :
-    NoRecvR_from n' MQ -> (* We won't unlocked *)
+    NoRecvR_from n' MQ -> (* We won't unlock *)
     NoSends_MQ MQ -> (* We won't change the lock_id *)
     locked c = Some n' -> (* We are locked *)
     origin p <> self c -> (* The probe is not ours *)
@@ -606,8 +606,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma SRPC_no_immediate_relocked [n0 n1 P0 P1 a] :
     AnySRPC P0 ->
     (P0 =(a)=> P1) ->
-    proc_locked [n0] P0 ->
-    ~ proc_locked [n1] P1.
+    proc_lock [n0] P0 ->
+    ~ proc_lock [n1] P1.
 
   Proof.
     intros.
@@ -625,17 +625,17 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma SRPC_pq_no_immediate_relocked [n0 n1 S0 S1 a] :
     AnySRPC_serv S0 ->
     (S0 =(a)=> S1) ->
-    serv_locked [n0] S0 ->
-    serv_locked [n1] S1 ->
+    serv_lock [n0] S0 ->
+    serv_lock [n1] S1 ->
     n0 = n1.
 
   Proof.
     intros.
-    specialize (serv_lock_recv `(serv_locked _ S0) `(S0 =(a)=> S1)) as ?.
+    specialize (serv_lock_recv `(serv_lock _ S0) `(S0 =(a)=> S1)) as ?.
     destruct a; doubt.
     compat_hsimpl in *.
-    consider (serv_locked [n0] _).
-    do 2 (consider (serv_locked [n1] _)).
+    consider (serv_lock [n0] _).
+    do 2 (consider (serv_lock [n1] _)).
     enough (List.In n0 [n1]) by attac.
     enough (incl [n0] [n1]) by (unfold incl in *; attac).
     eauto using proc_lock_incl.
@@ -719,7 +719,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem SRPC_net_query_new_locked [N0 N1 : PNet] [n0 n1 v] :
+  Theorem SRPC_net_query_new_lock [N0 N1 : PNet] [n0 n1 v] :
     well_formed N0 ->
     (N0 =(NComm n0 n1 Q v)=> N1) ->
     (~ lock N0 n0 n1 /\ lock N1 n0 n1).
@@ -734,7 +734,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem SRPC_M_net_query_new_locked [N0 N1 : MNet] [n0 n1 v] :
+  Theorem SRPC_M_net_query_new_lock [N0 N1 : MNet] [n0 n1 v] :
     well_formed '' N0 ->
     (N0 =(NComm n0 n1 Q (MValP v))=> N1) ->
     (~ lock N0 n0 n1 /\ lock N1 n0 n1).
@@ -747,7 +747,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem SRPC_net_reply_unlocked [N0 N1 : PNet] [n0 n1 v] :
+  Theorem SRPC_net_reply_unlock [N0 N1 : PNet] [n0 n1 v] :
     well_formed N0 ->
     (N0 =(NComm n0 n1 R v)=> N1) ->
     (lock N0 n1 n0 /\ ~ lock N1 n1 n0).
@@ -760,7 +760,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem SRPC_M_net_reply_unlocked [N0 N1 : MNet] [n0 n1 v] :
+  Theorem SRPC_M_net_reply_unlock [N0 N1 : MNet] [n0 n1 v] :
     well_formed '' N0 ->
     (N0 =(NComm n0 n1 R (MValP v))=> N1) ->
     (lock N0 n1 n0 /\ ~ lock N1 n1 n0).
@@ -824,7 +824,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   #[export] Hint Resolve well_formed_lock_dec : LTS.
 
 
-  Theorem SRPC_net_tau_preserve_locked [N0 N1 : PNet] [n a] :
+  Theorem SRPC_net_tau_preserve_lock [N0 N1 : PNet] [n a] :
     well_formed N0 ->
     (N0 =(NTau n a)=> N1) ->
     forall n0 n1, lock N0 n0 n1 <-> lock N1 n0 n1.
@@ -843,7 +843,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem SRPC_M_net_tau_preserve_locked [N0 N1 : MNet] [n a] :
+  Theorem SRPC_M_net_tau_preserve_lock [N0 N1 : MNet] [n a] :
     well_formed '' N0 ->
     (N0 =(NTau n a)=> N1) ->
     forall n0 n1, lock N0 n0 n1 <-> lock N1 n0 n1.
@@ -904,14 +904,14 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
 
     consider (MN0 =(_)=> _).
-    - eapply M_vis_preserve_steady_lock; eauto with LTS.
+    - eapply M_vis_preserve_steady_locked; eauto with LTS.
       intros ? ?. attac.
     - destruct (locked (N0' n)) as [n1|] eqn:?.
       + transitivity 'n1.
         * smash_eq n0 n.
           -- kill H5.
              clear H5.
-             eapply M_vis_preserve_steady_lock; eauto with LTS.
+             eapply M_vis_preserve_steady_locked; eauto with LTS.
              intros ? ?. hsimpl in *.
              destruct v; doubt.
              hsimpl in *.
@@ -932,7 +932,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
              hsimpl in *. hsimpl in *. hsimpl in |- *.
              auto.
 
-        * eapply M_vis_preserve_steady_lock;
+        * eapply M_vis_preserve_steady_locked;
             eauto with LTS.
           intros ? ?. hsimpl in *.
           destruct v; bs.
@@ -951,7 +951,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma M_lock_decide [MN0 MN1 : MNet] [na n] :
+  Lemma M_locked_decide [MN0 MN1 : MNet] [na n] :
     SRPC_net MN0 ->
     (MN0 =(na)=> MN1) ->
     (forall n' v, na <> NComm n n' Q (MValP v)) ->
@@ -962,7 +962,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     destruct (locked (MN0 n)) as [n0|] eqn:?; auto.
     destruct (locked (MN1 n)) as [n1|] eqn:?; auto.
     assert (forall v, na <> NComm n n1 Q (MValP v)) by auto.
-    assert (n0 = n1) by eauto using M_preserve_steady_lock.
+    assert (n0 = n1) by eauto using M_preserve_steady_locked.
     bs.
   Qed.
 
@@ -1006,7 +1006,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     consider (MN0 =(_)=> MN1).
-    - consider (exists v, a = send (n', Q) (MValP v)) by eauto using M_vis_set_lock.
+    - consider (exists v, a = send (n', Q) (MValP v)) by eauto using M_vis_set_locked.
       bs.
     - enough (exists v', n0 = n /\ n'0 = n' /\ &t = Q /\ v = MValP v') by (hsimpl in *; exists v'; f_equal; eattac).
       assert (locked (N0' n) = locked (MN1 n)).
@@ -1021,14 +1021,14 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
       destruct (locked (N0' n)) as [n1|] eqn:?; doubt.
 
-      consider (exists v', send (n'0, &t) v = send (n1, Q) (MValP v')) by eauto using M_vis_set_lock.
+      consider (exists v', send (n'0, &t) v = send (n1, Q) (MValP v')) by eauto using M_vis_set_locked.
       destruct v; doubt; compat_hsimpl in *.
       unfold NetGet in *.
       smash_eq n' n0 n; attac.
   Qed.
 
 
-  Lemma M_vis_unlocked [MN0 MN1 : MNet] [a n n' n''] :
+  Lemma M_vis_set_unlocked [MN0 MN1 : MNet] [a n n' n''] :
     (MN0 ~(n'' @ a)~> MN1) ->
     locked (MN0 n) = Some n' ->
     locked (MN1 n) = None ->
@@ -1058,7 +1058,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma Rad_set_unlocked [MN0 MN1 : MNet] [na n n'] :
+  Lemma Rad_set_set_unlocked [MN0 MN1 : MNet] [na n n'] :
     (MN0 =(na)=> MN1) ->
     locked (MN0 n) = Some n' ->
     locked (MN1 n) = None ->
@@ -1067,13 +1067,13 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     consider (MN0 =(_)=> MN1).
-    - consider (exists v, a = MActP (Recv (n', R) v) /\ n0 = n) by eauto using M_vis_unlock.
+    - consider (exists v, a = MActP (Recv (n', R) v) /\ n0 = n) by eauto using M_vis_set_unlocked.
       exists v; auto.
     - exfalso.
       destruct (locked (N0' n)) as [n1|] eqn:?.
-      + consider (exists v', recv (n0, &t) v = MActP (Recv (n1, R) v') /\ n'0 = n) by eauto using M_vis_unlock.
+      + consider (exists v', recv (n0, &t) v = MActP (Recv (n1, R) v') /\ n'0 = n) by eauto using M_vis_set_unlocked.
         destruct v; bs.
-      + consider (exists v', send (n'0, &t) v = MActP (Recv (n', R) v') /\ n0 = n) by eauto using M_vis_unlock.
+      + consider (exists v', send (n'0, &t) v = MActP (Recv (n', R) v') /\ n0 = n) by eauto using M_vis_set_unlocked.
         destruct v; bs.
   Qed.
 
@@ -1587,7 +1587,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma SRPC_net_new_lock_no_unlocked [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
+  Lemma SRPC_net_new_lock_no_unlock [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
     well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ lock N0 n0 n1 ->
@@ -1623,15 +1623,15 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     hsimpl in *.
     generalize dependent m0.
     induction L; intros; hsimpl in *.
-    1: enough (lock N1 m0 m1); eauto using SRPC_net_new_lock_no_unlocked with LTS.
+    1: enough (lock N1 m0 m1); eauto using SRPC_net_new_lock_no_unlock with LTS.
 
     rename a into m0'.
     specialize (IHL ltac:(auto) m0' ltac:(auto)).
-    enough (lock N1 m0 m0'); eauto 3 using SRPC_net_new_lock_no_unlocked with LTS.
+    enough (lock N1 m0 m0'); eauto 3 using SRPC_net_new_lock_no_unlock with LTS.
   Qed.
 
 
-  Lemma deadlocked_M_get_locked [MN0 n] :
+  Lemma deadlocked_M_get_lock [MN0 n] :
     SRPC_net '' MN0 ->
     deadlocked n '' MN0 ->
     exists n', lock MN0 n n'.
@@ -1643,7 +1643,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     eapply (deadset_lock_set `(DeadSet DS '' MN0)) in H0.
     hsimpl in *.
     unfold lock_set in *.
-    consider (exists n0 : Name, serv_locked [n0] (NetMod.get n '' MN0)) by (eauto using SRPC_serv_get_locked with LTS).
+    consider (exists n0 : Name, serv_lock [n0] (NetMod.get n '' MN0)) by (eauto using SRPC_serv_get_lock with LTS).
     eattac.
   Qed.
 
@@ -1668,7 +1668,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
       unfold lock, lock_set in *.
       hsimpl in *.
-      consider (serv_locked L _).
+      consider (serv_lock L _).
       apply (`(~ List.In (n', R, v) _)).
       unfold net_deinstr, deinstr in *.
       ltac1:(autorewrite with LTS in * ).
@@ -1763,8 +1763,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           hsimpl in *.
           absurd (n0 <> n0); eauto using locked_M_no_send.
         }
-        eauto using M_preserve_steady_lock, eq_sym with LTS.
-      + consider (exists v, na = NTau n0 (MActP (Recv (n1, R) v))) by eauto using Rad_set_unlocked with LTS.
+        eauto using M_preserve_steady_locked, eq_sym with LTS.
+      + consider (exists v, na = NTau n0 (MActP (Recv (n1, R) v))) by eauto using Rad_set_set_unlocked with LTS.
         exfalso.
         assert (net_deinstr MN0 = MN1) by (eapply net_deinstr_act_skip; eauto; simpl; eauto).
         rewrite `(net_deinstr MN0 = _) in *.
@@ -1777,7 +1777,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         unfold net_deinstr, deinstr in *.
         hsimpl in *.
         compat_hsimpl in *.
-        kill H7. (* serv_locked *)
+        kill H7. (* serv_lock *)
         assert (~ List.In (n1, R, v) I1) by (intros ?; eapply H11; eattac).
         hsimpl in *.
         eassert (MQ_s _ = [] /\ O0 = []) by eauto using app_eq_nil.
@@ -1803,7 +1803,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     assert (exists path, net_deinstr MN0 =[ path ]=> MN1) as [? ?] by eauto using transp_sound1.
     assert (deadlocked n MN1) by eauto with LTS.
 
-    assert (exists m, lock MN0 n m) by eauto using deadlocked_M_get_locked with LTS.
+    assert (exists m, lock MN0 n m) by eauto using deadlocked_M_get_lock with LTS.
     hsimpl in *.
     enough (lock MN1 n m).
     {
@@ -1909,8 +1909,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
   Lemma serv_lock_preserve_in_wait [a MQ0 M0 S0 MQ1 M1 S1 L m] :
-    serv_locked L (mserv MQ0 M0 S0) ->
-    serv_locked L (mserv MQ1 M1 S1) ->
+    serv_lock L (mserv MQ0 M0 S0) ->
+    serv_lock L (mserv MQ1 M1 S1) ->
     (mserv MQ0 M0 S0 =(a)=> mserv MQ1 M1 S1) ->
     List.In m (wait (next_state M0)) ->
     List.In m (wait (next_state M1)).
@@ -1942,7 +1942,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     List.In n' (wait (MN1 n)).
   Proof.
     intros.
-    consider (exists m, lock MN0 n m) by eauto using deadlocked_M_get_locked with LTS.
+    consider (exists m, lock MN0 n m) by eauto using deadlocked_M_get_lock with LTS.
     apply lock_singleton in H4; eauto with LTS.
 
     assert (lock_set MN1 [m] n)
@@ -1955,7 +1955,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
     destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
 
-    assert (serv_locked [m] (mserv MQ0 M0 S0)).
+    assert (serv_lock [m] (mserv MQ0 M0 S0)).
     {
       unfold net_deinstr in *.
       unfold NetGet in *.
@@ -1963,7 +1963,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       attac.
     }
 
-    assert (serv_locked [m] (mserv MQ1 M1 S1)).
+    assert (serv_lock [m] (mserv MQ1 M1 S1)).
     {
       unfold net_deinstr in *.
       ltac1:(autorewrite with LTS in * ).
@@ -1995,7 +1995,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
 
-    consider (exists m, lock MN0 n m) by eauto using deadlocked_M_get_locked with LTS.
+    consider (exists m, lock MN0 n m) by eauto using deadlocked_M_get_lock with LTS.
 
     kill H1.
     - smash_eq n n0.
@@ -2084,8 +2084,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
   Lemma serv_lock_preserve_lock_id [a MQ0 s0 S0 MQ1 s1 S1 L] :
-    serv_locked L (mserv MQ0 s0 S0) ->
-    serv_locked L (mserv MQ1 s1 S1) ->
+    serv_lock L (mserv MQ0 s0 S0) ->
+    serv_lock L (mserv MQ1 s1 S1) ->
     (mserv MQ0 s0 S0 =(a)=> mserv MQ1 s1 S1) ->
     lock_id (next_state s0) = lock_id (next_state s1).
 
@@ -2114,7 +2114,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
 
-    consider (exists m, lock MN0 n m) by eauto using deadlocked_M_get_locked with LTS.
+    consider (exists m, lock MN0 n m) by eauto using deadlocked_M_get_lock with LTS.
     apply lock_singleton in H3; eauto with LTS.
 
     assert (lock_set MN1 [m] n)
@@ -2127,7 +2127,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
     destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
 
-    assert (serv_locked [m] (mserv MQ0 M0 S0)).
+    assert (serv_lock [m] (mserv MQ0 M0 S0)).
     {
       unfold net_deinstr in *.
       ltac1:(autorewrite with LTS in * ).
@@ -2135,7 +2135,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       auto.
     }
 
-    assert (serv_locked [m] (mserv MQ1 M1 S1)).
+    assert (serv_lock [m] (mserv MQ1 M1 S1)).
     {
       unfold net_deinstr in *.
       ltac1:(autorewrite with LTS in * ).
@@ -2144,8 +2144,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     }
 
     eapply (serv_lock_preserve_lock_id
-              `(serv_locked _ (mserv MQ0 M0 S0))
-              `(serv_locked _ (mserv MQ1 M1 S1))).
+              `(serv_lock _ (mserv MQ0 M0 S0))
+              `(serv_lock _ (mserv MQ1 M1 S1))).
 
     hsimpl in *. hsimpl in *.
     rewrite `(NetMod.get n MN0 = _) in *.
@@ -2163,7 +2163,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
 
-    consider (exists m, lock MN0 n m) by eauto using deadlocked_M_get_locked with LTS.
+    consider (exists m, lock MN0 n m) by eauto using deadlocked_M_get_lock with LTS.
 
     consider (_ =(_)=> _).
     - smash_eq n n0.
@@ -2404,7 +2404,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     assert (exists n2, lock N n1 n2) as [n2 HL1].
     {
       apply (deadset_lock_set HDSL) in HIn2 as [L2 [HL2 _]].
-      apply net_get_locked in HL2 as [n2 HL2]; eauto with LTS.
+      apply net_get_lock in HL2 as [n2 HL2]; eauto with LTS.
       exists n2.
       eattac.
     }
@@ -2827,7 +2827,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
 
   Lemma sends_probe_init_skip [MQ MQ' s S n n' v p] :
-    NoRecvR_from n' MQ -> (* We won't unlocked *)
+    NoRecvR_from n' MQ -> (* We won't unlock *)
     NoSends_MQ MQ -> (* We won't change the lock_id *)
     locked (next_state s) = Some n' -> (* We are locked *)
     origin p = self (next_state s) -> index p = lock_id (next_state s) -> (* Our active probe *)
@@ -2853,7 +2853,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
 
   Lemma sends_probe_prop_skip [MQ MQ' s S n n' p] :
-    NoRecvR_from n' MQ -> (* We won't unlocked *)
+    NoRecvR_from n' MQ -> (* We won't unlock *)
     NoSends_MQ MQ -> (* We won't change the lock_id *)
     locked (next_state s) = Some n' -> (* We are locked *)
     origin p <> self (next_state s) -> (* The probe is not ours *)
@@ -3048,13 +3048,13 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     assert (lock MN1 n0 n1).
     {
       destruct (well_formed_lock_dec '' MN1 n0 n1); auto.
-      assert (exists v, NComm n2 n1 R ^ p = NComm n1 n0 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
+      assert (exists v, NComm n2 n1 R ^ p = NComm n1 n0 R (MValP v)) by eauto using SRPC_M_net_set_unlocked_reply with LTS.
       hsimpl in *; bs.
     }
     assert (lock MN1 n1 n2).
     {
       destruct (well_formed_lock_dec '' MN1 n1 n2); auto.
-      assert (exists v, NComm n2 n1 R ^ p = NComm n2 n1 R (MValP v)) by eauto using SRPC_M_net_unlock_reply with LTS.
+      assert (exists v, NComm n2 n1 R ^ p = NComm n2 n1 R (MValP v)) by eauto using SRPC_M_net_set_unlocked_reply with LTS.
       hsimpl in *; bs.
     }
 
@@ -3386,7 +3386,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
       assert (lock MN1 m0 m1)
         by (consider (~ lock MN0 m0 m1 /\ lock MN1 m0 m1);
-            eauto using SRPC_M_net_query_new_locked with LTS).
+            eauto using SRPC_M_net_query_new_lock with LTS).
 
       exists m1.
       split.
@@ -3399,7 +3399,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       {
         assert (deadlocked m1 '' MN1) by eauto 4 using dep_self_deadlocked with LTS.
         destruct (NetMod.get m1 MN1) as [MQ1 s1 S1] eqn:?.
-        consider (exists m2, lock MN1 m1 m2) by re_have (eauto 3 using deadlocked_M_get_locked with LTS).
+        consider (exists m2, lock MN1 m1 m2) by re_have (eauto 3 using deadlocked_M_get_lock with LTS).
 
         assert (NoRecvR_MQ (mserv_i (MN1 m1))) by re_have (eauto using deadlocked_M_NoRecvR with LTS).
         assert (NoSends_MQ (mserv_i (MN1 m1))).
@@ -4204,7 +4204,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     induction c; intros.
     - consider (sends_probe _ _ _).
-      + consider (exists m', lock MN0 m m') by eauto using deadlocked_M_get_locked with LTS.
+      + consider (exists m', lock MN0 m m') by eauto using deadlocked_M_get_lock with LTS.
         consider (exists (MN1 : MNet) mpath MQ,
                      (MN0 =[mpath]=> MN1)
                      /\ detect_path [m] mpath

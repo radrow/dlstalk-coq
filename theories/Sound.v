@@ -1221,7 +1221,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     consider (~ lock '' MN0 n0 n1 /\ lock '' MN1 n0 n1)
-      by (eauto using SRPC_M_net_query_new_locked with LTS).
+      by (eauto using SRPC_M_net_query_new_lock with LTS).
 
     split.
     - enough (forall n, locked (MN0 n0) <> Some n) by (destruct (locked (MN0 n0)); attac). intros ? ?.
@@ -2015,7 +2015,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
           consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ trans_lock '' MN1 n0 n0')).
           {
-            eapply net_trans_lock_unlocked with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
+            eapply net_trans_lock_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
           }
 
           exists n0', v.
@@ -2108,7 +2108,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
             consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ trans_lock '' MN1 n0 n0')).
             {
-              eapply net_trans_lock_unlocked with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
+              eapply net_trans_lock_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
             }
             bs.
           - replace ('' MN1) with ('' MN0) by eauto using eq_sym, net_deinstr_act_skip.
@@ -2161,7 +2161,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
           consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ trans_lock '' MN1 n0 n0')).
           {
-            eapply net_trans_lock_unlocked with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
+            eapply net_trans_lock_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
           }
 
           exists n0', v.
