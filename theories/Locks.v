@@ -148,14 +148,14 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 (*         We also consider only decisive processes here. *)
 (*    *)
-  Inductive pq_lock (L : Names) : Serv -> Prop :=
+  Inductive serv_lock (L : Names) : Serv -> Prop :=
   | PQ_Lock [I P] :
     Decisive P ->
     proc_lock L P ->
     (forall n v, List.In n L -> not (List.In (n, R, v) I)) ->
-    pq_lock L (serv I P []).
+    serv_lock L (serv I P []).
 
-  #[export] Hint Constructors pq_lock : LTS.
+  #[export] Hint Constructors serv_lock : LTS.
 
 
   Section Examples.
@@ -321,30 +321,30 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   #[export] Hint Rewrite -> @proc_lock_recv_inv using spank : LTS.
 
 
-  Lemma pq_lock_P_inv [L I P O] :
-    pq_lock L (serv I P O) -> proc_lock L P.
+  Lemma serv_lock_P_inv [L I P O] :
+    serv_lock L (serv I P O) -> proc_lock L P.
   Proof. intros H; kill H. Qed.
 
-  Lemma pq_lock_O_inv [L I P O] :
-    pq_lock L (serv I P O) -> O = [].
+  Lemma serv_lock_O_inv [L I P O] :
+    serv_lock L (serv I P O) -> O = [].
   Proof. intros H; kill H. Qed.
 
-  Lemma pq_lock_I_inv [L I P O n v] :
-    pq_lock L (serv I P O) -> List.In n L -> ~ List.In (n, R, v) I.
+  Lemma serv_lock_I_inv [L I P O n v] :
+    serv_lock L (serv I P O) -> List.In n L -> ~ List.In (n, R, v) I.
   Proof. intros; kill H. attac. Qed.
 
-  #[export] Hint Resolve pq_lock_P_inv pq_lock_I_inv pq_lock_O_inv : LTS.
+  #[export] Hint Resolve serv_lock_P_inv serv_lock_I_inv serv_lock_O_inv : LTS.
 
 
   (** Extraction of decisiveness from the lock property (it's guaranteed trivially) *)
-  Fact pq_lock_Decisive L S : pq_lock L S -> Decisive_q S.
+  Fact serv_lock_Decisive L S : serv_lock L S -> Decisive_q S.
 
   Proof with attac.
     intros.
     kill H...
   Qed.
 
-  #[export] Hint Immediate pq_lock_Decisive : LTS.
+  #[export] Hint Immediate serv_lock_Decisive : LTS.
 
 
   (** If a decisive processes accepts queries, then it does not accept replies *)
@@ -454,8 +454,8 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   (** Locked services only receive *)
-  Proposition pq_lock_recv [L a S0 S1] :
-    pq_lock L S0 ->
+  Proposition serv_lock_recv [L a S0 S1] :
+    serv_lock L S0 ->
     (S0 =(a)=> S1) ->
     match a with Recv _ _ => True | _ => False end.
 
@@ -474,26 +474,26 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   Qed.
 
 
-  Lemma pq_lock_recv_inv [L a S0 S1] :
-    pq_lock L S0 ->
+  Lemma serv_lock_recv_inv [L a S0 S1] :
+    serv_lock L S0 ->
     (S0 =(a)=> S1) <->
       exists I P O nc v,
         S0 = serv I P O
         /\ S1 = serv (I ++ [(nc, v)]) P O
         /\ a = Recv nc v.
-  Proof. attac. specialize (pq_lock_recv H H0) as ?. destruct a; eattac. Qed.
+  Proof. attac. specialize (serv_lock_recv H H0) as ?. destruct a; eattac. Qed.
 
-  #[export] Hint Rewrite -> pq_lock_recv_inv using spank : LTS.
+  #[export] Hint Rewrite -> serv_lock_recv_inv using spank : LTS.
 
 
   (** Non-unlocking messages invariant service lock *)
-  Proposition pq_lock_invariant [L] :
-    trans_invariant (pq_lock L) (not_unlocking_msg L).
+  Proposition serv_lock_invariant [L] :
+    trans_invariant (serv_lock L) (not_unlocking_msg L).
 
   Proof with eattac.
     intros S0 S1 a T HL0 Ha.
 
-    specialize (pq_lock_recv HL0 T) as H.
+    specialize (serv_lock_recv HL0 T) as H.
 
     kill HL0.
     kill T; try (bs).
@@ -507,7 +507,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     destruct `(_ \/ _); attac.
   Qed.
 
-  #[export] Hint Resolve pq_lock_invariant : LTS inv.
+  #[export] Hint Resolve serv_lock_invariant : LTS inv.
 
 
   (** Lock sets are equivalent *)
@@ -573,9 +573,9 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   (** Lock sets are equivalent *)
-  Lemma pq_lock_incl [S L0 L1] :
-    pq_lock L0 S ->
-    pq_lock L1 S ->
+  Lemma serv_lock_incl [S L0 L1] :
+    serv_lock L0 S ->
+    serv_lock L1 S ->
     incl L0 L1.
 
   Proof.
@@ -588,13 +588,13 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     eapply proc_lock_incl; eauto.
   Qed.
 
-  #[export] Hint Resolve pq_lock_incl : LTS.
+  #[export] Hint Resolve serv_lock_incl : LTS.
 
 
   (** Lock sets are *actually* equivalent *)
-  Lemma pq_lock_equiv [S L0 L1] :
-    pq_lock L0 S ->
-    pq_lock L1 S ->
+  Lemma serv_lock_equiv [S L0 L1] :
+    serv_lock L0 S ->
+    serv_lock L1 S ->
     incl L0 L1 /\ incl L1 L0.
 
   Proof.
@@ -609,11 +609,11 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   (** If you are locked on a set, then you are locked on all equivalent ones *)
-  Lemma pq_lock_equiv_inv [S L0 L1] :
-    pq_lock L0 S ->
+  Lemma serv_lock_equiv_inv [S L0 L1] :
+    serv_lock L0 S ->
     incl L0 L1 ->
     incl L1 L0 ->
-    pq_lock L1 S.
+    serv_lock L1 S.
 
   Proof.
     intros HL HIncl0 HIncl1.
@@ -625,7 +625,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     eapply proc_lock_equiv_inv; eauto.
   Qed.
 
-  #[export] Hint Immediate pq_lock_equiv_inv : LTS.
+  #[export] Hint Immediate serv_lock_equiv_inv : LTS.
 
 
   Lemma proc_lock_nodup [L P] :
@@ -639,14 +639,14 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     eauto using proc_lock_equiv_inv.
   Qed.
 
-  Lemma pq_lock_nodup [L S] :
-    pq_lock L S ->
-    pq_lock (nodup NAME.eq_dec L) S.
+  Lemma serv_lock_nodup [L S] :
+    serv_lock L S ->
+    serv_lock (nodup NAME.eq_dec L) S.
 
   Proof.
     intros.
     destruct S as [I P O].
-    consider (pq_lock _ _).
+    consider (serv_lock _ _).
     constructor.
     - auto.
     - auto using proc_lock_nodup.
@@ -657,7 +657,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
   Lemma pq_tau_no_lock_l [S0 S1 L] :
     (S0 =(Tau)=> S1) ->
-    ~ pq_lock L S0.
+    ~ serv_lock L S0.
 
   Proof.
     intros; intros ?.
@@ -666,7 +666,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
   Lemma pq_send_no_lock_l [S0 S1 nc v L] :
     (S0 =(Send nc v)=> S1) ->
-    ~ pq_lock L S0.
+    ~ serv_lock L S0.
 
   Proof.
     intros; intros ?.
@@ -676,42 +676,42 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
   Lemma pq_recv_R_bad_sender_derive_lock [S0 S1 n v L] :
     ~ In n L ->
-    pq_lock L S1 ->
+    serv_lock L S1 ->
     (S0 =(Recv (n, R) v)=> S1) ->
-    pq_lock L S0.
+    serv_lock L S0.
 
   Proof.
     intros.
     consider (_ =(_)=> _); simpl in *.
-    consider (pq_lock _ _).
+    consider (serv_lock _ _).
 
     eattac.
     bs (~ In (n0, R, v0) (I0 ++ [(n, R, v)])).
   Qed.
 
   Lemma pq_recv_no_new_lock [S0 S1 nc v L] :
-    ~ pq_lock L S0 ->
+    ~ serv_lock L S0 ->
     (S0 =(Recv nc v)=> S1) ->
-    ~ pq_lock L S1.
+    ~ serv_lock L S1.
 
   Proof.
     intros; intros ?.
-    apply `(~ pq_lock _ _).
+    apply `(~ serv_lock _ _).
     consider (_ =(_)=> _); simpl in *.
-    consider (pq_lock _ _).
+    consider (serv_lock _ _).
     eattac.
     bs (~ In (n, R, v0) (I0 ++ [(nc, v)])).
   Qed.
 
   Lemma pq_recv_Q_derive_lock [S0 S1 n v L] :
-    pq_lock L S1 ->
+    serv_lock L S1 ->
     (S0 =(Recv (n, Q) v)=> S1) ->
-    pq_lock L S0.
+    serv_lock L S0.
 
   Proof.
     intros.
     consider (_ =(_)=> _); simpl in *.
-    consider (pq_lock _ _).
+    consider (serv_lock _ _).
     eattac.
     bs (~ In (n0, R, v0) (I0 ++ [(n, Q, v)])).
   Qed.

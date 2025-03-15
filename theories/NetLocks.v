@@ -82,7 +82,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Process locked in a network; referred by name *)
-    Definition net_lock N L n := pq_lock L (NetMod.get n N).
+    Definition net_lock N L n := serv_lock L (NetMod.get n N).
 
     #[export] Hint Transparent net_lock : LTS.
     #[export] Hint Unfold net_lock : LTS.
@@ -104,7 +104,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Proof with eattac.
       intros HL0 HL1.
       unfold net_lock in *.
-      eapply pq_lock_equiv; eauto.
+      eapply serv_lock_equiv; eauto.
     Qed.
 
     #[export] Hint Resolve net_lock_equiv : LTS.
@@ -308,7 +308,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
       consider (exists (L : list Name), net_lock N0 L n /\ incl L DL).
       unfold net_lock in *.
       hsimpl in *.
-      rewrite pq_lock_recv_inv in T; eauto.
+      rewrite serv_lock_recv_inv in T; eauto.
       hsimpl in *. bs.
     Qed.
 
@@ -335,8 +335,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
                end ).
       1: attac.
 
-      have (pq_lock L (NetMod.get ns N0)).
-      eapply pq_lock_recv; re_have eauto.
+      have (serv_lock L (NetMod.get ns N0)).
+      eapply serv_lock_recv; re_have eauto.
     Qed.
 
 
@@ -459,7 +459,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         intros Hx; kill Hx; hsimpl in *.
 
         assert (exists (L : list Name), net_lock N0 L n /\ incl L DL) by attac; hsimpl in *.
-        assert (incl L L0) by (unfold net_lock in *; eapply pq_lock_incl; eauto).
+        assert (incl L L0) by (unfold net_lock in *; eapply serv_lock_incl; eauto).
         assert (List.In n0 DL) by attac.
         re_have (eapply deadset_no_send'; eauto with LTS).
 
@@ -2439,10 +2439,10 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Proof.
           intros.
           intros ?; subst.
-          consider (exists L, pq_lock L (NetMod.get n0 N0)) by (unfold net_lock in *; attac).
+          consider (exists L, serv_lock L (NetMod.get n0 N0)) by (unfold net_lock in *; attac).
           consider (exists S, NetMod.get n0 N0 =(send (n1, &t) v)=> S) by (consider (_ =(_)=> _); eattac).
           destruct (NetMod.get n0 N0) as [I0 P0 O0] eqn:?.
-          consider (pq_lock _ _).
+          consider (serv_lock _ _).
           bs.
         Qed.
 
@@ -2469,7 +2469,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           smash_eq n0 n.
           - exfalso.
             hsimpl in *.
-            eapply pq_lock_recv in H; eauto.
+            eapply serv_lock_recv in H; eauto.
           - replace (NetMod.get n0 N1) with (NetMod.get n0 N0); eattac.
         Qed.
 
@@ -2513,7 +2513,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           consider (_ =(_)=> _); compat_hsimpl in *.
 
           eattac.
-          consider (pq_lock _ _).
+          consider (serv_lock _ _).
           hsimpl in *.
           constructor; auto.
           intros ? ? ? ?.
@@ -2551,7 +2551,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           consider (_ =(_)=> _); hsimpl in *.
 
           compat_hsimpl in *.
-          consider (pq_lock _ _).
+          consider (serv_lock _ _).
 
           bs (In (n1, R, v0) (&I ++ [(n1, R, v0)])).
         Qed.

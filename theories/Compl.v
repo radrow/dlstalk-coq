@@ -625,17 +625,17 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma SRPC_pq_no_immediate_relock [n0 n1 S0 S1 a] :
     AnySRPC_serv S0 ->
     (S0 =(a)=> S1) ->
-    pq_lock [n0] S0 ->
-    pq_lock [n1] S1 ->
+    serv_lock [n0] S0 ->
+    serv_lock [n1] S1 ->
     n0 = n1.
 
   Proof.
     intros.
-    specialize (pq_lock_recv `(pq_lock _ S0) `(S0 =(a)=> S1)) as ?.
+    specialize (serv_lock_recv `(serv_lock _ S0) `(S0 =(a)=> S1)) as ?.
     destruct a; doubt.
     compat_hsimpl in *.
-    consider (pq_lock [n0] _).
-    do 2 (consider (pq_lock [n1] _)).
+    consider (serv_lock [n0] _).
+    do 2 (consider (serv_lock [n1] _)).
     enough (List.In n0 [n1]) by attac.
     enough (incl [n0] [n1]) by (unfold incl in *; attac).
     eauto using proc_lock_incl.
@@ -1643,7 +1643,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     eapply (deadset_net_lock `(DeadSet DS '' MN0)) in H0.
     hsimpl in *.
     unfold net_lock in *.
-    consider (exists n0 : Name, pq_lock [n0] (NetMod.get n '' MN0)) by (eauto using SRPC_serv_get_lock with LTS).
+    consider (exists n0 : Name, serv_lock [n0] (NetMod.get n '' MN0)) by (eauto using SRPC_serv_get_lock with LTS).
     eattac.
   Qed.
 
@@ -1668,7 +1668,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
       unfold net_lock_on, net_lock in *.
       hsimpl in *.
-      consider (pq_lock L _).
+      consider (serv_lock L _).
       apply (`(~ List.In (n', R, v) _)).
       unfold net_deinstr, deinstr in *.
       ltac1:(autorewrite with LTS in * ).
@@ -1777,7 +1777,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         unfold net_deinstr, deinstr in *.
         hsimpl in *.
         compat_hsimpl in *.
-        kill H7. (* pq_lock *)
+        kill H7. (* serv_lock *)
         assert (~ List.In (n1, R, v) I1) by (intros ?; eapply H11; eattac).
         hsimpl in *.
         eassert (MQ_s _ = [] /\ O0 = []) by eauto using app_eq_nil.
@@ -1908,9 +1908,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       bs (In (n1, R, v0) I0).
   Qed.
 
-  Lemma pq_lock_preserve_in_wait [a MQ0 M0 S0 MQ1 M1 S1 L m] :
-    pq_lock L (mserv MQ0 M0 S0) ->
-    pq_lock L (mserv MQ1 M1 S1) ->
+  Lemma serv_lock_preserve_in_wait [a MQ0 M0 S0 MQ1 M1 S1 L m] :
+    serv_lock L (mserv MQ0 M0 S0) ->
+    serv_lock L (mserv MQ1 M1 S1) ->
     (mserv MQ0 M0 S0 =(a)=> mserv MQ1 M1 S1) ->
     List.In m (wait (next_state M0)) ->
     List.In m (wait (next_state M1)).
@@ -1955,7 +1955,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
     destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
 
-    assert (pq_lock [m] (mserv MQ0 M0 S0)).
+    assert (serv_lock [m] (mserv MQ0 M0 S0)).
     {
       unfold net_deinstr in *.
       unfold NetGet in *.
@@ -1963,7 +1963,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       attac.
     }
 
-    assert (pq_lock [m] (mserv MQ1 M1 S1)).
+    assert (serv_lock [m] (mserv MQ1 M1 S1)).
     {
       unfold net_deinstr in *.
       ltac1:(autorewrite with LTS in * ).
@@ -1976,7 +1976,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       now rewrite <- `(NetMod.get n MN0 = _).
     }
 
-    eapply pq_lock_preserve_in_wait.
+    eapply serv_lock_preserve_in_wait.
     3: eauto.
     all: eauto.
     ltac1:(autounfold with LTS_get in * ).
@@ -2083,9 +2083,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     attac.
   Qed.
 
-  Lemma pq_lock_preserve_lock_id [a MQ0 s0 S0 MQ1 s1 S1 L] :
-    pq_lock L (mserv MQ0 s0 S0) ->
-    pq_lock L (mserv MQ1 s1 S1) ->
+  Lemma serv_lock_preserve_lock_id [a MQ0 s0 S0 MQ1 s1 S1 L] :
+    serv_lock L (mserv MQ0 s0 S0) ->
+    serv_lock L (mserv MQ1 s1 S1) ->
     (mserv MQ0 s0 S0 =(a)=> mserv MQ1 s1 S1) ->
     lock_id (next_state s0) = lock_id (next_state s1).
 
@@ -2127,7 +2127,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
     destruct (NetMod.get n MN1) as [MQ1 M1 S1] eqn:?.
 
-    assert (pq_lock [m] (mserv MQ0 M0 S0)).
+    assert (serv_lock [m] (mserv MQ0 M0 S0)).
     {
       unfold net_deinstr in *.
       ltac1:(autorewrite with LTS in * ).
@@ -2135,7 +2135,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       auto.
     }
 
-    assert (pq_lock [m] (mserv MQ1 M1 S1)).
+    assert (serv_lock [m] (mserv MQ1 M1 S1)).
     {
       unfold net_deinstr in *.
       ltac1:(autorewrite with LTS in * ).
@@ -2143,9 +2143,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       auto.
     }
 
-    eapply (pq_lock_preserve_lock_id
-              `(pq_lock _ (mserv MQ0 M0 S0))
-              `(pq_lock _ (mserv MQ1 M1 S1))).
+    eapply (serv_lock_preserve_lock_id
+              `(serv_lock _ (mserv MQ0 M0 S0))
+              `(serv_lock _ (mserv MQ1 M1 S1))).
 
     hsimpl in *. hsimpl in *.
     rewrite `(NetMod.get n MN0 = _) in *.

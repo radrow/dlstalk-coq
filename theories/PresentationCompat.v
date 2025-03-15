@@ -79,10 +79,10 @@ Module Paper.
 End Paper.
 
 
-Fact serv_lock_eq : forall S n, AnySRPC_serv S -> pq_lock [n] S <-> Paper.serv_lock n S.
+Fact serv_lock_eq : forall S n, AnySRPC_serv S -> serv_lock [n] S <-> Paper.serv_lock n S.
 Proof.
   split; intros.
-  - consider (pq_lock _ _).
+  - consider (serv_lock _ _).
     repeat split; repeat (intros ?); simpl in *.
     + bs (In (n, R, v) &I).
     + eauto using lock_SRPC_Lock with LTS.
@@ -105,7 +105,7 @@ Proof.
   - consider (DeadSet _ _).
     consider (exists L, net_lock N L n0 /\ incl L DS).
     unfold net_lock, net_lock_on in *.
-    consider (exists n1, pq_lock [n1] (NetMod.get n0 N)) by eauto with LTS.
+    consider (exists n1, serv_lock [n1] (NetMod.get n0 N)) by eauto with LTS.
     exists n1.
     eattac.
   - attac.

@@ -1010,7 +1010,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   (** SRPC service can be locked only on one thing *)
   Lemma SRPC_serv_one_lock [S : Serv] [L] :
     AnySRPC_serv S ->
-    pq_lock L S ->
+    serv_lock L S ->
     length (nodup NAME.eq_dec L) = 1%nat.
 
   Proof.
@@ -1049,8 +1049,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   (** If SRPC service is locked, then it is known on who *)
   Lemma SRPC_serv_get_lock [S : Serv] [L] :
     AnySRPC_serv S ->
-    pq_lock L S ->
-    exists n, pq_lock [n] S.
+    serv_lock L S ->
+    exists n, serv_lock [n] S.
 
   Proof.
     intros Hsrpc HL.
@@ -1146,14 +1146,14 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   (** You can't judge locks of a service based on its SRPC-state, because the code may be in a *)
   (*   locked state, but there are messages to be sent *)
   Example SRPC_Lock_serv_lock [S : Serv] [s c] :
-    SRPC_serv (Lock c s) S -> pq_lock [s] S.
+    SRPC_serv (Lock c s) S -> serv_lock [s] S.
   Abort.
 
 
   (** SRPC-lock state is complete for all SRPC services *)
   Lemma lock_SRPC_Lock_serv [S : Serv] [s] :
     AnySRPC_serv S ->
-    pq_lock [s] S -> (exists c, SRPC_serv (Lock c s) S).
+    serv_lock [s] S -> (exists c, SRPC_serv (Lock c s) S).
 
   Proof.
     intros Hsrpc HL.
@@ -1189,8 +1189,8 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   (** You need at least a tau to change the lock *)
   Lemma SRPC_serv_no_relock [S0 S1 a n0 n1] :
     AnySRPC_serv S0 ->
-    pq_lock [n0] S0 ->
-    pq_lock [n1] S1 ->
+    serv_lock [n0] S0 ->
+    serv_lock [n1] S1 ->
     (S0 =(a)=> S1) ->
     n0 = n1.
 
@@ -1352,13 +1352,13 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   Lemma SRPC_tau_no_lock_r [S0 S1 L] :
     AnySRPC_serv S0 ->
     (S0 =(Tau)=> S1) ->
-    ~ pq_lock L S1.
+    ~ serv_lock L S1.
 
   Proof.
     intros; intros ?.
-    consider (exists s, pq_lock [s] S1) by eauto using SRPC_serv_get_lock with LTS.
+    consider (exists s, serv_lock [s] S1) by eauto using SRPC_serv_get_lock with LTS.
     consider (exists c, SRPC_serv (Lock c s) S1) by eauto using lock_SRPC_Lock_serv with LTS.
-    consider (_ =(_)=> _); consider (pq_lock _ _); doubt; simpl in *.
+    consider (_ =(_)=> _); consider (serv_lock _ _); doubt; simpl in *.
     - destruct n as [n [|]].
       + assert (SRPC (Work n) P1) by eauto using SRPC_inv_recv_Q_r.
         bs (Work n = Lock c s) by attac.
