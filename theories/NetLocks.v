@@ -82,96 +82,96 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Process locked in a network; referred by name *)
-    Definition net_lock N L n := serv_lock L (NetMod.get n N).
+    Definition lock_set N L n := serv_lock L (NetMod.get n N).
 
-    #[export] Hint Transparent net_lock : LTS.
-    #[export] Hint Unfold net_lock : LTS.
+    #[export] Hint Transparent lock_set : LTS.
+    #[export] Hint Unfold lock_set : LTS.
 
 
     (** Relation of n being locked on m in a network *)
-    Definition net_lock_on N n m :=
-      exists L, List.In m L /\ net_lock N L n.
+    Definition lock N n m :=
+      exists L, List.In m L /\ lock_set N L n.
 
-    #[export] Hint Transparent net_lock_on : LTS.
+    #[export] Hint Transparent lock : LTS.
 
 
     (** Lock sets are equivalent  *)
-    Lemma net_lock_equiv [N L0 L1 n] :
-      net_lock N L0 n ->
-      net_lock N L1 n ->
+    Lemma lock_set_equiv [N L0 L1 n] :
+      lock_set N L0 n ->
+      lock_set N L1 n ->
       incl L0 L1 /\ incl L1 L0.
 
     Proof with eattac.
       intros HL0 HL1.
-      unfold net_lock in *.
+      unfold lock_set in *.
       eapply serv_lock_equiv; eauto.
     Qed.
 
-    #[export] Hint Resolve net_lock_equiv : LTS.
+    #[export] Hint Resolve lock_set_equiv : LTS.
 
 
-    Lemma net_lock_inv_I n n' v N L I P O :
+    Lemma lock_set_inv_I n n' v N L I P O :
       NetMod.get n N = serv I P O ->
       List.In n' L ->
-      net_lock N L n ->
+      lock_set N L n ->
       ~ List.In (n', R, v) I.
     Proof. intros. kill H1. attac. Qed.
 
-    Lemma net_lock_inv_P n N L I P O :
+    Lemma lock_set_inv_P n N L I P O :
       NetMod.get n N = serv I P O ->
-      net_lock N L n ->
+      lock_set N L n ->
       proc_lock L P.
     Proof. intros. kill H0. Qed.
 
-    Lemma net_lock_inv_P_Decisive n N L I P O :
+    Lemma lock_set_inv_P_Decisive n N L I P O :
       NetMod.get n N = serv I P O ->
-      net_lock N L n ->
+      lock_set N L n ->
       Decisive P.
     Proof. intros. kill H0. Qed.
 
-    Lemma net_lock_inv_O n N L I P O :
+    Lemma lock_set_inv_O n N L I P O :
       NetMod.get n N = serv I P O ->
-      net_lock N L n -> O = [].
+      lock_set N L n -> O = [].
 
     Proof. intros. kill H0. Qed.
 
-    #[export] Hint Resolve net_lock_inv_I net_lock_inv_P net_lock_inv_P_Decisive net_lock_inv_O : LTS.
+    #[export] Hint Resolve lock_set_inv_I lock_set_inv_P lock_set_inv_P_Decisive lock_set_inv_O : LTS.
 
 
-    Lemma net_lock_on_in [N L n0 n1] :
-      net_lock N L n0 ->
-      net_lock_on N n0 n1 ->
+    Lemma lock_in [N L n0 n1] :
+      lock_set N L n0 ->
+      lock N n0 n1 ->
       List.In n1 L.
 
     Proof.
       intros HL HL0.
       destruct HL0 as [L0 [HIn HL0]].
-      destruct (net_lock_equiv HL HL0); attac.
+      destruct (lock_set_equiv HL HL0); attac.
     Qed.
 
-    #[export] Hint Resolve net_lock_on_in : LTS.
+    #[export] Hint Resolve lock_in : LTS.
 
 
-    Fact net_lock_move_eq L n N0 N1 :
+    Fact lock_set_move_eq L n N0 N1 :
       NetMod.get n N0 = NetMod.get n N1 ->
-      net_lock N0 L n <-> net_lock N1 L n.
+      lock_set N0 L n <-> lock_set N1 L n.
 
     Proof.
-      unfold net_lock.
+      unfold lock_set.
       intros.
       split; attac.
     Qed.
 
 
-    Fact net_lock_on_move_eq n0 n1 N0 N1 :
+    Fact lock_move_eq n0 n1 N0 N1 :
       NetMod.get n0 N0 = NetMod.get n0 N1 ->
-      net_lock_on N0 n0 n1 <-> net_lock_on N1 n0 n1.
+      lock N0 n0 n1 <-> lock N1 n0 n1.
     Proof.
-      unfold net_lock_on, net_lock.
+      unfold lock, lock_set.
       split; intros; hsimpl in *; exists L; attac.
     Qed.
 
-    #[export] Hint Resolve net_lock_move_eq net_lock_on_move_eq : LTS.
+    #[export] Hint Resolve lock_set_move_eq lock_move_eq : LTS.
 
 
     (** Deadlocked set is a list of processes so that their lock lists are sublists of it *)
@@ -180,7 +180,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         (HDS_Nil : DS <> [])
         (HDS_Sub : forall (n : Name),
             List.In n DS ->
-            exists (L : list Name), net_lock N L n /\ incl L DS
+            exists (L : list Name), lock_set N L n /\ incl L DS
         )
         : DeadSet DS N.
 
@@ -196,9 +196,9 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     Example dead_net_example [N n0 n1 n2] :
-      net_lock N [n0] n1 ->
-      net_lock N [n1] n2 ->
-      net_lock N [n2] n0 ->
+      lock_set N [n0] n1 ->
+      lock_set N [n1] n2 ->
+      lock_set N [n2] n0 ->
       Deadlocked N.
 
     Proof with attac.
@@ -212,17 +212,17 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Obtaining lock sets of deadset members *)
-    Lemma deadset_net_lock [N DS n] :
+    Lemma deadset_lock_set [N DS n] :
       DeadSet DS N ->
       List.In n DS ->
-      exists (L : list Name), net_lock N L n /\ incl L DS.
+      exists (L : list Name), lock_set N L n /\ incl L DS.
 
     Proof.
       intros HDS HIn.
       kill HDS; auto.
     Qed.
 
-    #[export] Hint Resolve deadset_net_lock : LTS.
+    #[export] Hint Resolve deadset_lock_set : LTS.
 
 
     (** Deadset is not empty *)
@@ -248,13 +248,13 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Lemma deadset_lock_on_dec [N DS n0] :
       DeadSet DS N ->
       List.In n0 DS ->
-      forall n1, (net_lock_on N n0 n1 \/ not (net_lock_on N n0 n1)).
+      forall n1, (lock N n0 n1 \/ not (lock N n0 n1)).
 
     Proof with eattac.
       intros HDS HIn0 n1.
 
-      apply (deadset_net_lock HDS) in HIn0 as [L [HL Hincl]].
-      unfold net_lock_on.
+      apply (deadset_lock_set HDS) in HIn0 as [L [HL Hincl]].
+      unfold lock.
       destruct (in_dec NAME.eq_dec n1 L)...
     Qed.
 
@@ -305,8 +305,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Proof with attac.
       unfold not.
       intros HDL HIn T.
-      consider (exists (L : list Name), net_lock N0 L n /\ incl L DL).
-      unfold net_lock in *.
+      consider (exists (L : list Name), lock_set N0 L n /\ incl L DL).
+      unfold lock_set in *.
       hsimpl in *.
       rewrite serv_lock_recv_inv in T; eauto.
       hsimpl in *. bs.
@@ -325,7 +325,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
       kill T.
 
-      apply (deadset_net_lock HDS) in HIn as [L [HL _]].
+      apply (deadset_lock_set HDS) in HIn as [L [HL _]].
       kill H.
       have (NetMod.get ns N0 =( send (nr, &t) v )=> &S).
 
@@ -418,10 +418,10 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     (** Members of a deadlocked set retain their locksets *)
     Theorem deadset_invariant_lock [N0 N1 DL L a n] :
       DeadSet DL N0 ->
-      net_lock N0 L n ->
+      lock_set N0 L n ->
       List.In n DL ->
       (N0 =(a)=> N1) ->
-      net_lock N1 L n.
+      lock_set N1 L n.
 
     Proof.
       intros HDL HL HInD T.
@@ -441,7 +441,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         hsimpl in *.
         ltac1:(autorewrite with LTS in * ).
 
-        unfold net_lock.
+        unfold lock_set.
         hsimpl in *. hsimpl in |- *.
 
         consider (&O = []) by attac.
@@ -458,13 +458,13 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         intros Hx; kill Hx; hsimpl in *.
 
-        assert (exists (L : list Name), net_lock N0 L n /\ incl L DL) by attac; hsimpl in *.
-        assert (incl L L0) by (unfold net_lock in *; eapply serv_lock_incl; eauto).
+        assert (exists (L : list Name), lock_set N0 L n /\ incl L DL) by attac; hsimpl in *.
+        assert (incl L L0) by (unfold lock_set in *; eapply serv_lock_incl; eauto).
         assert (List.In n0 DL) by attac.
         re_have (eapply deadset_no_send'; eauto with LTS).
 
       - eapply act_particip_stay in n0; eauto.
-        unfold net_lock in *.
+        unfold lock_set in *.
         rewrite <- n0.
         auto.
     Qed.
@@ -518,15 +518,15 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     (** If you are a member of a deadset, then your lock set is its subset *)
     Lemma deadset_incl [N DS n L] :
       DeadSet DS N ->
-      net_lock N L n ->
+      lock_set N L n ->
       List.In n DS ->
       incl L DS.
 
     Proof with eauto.
       intros HDS HL HIn.
-      eapply deadset_net_lock in HIn as [L' [HL' Hincl]]...
+      eapply deadset_lock_set in HIn as [L' [HL' Hincl]]...
       eapply incl_tran...
-      eapply net_lock_equiv...
+      eapply lock_set_equiv...
     Qed.
 
     #[export] Hint Immediate deadset_incl : LTS.
@@ -536,7 +536,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Lemma deadset_in [N DS n0 n1] :
       DeadSet DS N ->
       List.In n0 DS ->
-      net_lock_on N n0 n1 ->
+      lock N n0 n1 ->
       List.In n1 DS.
 
     Proof.
@@ -564,10 +564,10 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     (** Transitive closure of the individual lock relation *)
     Inductive dep_on (N : PNet) (n0 : Name) : Name -> Prop :=
     | dep_on_Direct [n1] :
-      net_lock_on N n0 n1 ->
+      lock N n0 n1 ->
       dep_on N n0 n1
     | dep_on_Indirect [n1 n2] :
-      net_lock_on N n0 n1 ->
+      lock N n0 n1 ->
       dep_on N n1 n2 ->
       dep_on N n0 n2
     .
@@ -576,8 +576,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     #[export] Hint Extern 4 (dep_on _ _ _) =>
       match goal with
-      (* | [h0 : net_lock_on ?N ?a ?b |- dep_on ?N ?a ?b ] => (apply (dep_on_Direct _ _ h0)) *)
-      | [h0 : net_lock_on ?N ?a ?b, h1 : dep_on ?N ?b ?c |- dep_on ?N ?a ?c ] => (apply (dep_on_Indirect _ _ h0 h1))
+      (* | [h0 : lock ?N ?a ?b |- dep_on ?N ?a ?b ] => (apply (dep_on_Direct _ _ h0)) *)
+      | [h0 : lock ?N ?a ?b, h1 : dep_on ?N ?b ?c |- dep_on ?N ?a ?c ] => (apply (dep_on_Indirect _ _ h0 h1))
       end : LTS.
 
 
@@ -599,7 +599,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Indirect lock is transitive over locks (front) *)
     Lemma dep_on_seq1 [N : PNet] [n0 n1 n2] :
-      net_lock_on N n0 n1 ->
+      lock N n0 n1 ->
       dep_on N n1 n2 ->
       dep_on N n0 n2.
 
@@ -611,7 +611,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     (** Indirect lock is transitive over locks (back) *)
     Lemma dep_on_seq1' [N : PNet] [n0 n1 n2] :
       dep_on N n0 n1 ->
-      net_lock_on N n1 n2 ->
+      lock N n1 n2 ->
       dep_on N n0 n2.
 
     Proof with (eauto with LTS).
@@ -632,7 +632,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     (** Dep set is a superset of the lock set *)
     Lemma dep_set_lock_incl [N IL L n] :
       dep_set N IL n ->
-      net_lock N L n ->
+      lock_set N L n ->
       incl L IL.
 
     Proof.
@@ -641,7 +641,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
       intros HIL HL m HIn.
       apply HIL.
       constructor.
-      unfold net_lock_on.
+      unfold lock.
       eauto with LTS.
     Qed.
 
@@ -716,10 +716,10 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     (** Transitive closure of lock relation with exposed connection *)
     Inductive lock_chain (N : PNet) : Name -> list Name -> Name -> Prop :=
     | LC_nil [n0 n1] :
-      net_lock_on N n0 n1 ->
+      lock N n0 n1 ->
       lock_chain N n0 [] n1
     | LC_cons [n0 n1 n2 l] :
-      net_lock_on N n0 n1 ->
+      lock N n0 n1 ->
       lock_chain N n1 l n2 ->
       lock_chain N n0 (n1::l) n2.
 
@@ -728,7 +728,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Transitivity of lock_chain (single step, front) *)
     Lemma lock_chain_seq1 [N L n0 n1 n2] :
-      net_lock_on N n0 n1 ->
+      lock N n0 n1 ->
       lock_chain N n1 L n2 ->
       lock_chain N n0 (n1 :: L) n2.
 
@@ -741,7 +741,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     (** Transitivity of lock_chain (single step, back) *)
     Lemma lock_chain_seq1' [N L n0 n1 n2] :
       lock_chain N n0 L n1 ->
-      net_lock_on N n1 n2 ->
+      lock N n1 n2 ->
       lock_chain N n0 (L ++ [n1]) n2.
 
     Proof.
@@ -803,7 +803,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
       generalize dependent n0 n1 n2.
       induction L; intros; simpl in *; kill HLc; kill HIn.
       - exists [], L...
-      - have (net_lock_on N n0 a).
+      - have (lock N n0 a).
 
         normalize IHL.
         specialize (IHL n2 n1 a ltac:(auto) ltac:(auto)).
@@ -898,8 +898,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     Lemma dep_on_ind_right :
       forall P : PNet -> Name -> Name -> Prop,
-        (forall N n0 n2, net_lock_on N n0 n2 -> P N n0 n2) ->
-        (forall N n0 n1 n2, dep_on N n0 n1 -> net_lock_on N n1 n2 -> P N n1 n2 -> P N n0 n2) ->
+        (forall N n0 n2, lock N n0 n2 -> P N n0 n2) ->
+        (forall N n0 n1 n2, dep_on N n0 n1 -> lock N n1 n2 -> P N n1 n2 -> P N n0 n2) ->
         forall N n0 n2, dep_on N n0 n2 -> P N n0 n2.
     Proof.
       intros P Hbase Hind N n0 n2 H.
@@ -916,7 +916,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     (* Reverse inversion of [dep_on] *)
     Theorem dep_on_inv_r [N n0 n1] :
       dep_on N n0 n1 ->
-      net_lock_on N n0 n1 \/ exists n0', dep_on N n0 n0' /\ net_lock_on N n0' n1.
+      lock N n0 n1 \/ exists n0', dep_on N n0 n0' /\ lock N n0' n1.
 
     Proof.
       intros.
@@ -927,29 +927,29 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Resolve dep_on_inv_r : LTS.
 
 
-    Lemma net_lock_all_in [N L n0 n1] :
-      net_lock N L n0 ->
-      net_lock_on N n0 n1 ->
+    Lemma lock_set_all_in [N L n0 n1] :
+      lock_set N L n0 ->
+      lock N n0 n1 ->
       In n1 L.
 
     Proof.
       intros.
-      unfold net_lock_on in *.
+      unfold lock in *.
       eattac.
     Qed.
 
-    Lemma net_lock_only_in [N L n0 n1] :
-      net_lock N L n0 ->
+    Lemma lockly_in [N L n0 n1] :
+      lock_set N L n0 ->
       In n1 L ->
-      net_lock_on N n0 n1.
+      lock N n0 n1.
 
     Proof.
       intros.
-      unfold net_lock_on in *.
+      unfold lock in *.
       eattac.
     Qed.
 
-    #[export] Hint Immediate net_lock_only_in net_lock_all_in : LTS.
+    #[export] Hint Immediate lockly_in lock_set_all_in : LTS.
 
 
 
@@ -992,8 +992,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Local Lemma deadset_dep_dec_nope_k' [N n0 n2 L_ref L_i L_x k] :
       ~ List.In n2 L_ref ->
       L_ref = L_x ++ L_i  ->
-      (forall n1, net_lock_on N n0 n1 -> List.In n1 L_ref) ->
-      (forall n1, List.In n1 L_ref -> net_lock_on N n0 n1) ->
+      (forall n1, lock N n0 n1 -> List.In n1 L_ref) ->
+      (forall n1, List.In n1 L_ref -> lock N n0 n1) ->
       (forall n1 Lc, List.In n1 L_ref -> ~ (lock_chain N n1 Lc n2 /\ length Lc <= k)) ->
       (forall Lc, lock_chain N n0 Lc n2 -> length Lc <= S k -> exists n1 Lc1, List.In n1 L_x /\ lock_chain N n1 Lc1 n2).
     Proof with eattac.
@@ -1020,7 +1020,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (* Dont export *)
-    Hint Unfold net_lock_on : LTS.
+    Hint Unfold lock : LTS.
 
     Local Lemma deadset_dep_dec_k [N DS n0] n1 k :
       DeadSet DS N ->
@@ -1044,7 +1044,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           destruct Hx as [L [HLen HL]].
           destruct L; kill HL...
       - rename n1 into n2.
-        eapply deadset_net_lock in HIn as [L [HL Hincl]]; eauto.
+        eapply deadset_lock_set in HIn as [L [HL Hincl]]; eauto.
 
         assert (
             forall n0 : Name,
@@ -1066,15 +1066,15 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
             exists []; eattac.
           }
           assert (L = [] ++ L) as H_sum by auto.
-          assert (forall n1, net_lock_on N n0 n1 -> List.In n1 L) as HLIn.
+          assert (forall n1, lock N n0 n1 -> List.In n1 L) as HLIn.
           {
             intros.
             destruct H0 as [L' [HIn' HL']].
-            destruct (net_lock_equiv HL HL').
+            destruct (lock_set_equiv HL HL').
             apply H1.
             assumption.
           }
-          assert (forall n1, List.In n1 L -> net_lock_on N n0 n1) as HInL.
+          assert (forall n1, List.In n1 L -> lock N n0 n1) as HInL.
           {
             intros.
             exists L; split; auto.
@@ -1328,12 +1328,12 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
       apply HD in HIn1 as HD1.
 
       specialize (deadset_dep_in HDS HIn HD1) as HIn1'.
-      specialize (deadset_net_lock HDS HIn1') as [L1 [HL1' Hincl]].
+      specialize (deadset_lock_set HDS HIn1') as [L1 [HL1' Hincl]].
 
       exists L1; split...
       intros n2 HIn2.
       apply HD...
-      have (net_lock_on N n1 n2).
+      have (lock N n1 n2).
       eattac.
     Qed.
 
@@ -1358,7 +1358,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     Lemma deadlocked_lock_on [N : PNet] [n0 : Name] [n1 : Name] :
       deadlocked n0 N ->
-      net_lock_on N n0 n1 ->
+      lock N n0 n1 ->
       deadlocked n1 N.
 
     Proof.
@@ -1389,7 +1389,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     Lemma deadlocked_lock' [N : PNet] [n0 : Name] [n1 : Name] :
       deadlocked n1 N ->
-      net_lock N [n1] n0 ->
+      lock_set N [n1] n0 ->
       deadlocked n0 N.
 
     Proof.
@@ -1397,7 +1397,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
       intros.
       hsimpl in *.
       exists (n0 :: DS).
-      unfold net_lock_on in *.
+      unfold lock in *.
       hsimpl in *.
       split; auto with LTS datatypes.
       constructor; attac.
@@ -1406,7 +1406,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         split. 1: attac.
         enough (incl [n1] DS) by attac.
         intros ? ?; attac.
-      - consider (exists (L : list Name), net_lock N L n /\ incl L DS).
+      - consider (exists (L : list Name), lock_set N L n /\ incl L DS).
         eattac.
     Qed.
 
@@ -1416,8 +1416,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Lemma deadlocked_lock_invariant1 [N0 N1 : PNet] [n0 : Name] [L : Names] [a] :
       (N0 =(a)=> N1) ->
       deadlocked n0 N0 ->
-      net_lock N0 L n0 ->
-      net_lock N1 L n0.
+      lock_set N0 L n0 ->
+      lock_set N1 L n0.
 
     Proof.
       unfold deadlocked.
@@ -1432,11 +1432,11 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Lemma deadlocked_lock_on_invariant1 [N0 N1 : PNet] [n0 n1 : Name] [a] :
       (N0 =(a)=> N1) ->
       deadlocked n0 N0 ->
-      net_lock_on N0 n0 n1 ->
-      net_lock_on N1 n0 n1.
+      lock N0 n0 n1 ->
+      lock N1 n0 n1.
 
     Proof.
-      unfold net_lock_on.
+      unfold lock.
       intros.
       hsimpl in *.
       exists L; split; eauto using deadset_invariant_lock, deadlocked_lock_invariant1 with datatypes.
@@ -1445,13 +1445,13 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Resolve deadlocked_lock_on_invariant1 | 0 : LTS.
 
 
-    Lemma lock_chain_nil_inv N n0 n1 : lock_chain N n0 [] n1 <-> net_lock_on N n0 n1.
+    Lemma lock_chain_nil_inv N n0 n1 : lock_chain N n0 [] n1 <-> lock N n0 n1.
     Proof. attac. Qed.
 
     #[export] Hint Rewrite -> lock_chain_nil_inv using assumption : LTS LTS_concl.
 
 
-    Lemma lock_chain_cons_inv N n0 n1 n2 L : lock_chain N n0 (n1 :: L) n2 <-> net_lock_on N n0 n1 /\ lock_chain N n1 L n2.
+    Lemma lock_chain_cons_inv N n0 n1 n2 L : lock_chain N n0 (n1 :: L) n2 <-> lock N n0 n1 /\ lock_chain N n1 L n2.
     Proof. split; intros. kill H. attac. attac. Qed.
 
     #[export] Hint Rewrite -> lock_chain_cons_inv using assumption : LTS.
@@ -1493,8 +1493,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Lemma deadlocked_lock_on_invariant [N0 N1 : PNet] [n0 n1 : Name] [path] :
       (N0 =[path]=> N1) ->
       deadlocked n0 N0 ->
-      net_lock_on N0 n0 n1 ->
-      net_lock_on N1 n0 n1.
+      lock N0 n0 n1 ->
+      lock N1 n0 n1.
 
     Proof.
       generalize dependent N0.
@@ -1522,16 +1522,16 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     Module Type LOCKS_UNIQ.
       Definition lock_uniq_type N := forall n m0 m1,
-          net_lock_on N n m0 ->
-          net_lock_on N n m1 ->
+          lock N n m0 ->
+          lock N n m1 ->
           m0 = m1.
 
       Definition lock_neq_nil_type N := forall L n,
-          net_lock N L n ->
+          lock_set N L n ->
           L <> [].
 
       Definition locks_dec_in N := forall n0 n1,
-          net_lock_on N n0 n1 \/ ~ net_lock_on N n0 n1.
+          lock N n0 n1 \/ ~ lock N n0 n1.
 
       #[export] Hint Unfold lock_uniq_type lock_neq_nil_type locks_dec_in : LTS.
 
@@ -1546,21 +1546,21 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Hint Unfold lock_uniq_type lock_neq_nil_type locks_dec_in : core LTS.
         Hint Resolve lock_uniq lock_neq_nil : LTS.
 
-        Local Lemma lock_nil_bs [n] : net_lock N [] n -> False.
+        Local Lemma lock_nil_bs [n] : lock_set N [] n -> False.
         Proof. unfold lock_neq_nil_type in *. bs. Qed.
 
         Hint Immediate lock_nil_bs : bs.
 
         Hint Unfold lock_neq_nil_type : LTS bs.
         Lemma net_get_lock [L n0] :
-          net_lock N L n0 ->
-          exists n1, net_lock N [n1] n0.
+          lock_set N L n0 ->
+          exists n1, lock_set N [n1] n0.
 
         Proof with eattac.
           intros HL.
           destruct L as [|n1]; doubt.
           exists n1.
-          unfold net_lock in *.
+          unfold lock_set in *.
           enough (incl (n1::L) [n1]) by (enough (incl [n1] (n1::L)); attac).
 
           intros ?; attac.
@@ -1571,15 +1571,15 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         Lemma net_get_lock_In [L n0 n1] :
           List.In n1 L ->
-          net_lock N L n0 ->
-          net_lock N [n1] n0.
+          lock_set N L n0 ->
+          lock_set N [n1] n0.
 
         Proof with eattac.
           intros.
 
-          consider (exists n2, net_lock N [n2] n0) by eauto using net_get_lock.
-          assert (net_lock_on N n0 n1)...
-          assert (net_lock_on N n0 n2)...
+          consider (exists n2, lock_set N [n2] n0) by eauto using net_get_lock.
+          assert (lock N n0 n1)...
+          assert (lock N n0 n2)...
           assert (n1 = n2)...
         Qed.
 
@@ -1587,12 +1587,12 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
         Lemma lock_singleton [n0 n1] :
-          net_lock_on N n0 n1 ->
-          net_lock N [n1] n0.
+          lock N n0 n1 ->
+          lock_set N [n1] n0.
 
         Proof with eattac.
           intros.
-          consider (net_lock_on N n0 n1).
+          consider (lock N n0 n1).
           eattac.
         Qed.
 
@@ -1601,7 +1601,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         Lemma deadlocked_lock_on' [n0 : Name] [n1 : Name] :
           deadlocked n1 N ->
-          net_lock_on N n0 n1 ->
+          lock N n0 n1 ->
           deadlocked n0 N.
 
         Proof.
@@ -1629,7 +1629,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 (*          *)
         Lemma dep_loop1 [n0 n1] :
           dep_on N n0 n0 ->
-          net_lock_on N n0 n1 ->
+          lock N n0 n1 ->
           dep_on N n1 n0.
 
         Proof with eattac.
@@ -1703,7 +1703,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         (** If you are directly locked on yourself then you are dependent only on yourself *)
         Lemma lock_self_dep_uniq [n m] :
-          net_lock_on N n n ->
+          lock N n n ->
           dep_on N n m ->
           m = n.
 
@@ -1723,7 +1723,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         (** If you are directly locked on yourself and have a lock chain, then that chain consists of *)
 (*       only you and ends at yourself *)
         Lemma lock_self_lock_chain_uniq [n0 n1 L] :
-          net_lock_on N n0 n0 ->
+          lock N n0 n0 ->
           lock_chain N n0 L n1 ->
           Forall (eq n0) L /\ n1 = n0.
 
@@ -2037,7 +2037,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         (** If you depend on a process with no lock, then the lock chain forms a depset *)
         Lemma dep_on_noloop_dep_set [n0 n1 L] :
           lock_chain N n0 L n1 ->
-          (forall n2, ~ net_lock_on N n1 n2) ->
+          (forall n2, ~ lock N n1 n2) ->
           dep_set N (n1::L) n0.
 
         Proof.
@@ -2108,7 +2108,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
               eapply lock_chain_dep_set_In; eauto.
             }
 
-            enough (net_lock_on N n' a) by attac.
+            enough (lock N n' a) by attac.
             attac.
         Qed.
 
@@ -2128,12 +2128,12 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
         Section Dec.
-          Hypothesis net_lock_on_dec : locks_dec_in N.
+          Hypothesis lock_dec : locks_dec_in N.
 
           Lemma dep_set_lock_on_dec [m n D] :
             dep_set N D m ->
             List.In n D ->
-            (exists n', net_lock_on N n n') \/ forall n', ~ net_lock_on N n n'.
+            (exists n', lock N n n') \/ forall n', ~ lock N n n'.
 
           Proof.
             intros.
@@ -2148,7 +2148,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
               assert (forall m', dep_on N m m' -> In m' (D_past ++ D_next)) by (intros; apply `(dep_set _ _ _); attac).
               attac.
             }
-            assert (forall n', In n' D_past -> ~ net_lock_on N n n') by attac.
+            assert (forall n', In n' D_past -> ~ lock N n n') by attac.
 
             assert (dep_on N m n) by attac.
 
@@ -2158,7 +2158,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
             induction D_next; intros.
             1: { right; attac. }
 
-            destruct (net_lock_on_dec n a).
+            destruct (lock_dec n a).
             1: { attac. }
 
             specialize IHD_next with (D_past := D_past ++ [a]).
@@ -2173,7 +2173,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           Lemma dep_set_lock_set_dec [n0 L0 n1] :
             dep_set N L0 n0 ->
             List.In n1 L0 ->
-            (exists L1, net_lock N L1 n1) \/ (forall n2, ~ net_lock_on N n1 n2).
+            (exists L1, lock_set N L1 n1) \/ (forall n2, ~ lock N n1 n2).
 
           Proof.
             intros HD HIn.
@@ -2192,7 +2192,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           Proof.
             intros HD HDnil.
 
-            enough (exists n1 L, lock_chain N n0 L n1 /\ forall n2, net_lock_on N n1 n2 -> List.In n2 (n0::n1::L))
+            enough (exists n1 L, lock_chain N n0 L n1 /\ forall n2, lock N n1 n2 -> List.In n2 (n0::n1::L))
               as (n1 & L & HL & HIn).
             {
               assert (List.In n1 D) as HIn1 by (apply HD; eattac).
@@ -2206,7 +2206,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
                   split; auto.
                   eapply dep_loop_dep_set in HLc.
                   eapply dep_set_incl; eauto.
-                - assert (net_lock_on N n2 n2) as HD2 by eattac.
+                - assert (lock N n2 n2) as HD2 by eattac.
                   exists n2, L.
                   split; eauto.
                   assert (lock_chain N n2 [] n2) as HLc1 by eattac.
@@ -2256,7 +2256,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
             }
             assert (forall n, List.In n D -> dep_on N n0 n) as HD' by apply HD.
 
-            assert (forall n, List.In n D -> (exists n', net_lock_on N n n') \/ forall n', ~ net_lock_on N n n') as Hlock_dec
+            assert (forall n, List.In n D -> (exists n', lock N n n') \/ forall n', ~ lock N n n') as Hlock_dec
                 by (intros; eapply dep_set_lock_on_dec; eauto).
 
             clear HD.
@@ -2385,10 +2385,10 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
             assert (L <> []) as HLnil.
             {
               destruct L; doubt.
-              destruct (deadset_net_lock HDS HIn) as [L' [HL' _]].
+              destruct (deadset_lock_set HDS HIn) as [L' [HL' _]].
               apply net_get_lock in HL' as [n' HL'].
               unfold dep_set in HL.
-              assert (net_lock_on N n0 n') by attac.
+              assert (lock N n0 n') by attac.
               assert (dep_on N n0 n') as HD' by attac.
               apply HL in HD'.
               bs.
@@ -2411,9 +2411,9 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
             assert (List.In n2 L) as HIn2 by (apply HL; eapply lock_chain_dep; eauto).
 
-            assert (exists n1, net_lock_on N n2 n1) as [n1 HL1].
+            assert (exists n1, lock N n2 n1) as [n1 HL1].
             {
-              apply (deadset_net_lock HDSL) in HIn2 as [L2 [HL2 _]].
+              apply (deadset_lock_set HDSL) in HIn2 as [L2 [HL2 _]].
               apply net_get_lock in HL2 as [n1 HL2].
               exists n1.
               eattac.
@@ -2434,12 +2434,12 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         Theorem net_send_no_lock [L n0 n1 t v] :
           (N0 =(NComm n0 n1 t v)=> N1) ->
-          ~ net_lock N0 L n0.
+          ~ lock_set N0 L n0.
 
         Proof.
           intros.
           intros ?; subst.
-          consider (exists L, serv_lock L (NetMod.get n0 N0)) by (unfold net_lock in *; attac).
+          consider (exists L, serv_lock L (NetMod.get n0 N0)) by (unfold lock_set in *; attac).
           consider (exists S, NetMod.get n0 N0 =(send (n1, &t) v)=> S) by (consider (_ =(_)=> _); eattac).
           destruct (NetMod.get n0 N0) as [I0 P0 O0] eqn:?.
           consider (serv_lock _ _).
@@ -2449,7 +2449,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         Lemma net_send_lock_neq [L n0 n1 m t v] :
           (N0 =(NComm n0 n1 t v)=> N1) ->
-          net_lock N0 L m ->
+          lock_set N0 L m ->
           m <> n0.
 
         Proof.
@@ -2460,12 +2460,12 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         Lemma net_tau_preserve_lock [L n0 n a] :
           (N0 =(NTau n a)=> N1) ->
-          net_lock N0 L n0 ->
-          net_lock N1 L n0.
+          lock_set N0 L n0 ->
+          lock_set N1 L n0.
 
         Proof.
           intros.
-          unfold net_lock in *.
+          unfold lock_set in *.
           smash_eq n0 n.
           - exfalso.
             hsimpl in *.
@@ -2476,14 +2476,14 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         Lemma net_comm_Q_preserve_lock [L n0 m0 m1 v] :
           (N0 =(NComm m0 m1 Q v)=> N1) ->
-          net_lock N0 L n0 ->
-          net_lock N1 L n0.
+          lock_set N0 L n0 ->
+          lock_set N1 L n0.
 
         Proof.
           intros.
 
           assert (n0 <> m0) by eauto using net_send_lock_neq.
-          unfold net_lock in *.
+          unfold lock_set in *.
           smash_eq n0 m1.
           - hsimpl in *.
             assert (not_unlocking_msg L (Recv (m0, Q) v)) by attac.
@@ -2493,11 +2493,11 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Qed.
 
 
-        Lemma net_lock_bad_sender_preserve [L n0 m0 m1 t v] :
+        Lemma lock_set_bad_sender_preserve [L n0 m0 m1 t v] :
           ~ In m1 L ->
           (N0 =(NComm m1 m0 t v)=> N1) ->
-          net_lock N0 L n0 ->
-          net_lock N1 L n0.
+          lock_set N0 L n0 ->
+          lock_set N1 L n0.
 
         Proof.
           intros.
@@ -2505,7 +2505,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           destruct t.
           1: { eauto using net_comm_Q_preserve_lock. }
 
-          unfold net_lock in *.
+          unfold lock_set in *.
 
           smash_eq n0 m0.
           2: { replace (NetMod.get n0 N1) with (NetMod.get n0 N0); eattac. }
@@ -2521,33 +2521,33 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Qed.
 
 
-        Lemma net_lock_bad_receiver_preserve [L n0 m0 m1 t v] :
+        Lemma lock_set_bad_receiver_preserve [L n0 m0 m1 t v] :
           n0 <> m0 ->
-          net_lock N0 L n0 ->
+          lock_set N0 L n0 ->
           (N0 =(NComm m1 m0 t v)=> N1) ->
-          net_lock N1 L n0.
+          lock_set N1 L n0.
 
         Proof.
           intros.
 
           assert (n0 <> m1) by eauto using net_send_lock_neq.
-          unfold net_lock in *.
+          unfold lock_set in *.
           hsimpl in *.
           replace (NetMod.get n0 N1) with (NetMod.get n0 N0); eattac.
         Qed.
 
 
-        Lemma net_lock_reply_unlock [L L' n0 n1 v] :
+        Lemma lock_set_reply_unlock [L L' n0 n1 v] :
           In n1 L' ->
           In n1 L ->
-          net_lock N0 L n0 ->
+          lock_set N0 L n0 ->
           (N0 =(NComm n1 n0 R v)=> N1) ->
-          ~ net_lock N1 L' n0.
+          ~ lock_set N1 L' n0.
 
         Proof.
           repeat (intros ?).
           assert (n0 <> n1) by eauto using net_send_lock_neq.
-          unfold net_lock in *.
+          unfold lock_set in *.
           consider (_ =(_)=> _); hsimpl in *.
 
           compat_hsimpl in *.
@@ -2558,57 +2558,57 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
         Lemma net_unlock_send_inv [L n0 m0 m1 v] :
-          net_lock N0 L n0 ->
-          ~ net_lock N1 L n0 ->
+          lock_set N0 L n0 ->
+          ~ lock_set N1 L n0 ->
           (N0 =(NComm m1 m0 R v)=> N1) ->
           In m1 L.
 
         Proof.
           intros.
           destruct (in_dec NAME.eq_dec m1 L); eauto.
-          absurd (net_lock N1 L n0); eauto using eq_sym, net_lock_bad_sender_preserve.
+          absurd (lock_set N1 L n0); eauto using eq_sym, lock_set_bad_sender_preserve.
         Qed.
 
 
         Lemma net_unlock_recv_inv [L n0 m0 m1 v] :
-          net_lock N0 L n0 ->
-          ~ net_lock N1 L n0 ->
+          lock_set N0 L n0 ->
+          ~ lock_set N1 L n0 ->
           (N0 =(NComm m1 m0 R v)=> N1) ->
           m0 = n0.
 
         Proof.
           intros.
           smash_eq n0 m0.
-          absurd (net_lock N1 L n0); eauto using eq_sym, net_lock_bad_receiver_preserve.
+          absurd (lock_set N1 L n0); eauto using eq_sym, lock_set_bad_receiver_preserve.
         Qed.
 
 
         Lemma net_unlock_tag_inv [L n0 m0 m1 t v] :
-          net_lock N0 L n0 ->
-          ~ net_lock N1 L n0 ->
+          lock_set N0 L n0 ->
+          ~ lock_set N1 L n0 ->
           (N0 =(NComm m1 m0 t v)=> N1) ->
           t = R.
 
         Proof.
           intros.
           destruct t; auto.
-          absurd (net_lock N1 L n0); eauto using net_comm_Q_preserve_lock.
+          absurd (lock_set N1 L n0); eauto using net_comm_Q_preserve_lock.
         Qed.
 
 
         Theorem net_unlock_reply [L n0 a] :
-          net_lock N0 L n0 ->
-          ~ net_lock N1 L n0 ->
+          lock_set N0 L n0 ->
+          ~ lock_set N1 L n0 ->
           (N0 =(a)=> N1) ->
           exists n1 v, a = NComm n1 n0 R v /\ In n1 L.
 
         Proof.
           intros.
           destruct a.
-          1: { absurd (net_lock N1 L n0); eauto using net_tau_preserve_lock. }
+          1: { absurd (lock_set N1 L n0); eauto using net_tau_preserve_lock. }
 
           destruct t.
-          1: { absurd (net_lock N1 L n0); eauto using net_comm_Q_preserve_lock. }
+          1: { absurd (lock_set N1 L n0); eauto using net_comm_Q_preserve_lock. }
 
           exists n.
 
@@ -2619,95 +2619,95 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Qed.
 
 
-        Theorem net_lock_on_no_send [n0 n1 m0 m1 t v] :
-          net_lock_on N0 n0 n1 ->
+        Theorem lock_no_send [n0 n1 m0 m1 t v] :
+          lock N0 n0 n1 ->
           (N0 =(NComm m0 m1 t v)=> N1) ->
           n0 <> m0.
 
         Proof.
           intros.
-          unfold net_lock_on in *.
+          unfold lock in *.
           hsimpl in * |-.
           eauto using net_send_lock_neq with LTS.
         Qed.
 
 
-        Lemma net_lock_on_tau_preserve [n0 n1 n a] :
-          net_lock_on N0 n0 n1 ->
+        Lemma lock_tau_preserve [n0 n1 n a] :
+          lock N0 n0 n1 ->
           (N0 =(NTau n a)=> N1) ->
-          net_lock_on N1 n0 n1.
+          lock N1 n0 n1.
 
         Proof.
           intros.
-          assert (exists L, In n1 L /\ net_lock N0 L n0) as [L [? ?]] by attac.
+          assert (exists L, In n1 L /\ lock_set N0 L n0) as [L [? ?]] by attac.
           exists L.
           eauto using net_tau_preserve_lock.
         Qed.
 
 
-        Lemma net_lock_on_Q_preserve [n0 n1 m0 m1 v] :
-          net_lock_on N0 n0 n1 ->
+        Lemma lock_Q_preserve [n0 n1 m0 m1 v] :
+          lock N0 n0 n1 ->
           (N0 =(NComm m0 m1 Q v)=> N1) ->
-          net_lock_on N1 n0 n1.
+          lock N1 n0 n1.
 
         Proof.
           intros.
-          assert (exists L, In n1 L /\ net_lock N0 L n0) as [L [? ?]] by attac.
+          assert (exists L, In n1 L /\ lock_set N0 L n0) as [L [? ?]] by attac.
           exists L.
           eauto using net_comm_Q_preserve_lock.
         Qed.
 
 
-        Lemma net_lock_on_bad_receiver_preserve [n0 n1 m0 m1 t v] :
+        Lemma lock_bad_receiver_preserve [n0 n1 m0 m1 t v] :
           n0 <> m0 ->
-          net_lock_on N0 n0 n1 ->
+          lock N0 n0 n1 ->
           (N0 =(NComm m1 m0 t v)=> N1) ->
-          net_lock_on N1 n0 n1.
+          lock N1 n0 n1.
 
         Proof.
           intros.
-          assert (exists L, In n1 L /\ net_lock N0 L n0) as [L [? ?]] by attac.
+          assert (exists L, In n1 L /\ lock_set N0 L n0) as [L [? ?]] by attac.
           exists L.
-          eauto using  net_lock_bad_receiver_preserve.
+          eauto using  lock_set_bad_receiver_preserve.
         Qed.
 
 
-        Lemma net_lock_on_reply_unlock [n0 n1 v] :
-          net_lock_on N0 n0 n1 ->
+        Lemma lock_reply_unlock [n0 n1 v] :
+          lock N0 n0 n1 ->
           (N0 =(NComm n1 n0 R v)=> N1) ->
-          ~ net_lock_on N1 n0 n1.
+          ~ lock N1 n0 n1.
 
         Proof.
           intros.
           intros ?.
-          assert (exists L, In n1 L /\ net_lock N0 L n0) as [L [? ?]] by attac.
-          assert (exists L', In n1 L' /\ net_lock N1 L' n0) as [L' [? ?]] by attac.
-          absurd (net_lock N1 L' n0); eauto using net_lock_reply_unlock with datatypes.
+          assert (exists L, In n1 L /\ lock_set N0 L n0) as [L [? ?]] by attac.
+          assert (exists L', In n1 L' /\ lock_set N1 L' n0) as [L' [? ?]] by attac.
+          absurd (lock_set N1 L' n0); eauto using lock_set_reply_unlock with datatypes.
         Qed.
 
 
         Lemma net_unlock_on_recv_inv [n0 n1 m0 m1 v] :
-          net_lock_on N0 n0 n1 ->
-          ~ net_lock_on N1 n0 n1 ->
+          lock N0 n0 n1 ->
+          ~ lock N1 n0 n1 ->
           (N0 =(NComm m1 m0 R v)=> N1) ->
           m0 = n0.
 
         Proof.
           intros.
-          assert (exists L, In n1 L /\ net_lock N0 L n0) as [L [? ?]] by attac.
+          assert (exists L, In n1 L /\ lock_set N0 L n0) as [L [? ?]] by attac.
           (eapply net_unlock_recv_inv; eattac).
         Qed.
 
 
         Lemma net_unlock_on_tag_inv [n0 n1 m0 m1 t v] :
-          net_lock_on N0 n0 n1 ->
-          ~ net_lock_on N1 n0 n1 ->
+          lock N0 n0 n1 ->
+          ~ lock N1 n0 n1 ->
           (N0 =(NComm m1 m0 t v)=> N1) ->
           t = R.
 
         Proof.
           intros.
-          assert (exists L, In n1 L /\ net_lock N0 L n0) as [L [? ?]] by attac.
+          assert (exists L, In n1 L /\ lock_set N0 L n0) as [L [? ?]] by attac.
           (eapply net_unlock_tag_inv; eattac).
         Qed.
 
@@ -2720,10 +2720,10 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Proof.
           intros.
           induction `(dep_on _ _ _).
-          - enough (net_lock_on N1 n0 n1) by attac.
-            re_have eauto using net_lock_on_tau_preserve.
-          - enough (net_lock_on N1 n0 n1 /\ dep_on N1 n1 n2) by attac.
-            re_have eauto using net_lock_on_tau_preserve.
+          - enough (lock N1 n0 n1) by attac.
+            re_have eauto using lock_tau_preserve.
+          - enough (lock N1 n0 n1 /\ dep_on N1 n1 n2) by attac.
+            re_have eauto using lock_tau_preserve.
         Qed.
 
 
@@ -2735,10 +2735,10 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Proof.
           intros.
           induction `(dep_on _ _ _).
-          - enough (net_lock_on N1 n0 n1) by attac.
-            re_have eauto using net_lock_on_Q_preserve.
-          - enough (net_lock_on N1 n0 n1 /\ dep_on N1 n1 n2) by attac.
-            re_have eauto using net_lock_on_Q_preserve with LTS.
+          - enough (lock N1 n0 n1) by attac.
+            re_have eauto using lock_Q_preserve.
+          - enough (lock N1 n0 n1 /\ dep_on N1 n1 n2) by attac.
+            re_have eauto using lock_Q_preserve with LTS.
         Qed.
 
 
@@ -2753,13 +2753,13 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Proof.
           intros.
           induction `(dep_on _ _ _).
-          - enough (net_lock_on N1 n0 n1) by attac.
-            re_have eauto using net_lock_on_bad_receiver_preserve.
-          - assert (n1 <> m1) by (consider (dep_on _ n1 _); eauto using net_lock_on_no_send).
+          - enough (lock N1 n0 n1) by attac.
+            re_have eauto using lock_bad_receiver_preserve.
+          - assert (n1 <> m1) by (consider (dep_on _ n1 _); eauto using lock_no_send).
             smash_eq m0 n1.
             + eattac 2.
-            + enough (net_lock_on N1 n0 n1 /\ dep_on N1 n1 n2) by attac.
-              split; re_have eauto using net_lock_on_bad_receiver_preserve with LTS.
+            + enough (lock N1 n0 n1 /\ dep_on N1 n1 n2) by attac.
+              split; re_have eauto using lock_bad_receiver_preserve with LTS.
         Qed.
 
 
@@ -2776,36 +2776,36 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
         Lemma net_unlock_on_send_inv [n0 n1 m0 m1 v] :
-          net_lock_on N0 n0 n1 ->
-          ~ net_lock_on N1 n0 n1 ->
+          lock N0 n0 n1 ->
+          ~ lock N1 n0 n1 ->
           (N0 =(NComm m1 m0 R v)=> N1) ->
           m1 = n1.
 
         Proof.
           intros.
-          assert (exists L, In n1 L /\ net_lock N0 L n0) as [L [? ?]] by attac.
+          assert (exists L, In n1 L /\ lock_set N0 L n0) as [L [? ?]] by attac.
           assert (In m1 L) by (eapply net_unlock_send_inv; eattac).
           eattac.
         Qed.
 
 
-        Lemma net_lock_on_bad_sender_preserve [n0 n1 m0 m1 t v] :
+        Lemma lock_bad_sender_preserve [n0 n1 m0 m1 t v] :
           n1 <> m1 ->
-          net_lock_on N0 n0 n1 ->
+          lock N0 n0 n1 ->
           (N0 =(NComm m1 m0 t v)=> N1) ->
-          net_lock_on N1 n0 n1.
+          lock N1 n0 n1.
 
         Proof.
           intros.
           exists [n1]. split > [eattac|].
           assert (~ In m1 [n1]) by attac.
-          eauto using net_lock_bad_sender_preserve, lock_singleton.
+          eauto using lock_set_bad_sender_preserve, lock_singleton.
         Qed.
 
 
         Theorem net_unlock_on_reply [n0 n1 a] :
-          net_lock_on N0 n0 n1 ->
-          ~ net_lock_on N1 n0 n1 ->
+          lock N0 n0 n1 ->
+          ~ lock N1 n0 n1 ->
           (N0 =(a)=> N1) ->
           exists v, a = NComm n1 n0 R v.
 
@@ -2814,14 +2814,14 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
           enough (exists n' v, a = NComm n' n0 R v /\ In n' [n1]) by eattac.
 
-          enough (net_lock N0 [n1] n0) by (eapply net_unlock_reply; eattac).
+          enough (lock_set N0 [n1] n0) by (eapply net_unlock_reply; eattac).
           eauto using lock_singleton.
         Qed.
 
 
         (** Receiver is not locked on our dependency - we depend on what we depended *)
         Lemma net_dep_bad_receiver_lock_preserve [n0 n1 m0 m1 t v] :
-          ~ net_lock_on N0 m0 n1 ->
+          ~ lock N0 m0 n1 ->
           dep_on N0 n0 n1 ->
           (N0 =(NComm m1 m0 t v)=> N1) ->
           dep_on N1 n0 n1.
@@ -2831,11 +2831,11 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
           induction `(dep_on _ _ _).
           - smash_eq n0 m0.
-            enough (net_lock_on N1 n0 n1) by attac.
-            eauto using net_lock_on_bad_receiver_preserve.
-          - assert (n1 <> m1) by (consider (dep_on _ n1 _); eauto using net_lock_on_no_send).
-            enough (net_lock_on N1 n0 n1 /\ dep_on N1 n1 n2) by attac 2.
-            re_have eauto using net_lock_on_bad_sender_preserve with LTS.
+            enough (lock N1 n0 n1) by attac.
+            eauto using lock_bad_receiver_preserve.
+          - assert (n1 <> m1) by (consider (dep_on _ n1 _); eauto using lock_no_send).
+            enough (lock N1 n0 n1 /\ dep_on N1 n1 n2) by attac 2.
+            re_have eauto using lock_bad_sender_preserve with LTS.
         Qed.
 
 
@@ -2848,37 +2848,37 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Proof.
           intros.
           induction `(dep_on _ _ _).
-          - enough (net_lock_on N1 n0 n1) by attac.
-            re_have eauto using net_lock_on_bad_sender_preserve.
-          - assert (n1 <> m1) by (consider (dep_on _ n1 _); eauto using net_lock_on_no_send).
-            enough (net_lock_on N1 n0 n1 /\ dep_on N1 n1 n2) by attac.
-            re_have eauto using net_lock_on_bad_sender_preserve with LTS.
+          - enough (lock N1 n0 n1) by attac.
+            re_have eauto using lock_bad_sender_preserve.
+          - assert (n1 <> m1) by (consider (dep_on _ n1 _); eauto using lock_no_send).
+            enough (lock N1 n0 n1 /\ dep_on N1 n1 n2) by attac.
+            re_have eauto using lock_bad_sender_preserve with LTS.
         Qed.
 
 
         Lemma net_unlock_on_tip [n0 n1 n2 a] :
-          net_lock_on N0 n0 n1 ->
-          net_lock_on N0 n1 n2 ->
+          lock N0 n0 n1 ->
+          lock N0 n1 n2 ->
           (N0 =(a)=> N1) ->
-          net_lock_on N1 n0 n1.
+          lock N1 n0 n1.
 
         Proof.
           intros.
           destruct a.
-          1: { eauto using net_lock_on_tau_preserve. }
+          1: { eauto using lock_tau_preserve. }
 
           smash_eq n1 n.
-          2: { eauto using net_lock_on_bad_sender_preserve. }
+          2: { eauto using lock_bad_sender_preserve. }
 
-          bs (n1 <> n1) by eauto using net_lock_on_no_send.
+          bs (n1 <> n1) by eauto using lock_no_send.
         Qed.
 
 
         Lemma net_unlock_on_dep_tip [n0 n1 n2 a] :
-          net_lock_on N0 n0 n1 ->
+          lock N0 n0 n1 ->
           dep_on N0 n1 n2 ->
           (N0 =(a)=> N1) ->
-          net_lock_on N1 n0 n1.
+          lock N1 n0 n1.
 
         Proof.
           intros.
@@ -2888,16 +2888,16 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         Lemma net_undep_lock_on_tip [n0 n1 n2 a] :
           dep_on N0 n0 n1 ->
-          net_lock_on N0 n1 n2 ->
+          lock N0 n1 n2 ->
           (N0 =(a)=> N1) ->
           dep_on N1 n0 n1.
 
         Proof.
           intros.
           induction `(dep_on _ _ _).
-          - enough (net_lock_on N1 n0 n1) by attac.
+          - enough (lock N1 n0 n1) by attac.
             eauto using net_unlock_on_tip.
-          - assert (net_lock_on N1 n0 n1) by eauto using net_unlock_on_dep_tip.
+          - assert (lock N1 n0 n1) by eauto using net_unlock_on_dep_tip.
             eattac.
         Qed.
 
@@ -2915,22 +2915,22 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
         Lemma net_unlock_on_tip_right [n0 n1 n2 a] :
-          net_lock_on N0 n0 n1 ->
-          net_lock_on N0 n1 n2 ->
+          lock N0 n0 n1 ->
+          lock N0 n1 n2 ->
           ~ dep_on N1 n0 n2 ->
           (N0 =(a)=> N1) ->
-          ~ net_lock_on N1 n1 n2.
+          ~ lock N1 n1 n2.
 
         Proof.
           intros.
 
-          assert (net_lock_on N1 n0 n1) by eauto using net_unlock_on_tip.
+          assert (lock N1 n0 n1) by eauto using net_unlock_on_tip.
           intros ?; bs.
         Qed.
 
 
         Lemma net_unlock_on_dep_tip_right [n0 n1 n2 a] :
-          net_lock_on N0 n0 n1 ->
+          lock N0 n0 n1 ->
           dep_on N0 n1 n2 ->
           ~ dep_on N1 n0 n2 ->
           (N0 =(a)=> N1) ->
@@ -2939,17 +2939,17 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Proof.
           intros.
 
-          assert (net_lock_on N1 n0 n1) by eauto using net_unlock_on_dep_tip.
+          assert (lock N1 n0 n1) by eauto using net_unlock_on_dep_tip.
           intros ?; bs.
         Qed.
 
 
         Lemma net_undep_lock_on_tip_right [n0 n1 n2 a] :
           dep_on N0 n0 n1 ->
-          net_lock_on N0 n1 n2 ->
+          lock N0 n1 n2 ->
           ~ dep_on N1 n0 n2 ->
           (N0 =(a)=> N1) ->
-          ~ net_lock_on N1 n1 n2.
+          ~ lock N1 n1 n2.
 
         Proof.
           intros.
@@ -2991,7 +2991,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
         Lemma net_undep_recv_inv [n0 n1 n2 m0 m1 t v] :
           dep_on N0 n0 n1 ->
-          net_lock_on N0 n1 n2 ->
+          lock N0 n1 n2 ->
           ~ dep_on N1 n0 n2 ->
           (N0 =(NComm m1 m0 t v)=> N1) ->
           m0 = n1.
@@ -3004,7 +3004,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
           destruct t.
           1: { absurd (dep_on N1 n0 n2); eauto using net_dep_Q_preserve with LTS. }
 
-          assert (~ net_lock_on N1 n1 n2) by (intros ?; bs).
+          assert (~ lock N1 n1 n2) by (intros ?; bs).
 
           eauto using net_unlock_on_recv_inv.
         Qed.
@@ -3036,20 +3036,20 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Proof.
           intros.
           induction `(dep_on N0 n0 n1).
-          -  assert (~ net_lock_on N1 n0 n1) by (intros ?; bs).
+          -  assert (~ lock N1 n0 n1) by (intros ?; bs).
              consider (exists v, a = NComm n1 n0 R v) by eauto using net_unlock_on_reply.
              eattac.
           - smash_eq n0 n1.
             + enough (n2 = n0) by attac.
               eauto 2 using lock_self_dep_uniq with LTS.
-            + assert (net_lock_on N1 n0 n1).
+            + assert (lock N1 n0 n1).
               {
                 destruct a.
-                1: { eauto using net_lock_on_tau_preserve. }
+                1: { eauto using lock_tau_preserve. }
                 smash_eq n1 n.
-                2: { eauto using net_lock_on_bad_sender_preserve. }
+                2: { eauto using lock_bad_sender_preserve. }
 
-                absurd (n1 <> n1); consider (dep_on _ n1 _); eauto using net_lock_on_no_send.
+                absurd (n1 <> n1); consider (dep_on _ n1 _); eauto using lock_no_send.
               }
               assert (~ dep_on N1 n1 n2) by attac.
 
@@ -3078,17 +3078,17 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         lock_self_dep_uniq
 
         (* net_send_lock_neq *)
-        (* net_lock_tau_preserve *)
-        (* net_lock_Q_preserve *)
-        (* net_lock_bad_sender_preserve *)
-        (* net_lock_bad_receiver_preserve *)
+        (* lock_set_tau_preserve *)
+        (* lock_set_Q_preserve *)
+        (* lock_set_bad_sender_preserve *)
+        (* lock_set_bad_receiver_preserve *)
 
-        (* net_lock_on_no_send *)
-        (* net_lock_on_tau_preserve *)
-        (* net_lock_on_Q_preserve *)
-        (* net_lock_on_bad_sender_preserve *)
-        (* net_lock_on_bad_receiver_preserve *)
-        (* net_lock_on_reply_unlock *)
+        (* lock_no_send *)
+        (* lock_tau_preserve *)
+        (* lock_Q_preserve *)
+        (* lock_bad_sender_preserve *)
+        (* lock_bad_receiver_preserve *)
+        (* lock_reply_unlock *)
 
         (* net_dep_tau_preserve *)
         (* net_dep_Q_preserve *)
@@ -3113,7 +3113,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         dep_reloop
         dep_set_reloop
         net_unlock_send_inv
-        net_lock_reply_unlock (* TODO FIXME why the fsck this causes a loop *)
+        lock_set_reply_unlock (* TODO FIXME why the fsck this causes a loop *)
         : LTS.
 
       #[export] Hint Rewrite -> lock_self_dep_uniq using assumption : LTS.

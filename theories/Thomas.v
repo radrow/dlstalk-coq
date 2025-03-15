@@ -516,13 +516,13 @@ Module Thomas.
   Qed.
 
 
-  Lemma gen_net_lock_finger : forall conf name i,
-      net_lock_on (gen_net conf) (Initiator name (S i)) (Initiator name i).
+  Lemma gen_lock_set_finger : forall conf name i,
+      lock (gen_net conf) (Initiator name (S i)) (Initiator name i).
 
   Proof.
     intros.
     eexists [_]. 1: attac.
-    unfold net_lock.
+    unfold lock_set.
     unfold gen_net.
     rewrite NetMod.init_get.
     blast_cases.
@@ -536,32 +536,32 @@ Module Thomas.
     eauto using SRPC_Finger.
   Qed.
 
-  Lemma gen_net_lock_init : forall conf name other,
-      ~ net_lock_on (gen_net conf) (Initiator name 0) other.
+  Lemma gen_lock_set_init : forall conf name other,
+      ~ lock (gen_net conf) (Initiator name 0) other.
 
   Proof.
     intros.
     intros ?.
     apply lock_singleton in H.
-    2: apply SRPC_net_lock_uniq; eauto using gen_net_SRPC.
-    2: apply SRPC_net_lock_neq_nil; eauto using gen_net_SRPC.
-    unfold net_lock in *.
+    2: apply SRPC_lock_set_uniq; eauto using gen_net_SRPC.
+    2: apply SRPC_lock_set_neq_nil; eauto using gen_net_SRPC.
+    unfold lock_set in *.
     unfold gen_net in *.
     rewrite NetMod.init_get in *.
     blast_cases.
     kill H.
   Qed.
 
-  Lemma gen_net_lock_worker : forall conf name other,
-      ~ net_lock_on (gen_net conf) (Worker name) other.
+  Lemma gen_lock_set_worker : forall conf name other,
+      ~ lock (gen_net conf) (Worker name) other.
 
   Proof.
     intros.
     intros ?.
     apply lock_singleton in H.
-    2: apply SRPC_net_lock_uniq; eauto using gen_net_SRPC.
-    2: apply SRPC_net_lock_neq_nil; eauto using gen_net_SRPC.
-    unfold net_lock in *.
+    2: apply SRPC_lock_set_uniq; eauto using gen_net_SRPC.
+    2: apply SRPC_lock_set_neq_nil; eauto using gen_net_SRPC.
+    unfold lock_set in *.
     unfold gen_net in *.
     rewrite NetMod.init_get in *.
     blast_cases.
@@ -604,19 +604,19 @@ Module Thomas.
   Qed.
 
 
-  Lemma gen_net_lock_inv : forall conf n0 n1,
-      net_lock_on (gen_net conf) n0 n1 ->
+  Lemma gen_lock_set_inv : forall conf n0 n1,
+      lock (gen_net conf) n0 n1 ->
       exists name i, n0 = Initiator name (S i) /\ n1 = Initiator name i.
 
   Proof.
     intros.
     destruct n0 as [name0 [|i0] | name0].
-    - apply gen_net_lock_init in H; bs.
-    - assert (net_lock_on (gen_net conf) (Initiator name0 (S i0)) (Initiator name0 i0)) by
-        eauto using gen_net_lock_finger.
-      assert (n1 = Initiator name0 i0) by (eapply SRPC_net_lock_uniq; eauto using gen_net_SRPC).
+    - apply gen_lock_set_init in H; bs.
+    - assert (lock (gen_net conf) (Initiator name0 (S i0)) (Initiator name0 i0)) by
+        eauto using gen_lock_set_finger.
+      assert (n1 = Initiator name0 i0) by (eapply SRPC_lock_set_uniq; eauto using gen_net_SRPC).
       attac.
-    - apply gen_net_lock_worker in H; bs.
+    - apply gen_lock_set_worker in H; bs.
   Qed.
 
 
@@ -651,13 +651,13 @@ Module Thomas.
     constructor.
     - apply gen_net_service_wf.
     - intros n0 n1 **.
-      apply (gen_net_lock_inv conf n0 n1) in H.
+      apply (gen_lock_set_inv conf n0 n1) in H.
       attac.
       apply gen_net_client_finger.
     - intros n0 n1 **.
       apply (gen_net_client_inv conf n0 n1) in H.
       attac.
-      apply gen_net_lock_finger.
+      apply gen_lock_set_finger.
   Qed.
 
 
@@ -700,9 +700,9 @@ Module Thomas.
 
     kill H.
     - constructor.
-      eapply gen_net_lock_finger.
+      eapply gen_lock_set_finger.
     - econstructor 2.
-      eapply gen_net_lock_finger.
+      eapply gen_lock_set_finger.
       eapply IHi0.
       kill H0; attac.
   Qed.
@@ -716,13 +716,13 @@ Module Thomas.
     apply dep_lock_chain in H as [L [H ?]].
     generalize dependent n0.
     induction L; intros; kill H.
-    - apply gen_net_lock_inv in H1.
+    - apply gen_lock_set_inv in H1.
       attac.
       exists name, (S i), i.
       attac.
     - hsimpl in *.
       specialize (IHL ltac:(auto) a ltac:(auto)).
-      apply gen_net_lock_inv in H1.
+      apply gen_lock_set_inv in H1.
       attac.
       exists name0, (S i0), i1.
       attac.
@@ -745,13 +745,13 @@ Module Thomas.
       blast_cases; compat_hsimpl in *; attac.
     - unfold gen_mnet in *.
       rewrite net_deinstr_instr in *.
-      apply gen_net_lock_inv in H.
+      apply gen_lock_set_inv in H.
       attac.
       unfold gen_net, make_instr, apply_instr, serv_instr in *.
       attac.
     - unfold gen_mnet in *.
       rewrite net_deinstr_instr in *.
-      apply gen_net_lock_inv in H.
+      apply gen_lock_set_inv in H.
       attac.
       unfold gen_net, make_instr, apply_instr, serv_instr in *.
       attac.
@@ -779,15 +779,15 @@ Module Thomas.
 
       blast_cases; attac.
       blast_cases; attac.
-      apply gen_net_lock_finger.
+      apply gen_lock_set_finger.
     -  unfold gen_mnet in *.
        rewrite net_deinstr_instr.
        unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
 
        blast_cases; attac.
        blast_cases; attac.
-       apply gen_net_lock_finger.
-       apply gen_net_lock_finger.
+       apply gen_lock_set_finger.
+       apply gen_lock_set_finger.
     - unfold gen_mnet in *.
       rewrite net_deinstr_instr.
       unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
@@ -1079,7 +1079,7 @@ Module Thomas.
     split; eauto.
     constructor. 1: { clear; attac. }
     intros.
-    unfold net_lock.
+    unfold lock_set.
     compat_hsimpl.
     specialize (H0 n).
     clear H.

@@ -50,7 +50,7 @@ Module Paper.
     (forall v E, ~ Deq (n, R) v (serv_i S) E) /\ (exists c, SRPC (Lock c n) (serv_p S)) /\ (serv_o S = []).
 
   Definition dead_set (DS : list Name) N :=
-    DS <> []  /\  (forall n0, In n0 DS -> exists n1, net_lock_on N n0 n1 /\ In n1 DS).
+    DS <> []  /\  (forall n0, In n0 DS -> exists n1, lock N n0 n1 /\ In n1 DS).
 
   Inductive SRPCI : SRPC_State -> Proc -> Prop :=
   | SRPCI_R h :
@@ -103,16 +103,16 @@ Proof.
   split; intros; repeat constructor; intros.
   - attac.
   - consider (DeadSet _ _).
-    consider (exists L, net_lock N L n0 /\ incl L DS).
-    unfold net_lock, net_lock_on in *.
+    consider (exists L, lock_set N L n0 /\ incl L DS).
+    unfold lock_set, lock in *.
     consider (exists n1, serv_lock [n1] (NetMod.get n0 N)) by eauto with LTS.
     exists n1.
     eattac.
   - attac.
   - hsimpl in *.
-    consider (exists n1, net_lock_on N n n1 /\ _) by eauto.
+    consider (exists n1, lock N n n1 /\ _) by eauto.
     exists [n1].
-    unfold incl, net_lock_on in *.
+    unfold incl, lock in *.
     attac.
 Qed.
 
