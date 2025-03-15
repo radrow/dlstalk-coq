@@ -1070,7 +1070,7 @@ Ltac2 find_i (t : constr) (solv : (unit -> unit) option) : ident :=
 Notation "`( t )" :=
   (ltac2:(let x :=
             Ltac2.Constr.Pretype.pretype
-              Constr.Pretype.Flags.open_constr_flags_with_no_tc
+              Constr.Pretype.Flags.open_constr_flags_no_tc
               Constr.Pretype.expected_without_type_constraint
               t
           in
