@@ -1745,8 +1745,6 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Hint Immediate deadlocked_M_NoRecvR : LTS.
 
 
-  Print "Proving invariance of KIC".
-
   Lemma KIC_invariant_H_lock [MN0 MN1 : MNet] [na] :
     well_formed MN0 ->
     (forall n0 n1, lock MN0 n0 n1 -> lock (MN0 n0) = Some n1) ->
@@ -3478,7 +3476,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Hint Resolve KIC_invariant : LTS inv.
   Hint Extern 0 (KIC _) => solve_invariant : LTS.
 
-  Print "Invariance of KIC proven".
+  Check KIC_invariant.
 
   Definition detect_path DS := Forall (fun a : MNAct => exists n : Name, In n DS /\ Flushing_NAct n a).
 
@@ -5468,7 +5466,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem detection_completeness : forall (i0 : instr) N0 MN1 mpath0 DS,
+  Theorem detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
       KIC (i0 N0) ->
       (i0 N0 =[ mpath0 ]=> MN1) ->
       DeadSet DS MN1 ->
@@ -5486,6 +5484,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     exists mpath1, MN2, n'.
     now eauto with LTS.
   Qed.
+
+  Check detection_complete.
 
 
   Corollary find_detection  : forall (i0 : instr) (N0 N1 : PNet) path (DS : Names),
