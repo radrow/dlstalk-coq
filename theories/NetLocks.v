@@ -175,31 +175,31 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Deadlocked set is a list of processes so that their lock lists are sublists of it *)
-    Inductive DeadSet (DS : list Name) N :=
+    Inductive dead_set (DS : list Name) N :=
       deadset
         (HDS_Nil : DS <> [])
         (HDS_Sub : forall (n : Name),
             List.In n DS ->
             exists (L : list Name), lock_set N L n /\ incl L DS
         )
-        : DeadSet DS N.
+        : dead_set DS N.
 
 
     (** Network is deadlocked when it has a deadlocked set *)
-    Inductive Deadlocked N : Prop :=
+    Inductive has_dead_set N : Prop :=
     | deadnet (DL : Names) :
-      DeadSet DL N ->
-      Deadlocked N
+      dead_set DL N ->
+      has_dead_set N
     .
 
-    #[export] Hint Constructors Deadlocked : LTS.
+    #[export] Hint Constructors has_dead_set : LTS.
 
 
     Example dead_net_example [N n0 n1 n2] :
       lock_set N [n0] n1 ->
       lock_set N [n1] n2 ->
       lock_set N [n2] n0 ->
-      Deadlocked N.
+      has_dead_set N.
 
     Proof with attac.
       intros HL0 HL1 HL2.
@@ -213,7 +213,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Obtaining lock sets of deadset members *)
     Lemma deadset_lock_set [N DS n] :
-      DeadSet DS N ->
+      dead_set DS N ->
       List.In n DS ->
       exists (L : list Name), lock_set N L n /\ incl L DS.
 
@@ -227,7 +227,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Deadset is not empty *)
     Lemma deadset_nil [N DS] :
-      DeadSet DS N ->
+      dead_set DS N ->
       DS <> [].
 
     Proof.
@@ -238,7 +238,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Resolve deadset_nil : LTS.
 
 
-    Lemma deadset_nil_inv N DS : DS = [] -> DeadSet DS N <-> False.
+    Lemma deadset_nil_inv N DS : DS = [] -> dead_set DS N <-> False.
     Proof. attac. Qed.
 
     #[export] Hint Rewrite -> deadset_nil_inv using spank : LTS LTS_concl.
@@ -246,7 +246,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Decidability of locks within deadsets *)
     Lemma deadset_lock_on_dec [N DS n0] :
-      DeadSet DS N ->
+      dead_set DS N ->
       List.In n0 DS ->
       forall n1, (lock N n0 n1 \/ not (lock N n0 n1)).
 
@@ -261,8 +261,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Remove duplicates from a deadset *)
     Theorem deadset_nodup [N DS] :
-      DeadSet DS N ->
-      DeadSet (nodup NAME.eq_dec DS) N.
+      dead_set DS N ->
+      dead_set (nodup NAME.eq_dec DS) N.
 
     Proof with (auto with datatypes).
       intros HDS.
@@ -285,8 +285,8 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Helper lemma for transforming statements on deadsets by adding [NoDup] *)
     Lemma with_deadset_nodup {P : Prop} [N DS] :
-      (forall DS, DeadSet DS N -> NoDup DS -> P) ->
-      DeadSet DS N -> P.
+      (forall DS, dead_set DS N -> NoDup DS -> P) ->
+      dead_set DS N -> P.
 
     Proof.
       intros F HDS.
@@ -298,7 +298,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** No members of a deadlocked set do tau *)
     Corollary deadset_no_tau [N0 N1 DL n a] :
-      DeadSet DL N0 ->
+      dead_set DL N0 ->
       List.In n DL ->
       not (N0 =(NTau n a)=> N1).
 
@@ -315,7 +315,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** No members of a deadlocked set send *)
     Corollary deadset_no_send [N0 N1 DL ns nr t v] :
-      DeadSet DL N0 ->
+      dead_set DL N0 ->
       List.In ns DL ->
       not (N0 =(NComm ns nr t v)=> N1).
 
@@ -342,7 +342,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** If a member of a deadlocked set is involved in a communication, then it's not the sender *)
     Corollary deadset_no_send' [N0 N1 DL ns nr n t v] :
-      DeadSet DL N0 ->
+      dead_set DL N0 ->
       List.In n DL ->
       (N0 =(NComm ns nr t v)=> N1) ->
       n <> ns.
@@ -357,7 +357,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** If a member of a deadlocked set is involved in an action, then it's a receiver *)
     Corollary deadset_recv [N0 N1 DL nr a] :
-      DeadSet DL N0 ->
+      dead_set DL N0 ->
       List.In nr DL ->
       (N0 =(a)=> N1) ->
       List.In nr (act_particip a) ->
@@ -383,7 +383,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** A member of a deadlocked set remains deadlocked after any transition *)
     Theorem deadset_stay1 [a N0 N1 DL n I0 P0 O0] :
-      DeadSet DL N0 ->
+      dead_set DL N0 ->
       List.In n DL ->
       (N0 =(a)=> N1) ->
       NetMod.get n N0 = (serv I0 P0 O0) ->
@@ -417,7 +417,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Members of a deadlocked set retain their locksets *)
     Theorem deadset_invariant_lock [N0 N1 DL L a n] :
-      DeadSet DL N0 ->
+      dead_set DL N0 ->
       lock_set N0 L n ->
       List.In n DL ->
       (N0 =(a)=> N1) ->
@@ -471,7 +471,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Deadlocked set remains after any transition *)
-    Theorem deadset_invariant DL : trans_invariant (DeadSet DL) always.
+    Theorem deadset_invariant DL : trans_invariant (dead_set DL) always.
 
     Proof with attac.
       unfold trans_invariant.
@@ -486,12 +486,12 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Qed.
 
     #[export] Hint Resolve deadset_invariant : inv.
-    #[export] Hint Extern 2 (DeadSet _ _) => solve_invariant : LTS.
+    #[export] Hint Extern 2 (dead_set _ _) => solve_invariant : LTS.
 
 
     (** Deadlocked processes can only change their inbox *)
     Theorem deadset_stay [path N0 N1 DL n I0 P0 O0] :
-      DeadSet DL N0 ->
+      dead_set DL N0 ->
       List.In n DL ->
       (N0 =[path]=> N1) ->
       NetMod.get n N0 = (serv I0 P0 O0) ->
@@ -517,7 +517,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** If you are a member of a deadset, then your lock set is its subset *)
     Lemma deadset_incl [N DS n L] :
-      DeadSet DS N ->
+      dead_set DS N ->
       lock_set N L n ->
       List.In n DS ->
       incl L DS.
@@ -534,7 +534,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** If [n0] is a member of a deadset and locked on [n1], then [n1] is too *)
     Lemma deadset_in [N DS n0 n1] :
-      DeadSet DS N ->
+      dead_set DS N ->
       List.In n0 DS ->
       lock N n0 n1 ->
       List.In n1 DS.
@@ -549,7 +549,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Deadlocks are invariantd across network transitions *)
-    Corollary deadlock_invariant : trans_invariant Deadlocked always.
+    Corollary deadlock_invariant : trans_invariant has_dead_set always.
 
     Proof.
       unfold trans_invariant; intros N0 N1 a T HDL _.
@@ -681,7 +681,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** If you are a member of a deadset, then everyone you depend on is also in that deadset *)
     Lemma deadset_dep_in [N DS n0 n1] :
-      DeadSet DS N ->
+      dead_set DS N ->
       List.In n0 DS ->
       trans_lock N n0 n1 ->
       List.In n1 DS.
@@ -698,7 +698,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** If you are a member of a deadset, then your dep set is its subset *)
     Theorem deadset_dep_set_incl [N DS L n] :
-      DeadSet DS N ->
+      dead_set DS N ->
       dep_set N L n ->
       List.In n DS ->
       incl L DS.
@@ -956,7 +956,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     (** If [n0] is in a deadset, then ends of all lock chains starting at [n0] belong to the deadset *)
 (*      *)
     Lemma lock_chain_deadset_in [N DS L n0 n1] :
-      DeadSet DS N ->
+      dead_set DS N ->
       List.In n0 DS ->
       lock_chain N n0 L n1 ->
       List.In n1 DS.
@@ -973,7 +973,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     (** If [n0] is in a deadset, then the deadset is a superset of all lock chains starting at [n0] *)
 (*      *)
     Lemma lock_chain_deadset_incl [N DS L n0 n1] :
-      DeadSet DS N ->
+      dead_set DS N ->
       List.In n0 DS ->
       lock_chain N n0 L n1 ->
       incl L DS.
@@ -1023,7 +1023,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Hint Unfold lock : LTS.
 
     Local Lemma deadset_dep_dec_k [N DS n0] n1 k :
-      DeadSet DS N ->
+      dead_set DS N ->
       List.In n0 DS ->
       (exists L, length L <= k /\ lock_chain N n0 L n1)%nat
       \/ not (exists L, (length L <= k /\ (lock_chain N n0 L n1)))%nat.
@@ -1222,7 +1222,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     Lemma deadset_lock_chain_len [N DS n0 n1 L] :
-      DeadSet DS N ->
+      dead_set DS N ->
       List.In n0 DS ->
       lock_chain N n0 L n1 ->
       exists L', length L' <= length DS /\ lock_chain N n0 L' n1.
@@ -1239,7 +1239,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     Lemma deadset_dep_dec [N DS n0] n1 :
-      DeadSet DS N ->
+      dead_set DS N ->
       List.In n0 DS ->
       (exists L, lock_chain N n0 L n1)
       \/ forall L, ~ lock_chain N n0 L n1.
@@ -1259,7 +1259,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** If you are a member of a deadset, then your depset is decidable *)
     Lemma deadset_dep_set [N DS n0] :
-      DeadSet DS N ->
+      dead_set DS N ->
       List.In n0 DS ->
       exists L, dep_set N L n0.
 
@@ -1312,11 +1312,11 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Non-empty dep sets of members of deadsets are are deadsets *)
     Lemma deadset_dep_set_deadset [DS N n L] :
-      DeadSet DS N ->
+      dead_set DS N ->
       dep_set N L n ->
       L <> [] ->
       List.In n DS ->
-      DeadSet L N.
+      dead_set L N.
 
     Proof with eauto with LTS.
       intros HDS HD HNnil HIn.
@@ -1340,7 +1340,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Immediate deadset_dep_set_deadset : LTS.
 
 
-    Definition deadlocked n N := exists DS, List.In n DS /\ DeadSet DS N.
+    Definition deadlocked n N := exists DS, List.In n DS /\ dead_set DS N.
 
 
     Lemma deadlocked_invariant n : trans_invariant (deadlocked n) always.
@@ -2076,7 +2076,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         Lemma dep_set_deadset [DS n] :
           List.In n DS ->
           dep_set N DS n ->
-          DeadSet DS N.
+          dead_set DS N.
 
         Proof with attac.
           intros HIn HI.
@@ -2118,7 +2118,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
         (** If there is anyone dependent on itself, then it is a member of a deadset *)
         Corollary dep_self_deadset [n] :
           trans_lock N n n ->
-          exists DS, List.In n DS /\ DeadSet DS N.
+          exists DS, List.In n DS /\ dead_set DS N.
 
         Proof with eattac.
           intros HL.
@@ -2371,7 +2371,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
           (** In any deadset, someone is dependent on itself *)
           Corollary deadset_dep_self [DS] :
-            DeadSet DS N ->
+            dead_set DS N ->
             exists n, List.In n DS /\ trans_lock N n n.
 
           Proof with eattac.

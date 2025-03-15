@@ -1640,7 +1640,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     intros.
     unfold deadlocked in *.
     hsimpl in *.
-    eapply (deadset_lock_set `(DeadSet DS '' MN0)) in H0.
+    eapply (deadset_lock_set `(dead_set DS '' MN0)) in H0.
     hsimpl in *.
     unfold lock_set in *.
     consider (exists n0 : Name, serv_lock [n0] (NetMod.get n '' MN0)) by (eauto using SRPC_serv_get_lock with LTS).
@@ -2359,7 +2359,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     assert (forall n, AnySRPC_serv (NetMod.get n N)) as Hsrpc by eauto with LTS.
 
-    consider (exists DS, List.In n0 DS /\ DeadSet DS N).
+    consider (exists DS, List.In n0 DS /\ dead_set DS N).
     hsimpl in *. (* TODO why? *)
     rename H0 into HDS.
     rename H into HIn.
@@ -4737,7 +4737,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma propagation [MN0 : MNet] [n m m' p] [DS] :
     KIC MN0 ->
-    DeadSet DS '' MN0 ->
+    dead_set DS '' MN0 ->
     trans_lock MN0 n m ->
     lock MN0 m m' ->
     In n DS ->
@@ -4889,7 +4889,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       eapply deadset_dep_in. eauto. eapply H6. subst. eauto 3 with LTS.
     }
 
-    assert (DeadSet DS '' MN1).
+    assert (dead_set DS '' MN1).
     {
       consider (exists ppath, '' MN0 =[ppath]=> '' MN1) by eauto using transp_sound with LTS.
       eauto with LTS.
@@ -4926,7 +4926,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma propagation_finito [MN0 : MNet] [n m m' p] [DS] :
     KIC MN0 ->
-    DeadSet DS '' MN0 ->
+    dead_set DS '' MN0 ->
     trans_lock MN0 n m ->
     lock MN0 m m' ->
     In n DS ->
@@ -4980,7 +4980,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     destruct `((alarm (MN2 n') = true /\ n' = origin p) \/ mserv_i (MN2 n) = MQn' ++ [EvRecv (n', R) p]).
     1: { exists (mpath0 ++ mpath1), MN2; repeat split > [eattac | | eattac].
-         assert (In n' DS). assert (DeadSet DS '' MN1) by eauto 3 with LTS. eauto 4 using deadset_in with LTS.
+         assert (In n' DS). assert (dead_set DS '' MN1) by eauto 3 with LTS. eauto 4 using deadset_in with LTS.
          eapply detect_path_app; eauto with LTS. eapply detect_path_incl; eauto; ieattac.
     }
 
@@ -5028,7 +5028,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     exists (mpath0 ++ mpath1 ++ mpath2), MN3.
     repeat split > [eattac | | eattac].
     repeat (eapply detect_path_app); eauto.
-    assert (In n' DS). assert (DeadSet DS '' MN1) by eauto 3 with LTS. eauto 4 using deadset_in with LTS.
+    assert (In n' DS). assert (dead_set DS '' MN1) by eauto 3 with LTS. eauto 4 using deadset_in with LTS.
     eapply detect_path_incl; eauto; ieattac.
     eapply detect_path_incl; eauto; ieattac.
   Qed.
@@ -5056,7 +5056,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma propagation_init' [MN0 : MNet] [n n' m] [v ] [DS] :
     KIC MN0 ->
-    DeadSet DS '' MN0 ->
+    dead_set DS '' MN0 ->
     In n DS ->
     lock MN0 n n' ->
     List.In (TrRecv (m, Q) v) (mserv_i (MN0 n)) ->
@@ -5111,7 +5111,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       {
         consider (KIC MN1) by eauto with LTS.
         consider (exists path, '' MN0 =[path]=> '' MN1) by eauto using transp_sound with LTS.
-        assert (DeadSet DS '' MN1) by eauto with LTS.
+        assert (dead_set DS '' MN1) by eauto with LTS.
         assert (deadlocked n '' MN0) by (exists DS; eauto with LTS).
         assert (lock MN1 n n') by eauto with LTS.
         specialize (H_lock_C n n' ltac:(auto)).
@@ -5156,7 +5156,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma propagation_init_finito [MN0 : MNet] [n m] [v] DS :
     KIC MN0 ->
-    DeadSet DS MN0 ->
+    dead_set DS MN0 ->
     trans_lock MN0 n m ->
     In n DS ->
     List.In (TrRecv (m, Q) v) (mserv_i (MN0 n)) ->
@@ -5246,7 +5246,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma locked_deinstrs :
     forall MN0 MN1 mpath DS,
       well_formed '' MN0 ->
-      DeadSet DS '' MN0 ->
+      dead_set DS '' MN0 ->
       Forall (fun a => exists n, In n DS /\ Flushing_NAct n a) mpath ->
       (MN0 =[mpath]=> MN1) ->
       net_deinstr MN0 = net_deinstr MN1.
@@ -5320,7 +5320,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma locked_flusheds :
     forall MN0 MN1 mpath DS,
       well_formed '' MN0 ->
-      DeadSet DS '' MN0 ->
+      dead_set DS '' MN0 ->
       Forall (fun a => exists n, In n DS /\ Flushing_NAct n a) mpath ->
       (MN0 =[mpath]=> MN1) ->
       flushed MN0 ->
@@ -5387,7 +5387,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     KIC MN0 ->
     ac n MN0 ->
     trans_lock MN0 n n ->
-    exists DS mpath MN1, (MN0 =[mpath]=> MN1) /\ DeadSet DS MN0 /\ detect_path DS mpath /\ alarm (MN1 n) = true.
+    exists DS mpath MN1, (MN0 =[mpath]=> MN1) /\ dead_set DS MN0 /\ detect_path DS mpath /\ alarm (MN1 n) = true.
 
   Proof.
     intros.
@@ -5431,7 +5431,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     consider (exists DS mpath0 MN1,
                  (MN0 =[ mpath0 ]=> MN1)
-                 /\ DeadSet DS MN0
+                 /\ dead_set DS MN0
                  /\ detect_path DS mpath0
                  /\  alarm (MN1 n) = true
              ) by eauto using ac_to_alarm with LTS.
@@ -5469,7 +5469,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Theorem detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
       KIC (i0 N0) ->
       (i0 N0 =[ mpath0 ]=> MN1) ->
-      DeadSet DS MN1 ->
+      dead_set DS MN1 ->
       exists mpath1 MN2 n, (MN1 =[ mpath1 ]=> MN2) /\ In n DS /\ alarm (MN2 n) = true.
 
   Proof.
@@ -5478,7 +5478,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     consider (exists n, In n DS /\ trans_lock MN1 n n) by (eauto 8 using deadset_dep_self with LTS).
     consider (exists n', trans_lock MN1 n n' /\ ac n' MN1) by (consider (KIC MN1); attac).
     assert (trans_lock MN1 n' n') by (eauto using dep_reloop with LTS).
-    consider (exists DS mpath1 MN2, (MN1 =[ mpath1 ]=> MN2) /\ DeadSet DS MN1 /\ _ /\  alarm (MN2 n') = true)
+    consider (exists DS mpath1 MN2, (MN1 =[ mpath1 ]=> MN2) /\ dead_set DS MN1 /\ _ /\  alarm (MN2 n') = true)
       by eauto using ac_to_alarm with LTS.
 
     exists mpath1, MN2, n'.
@@ -5491,7 +5491,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Corollary find_detection  : forall (i0 : instr) (N0 N1 : PNet) path (DS : Names),
       KIC (i0 N0) ->
       (N0 =[ path ]=> N1) ->
-      DeadSet DS N1 ->
+      dead_set DS N1 ->
       exists mpath (i1 : instr) n,
         (i0 N0 =[ mpath ]=> i1 N1)
         /\ In n DS

@@ -880,7 +880,7 @@ Module Thomas.
         |}.
 
 
-  Lemma can_deadlock : exists path N, (example_net =[path]=> N) /\ DeadSet ["A"; "B"; "C"; "D"]%list N.
+  Lemma can_deadlock : exists path N, (example_net =[path]=> N) /\ dead_set ["A"; "B"; "C"; "D"]%list N.
   Proof.
     eexists ?[path], ?[N].
 

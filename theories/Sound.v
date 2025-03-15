@@ -2233,7 +2233,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma KIS_detection [MN n] :
     KIS MN ->
     alarm (MN n) = true ->
-    exists DS, DeadSet DS '' MN /\ In n DS.
+    exists DS, dead_set DS '' MN /\ In n DS.
 
   Proof.
     intros.
@@ -2247,7 +2247,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     KIS (i0 N0) ->
     (i0 N0 =[mpath]=> MN1) ->
     alarm (MN1 n) = true ->
-    exists DS, DeadSet DS '' MN1 /\ In n DS.
+    exists DS, dead_set DS '' MN1 /\ In n DS.
 
   Proof.
     intros.
@@ -2354,7 +2354,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       (MN1 =[mpath1]=> i1 N1)
       /\ (N0 =[ mpath0 ++ mpath1 ]=> N1)
       /\ In n DS
-      /\ DeadSet DS N1.
+      /\ dead_set DS N1.
 
   Proof.
     intros.
@@ -2364,9 +2364,9 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     hsimpl in *.
 
-    consider (exists DS, DeadSet DS '' MN1 /\ In n DS) by eauto using detection_soundness.
+    consider (exists DS, dead_set DS '' MN1 /\ In n DS) by eauto using detection_soundness.
 
-    assert (DeadSet DS '' (i2 N2)).
+    assert (dead_set DS '' (i2 N2)).
     {
       consider (exists ppath, '' MN1 =[ppath]=> '' (i2 N2)) by eauto using transp_sound.
       attac.

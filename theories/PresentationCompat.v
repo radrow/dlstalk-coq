@@ -96,13 +96,13 @@ Proof.
 Qed.
 
 
-Fact deadset_eq : forall N DS, SRPC_net N -> DeadSet DS N <-> Paper.dead_set DS N.
+Fact deadset_eq : forall N DS, SRPC_net N -> dead_set DS N <-> Paper.dead_set DS N.
 
 Proof.
   unfold Paper.dead_set.
   split; intros; repeat constructor; intros.
   - attac.
-  - consider (DeadSet _ _).
+  - consider (dead_set _ _).
     consider (exists L, lock_set N L n0 /\ incl L DS).
     unfold lock_set, lock in *.
     consider (exists n1, serv_lock [n1] (NetMod.get n0 N)) by eauto with LTS.
