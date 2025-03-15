@@ -36,10 +36,10 @@ Module Type NET_MOD(Name : UsualDecidableSet).
     Parameter put : Name.t -> Node -> t Node -> t Node.
 
     (** Initializing network from function *)
-    Parameter init : (Name.t -> Node) -> t Node.
+    Parameter origin : (Name.t -> Node) -> t Node.
 
     (** Initialization sets processes as said *)
-    Axiom init_get : forall i n, get n (init i) = i n.
+    Axiom init_get : forall i n, get n (origin i) = i n.
 
     (** Subsequent puts are redundant *)
     Axiom put_put_eq : forall n S0 S1 N,

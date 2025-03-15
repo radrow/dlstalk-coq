@@ -342,7 +342,7 @@ Module Thomas.
   Qed.
 
 
-  Definition gen_server [state_t : Set] (init : state_t) (handle_call : option string -> Val -> state_t -> Handler state_t) :=
+  Definition gen_server [state_t : Set] (origin : state_t) (handle_call : option string -> Val -> state_t -> Handler state_t) :=
     run_gen_server {|gs_state:=GSReady _ init; gs_handler:=handle_call|}.
 
 
@@ -361,7 +361,7 @@ Module Thomas.
 
   Record ServiceConf :=
     sconf { state_t : Set
-          ; init : state_t
+          ; origin : state_t
           ; handle_call (from : option string) (msg : Val) (state : state_t) : Handler state_t
       }.
 
@@ -598,7 +598,7 @@ Module Thomas.
     unfold gen_net in *.
     rewrite NetMod.init_get in *.
     kill H; blast_cases; doubt; attac.
-    assert (SRPC Ready (gen_server init0 handle_call0)) by apply SRPC_gen_server.
+    assert (SRPC Ready (gen_server origin0 handle_call0)) by apply SRPC_gen_server.
     consider (proc_client _ _).
     bs (Busy _ = Ready).
   Qed.
@@ -638,7 +638,7 @@ Module Thomas.
         kill H0.
         eassert (Busy x = Locked _ (Initiator s _)) by attac.
         attac.
-    - assert (SRPC Ready (gen_server init0 handle_call0)) by eauto using SRPC_gen_server.
+    - assert (SRPC Ready (gen_server origin0 handle_call0)) by eauto using SRPC_gen_server.
       kill H0.
       bs (Busy x = Ready).
   Qed.
@@ -849,11 +849,11 @@ Module Thomas.
     Qed.
     Hint Rewrite veq using assumption : LTS LTS_concl.
 
-    Definition echo := {| state_t := unit; init := tt; handle_call from msg st := reply msg st |}.
+    Definition echo := {| state_t := unit; origin := tt; handle_call from msg st := reply msg st |}.
 
     Definition service (target : string) :=
       {| state_t := _;
-        init := tt;
+        origin := tt;
         handle_call (_from : option string) (msg : Val) st :=
           match valnat_trans msg with
           | 0 => reply msg st
