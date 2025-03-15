@@ -196,24 +196,24 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     Ltac2 rec destruct_SRPC (hs : ident) (htr : ident option) :=
       let hs_h := hyp hs in
       match! (Constr.type hs_h) with
-      | AnySRPC_serv ?p =>
+      | AnySRPC_serv _ =>
           let srpc := Fresh.in_goal @srpc in
           destruct $hs_h as [$srpc $hs];
           destruct_SRPC hs htr
-      | AnySRPC ?p =>
+      | AnySRPC _ =>
           let srpc := Fresh.in_goal @srpc in
           destruct $hs_h as [$srpc $hs];
           destruct_SRPC hs htr
       | SRPC_serv ?srpc (serv _ _ _) =>
           simpl in $hs;
           destruct_SRPC hs htr
-      | SRPC_serv ?srpc ?p =>
+      | SRPC_serv ?srpc _ =>
           let i := Fresh.in_goal @I in
           let p := Fresh.in_goal @P in
           let o := Fresh.in_goal @O in
           destruct p as [$i $p $o];
           destruct_SRPC hs htr
-      | SRPC ?srpc ?p =>
+      | SRPC ?srpc _ =>
           let p1 := Fresh.in_goal @P in
           let hqa := Fresh.in_goal @HQueryAll in
           let hqo := Fresh.in_goal @HQueryOnly in
@@ -270,7 +270,7 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
                          )
                      ]
                  ]
-      | SRPC_Busy ?srpc ?p =>
+      | SRPC_Busy _ _ =>
           let p1 := Fresh.in_goal @P in
           let s := Fresh.in_goal @s in
           let hrr := Fresh.in_goal @HRecvR in
@@ -291,7 +291,6 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
                    first
                      [ bs
                      | let n := Fresh.in_goal @n in
-                       let s := Fresh.in_goal @s in
                        let t := Fresh.in_goal @t in
                        let v := Fresh.in_goal @v in
                        match htr with
@@ -333,7 +332,6 @@ Module SRPC_DEFS(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
                                     | Some htr => hyp htr
                                     end in
                        let hro_h := hyp hro in
-                       let hrr_h := hyp hrr in
                        destruct ($hro_h _ _ $htr_h)
                          as [$v $he1];
                        ssubst

@@ -1319,6 +1319,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       eauto using well_formed_send_R_lock_l.
     Qed.
 
+    Print "Proving invariance of well_formed".
 
     Lemma trans_invariant_well_formed_tau__Q_in [n N0 N1] :
       NVTrans n Tau N0 N1 ->
@@ -2681,7 +2682,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     #[export] Hint Resolve trans_invariant_well_formed : inv.
     #[export] Hint Extern 0 (well_formed _) => solve_invariant : LTS.
 
-
+    Print "Invariance of well_formed proven".
 End SRPC_NET_F.
 
 Module Type SRPC_NET(Conf : SRPC_NET_CONF) := Conf <+ SRPC_NET_PARAMS <+ SRPC_NET_F.

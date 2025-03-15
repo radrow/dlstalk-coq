@@ -454,7 +454,7 @@ Ltac2 find_transport solver target new_target p :=
 
 
 Ltac2 solve_invariant solver :=
-  let (pred, trans_hyp, from, label, one_step) :=
+  let (pred, trans_hyp, _from, label, one_step) :=
     (multi_match! goal with
      | [ trans : ?x0 =(?a)=> ?x1 |- ?p ?x] =>
          replace $x with $x1 by solver ();

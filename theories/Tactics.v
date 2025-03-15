@@ -157,7 +157,7 @@ Ltac2 count_constructors (ty : constr) :=
 (** src: https://github.com/coq/coq/issues/10095 *)
 Ltac2 rec head v :=
   match! v with
-  | ?f ?x => head f
+  | ?f _ => head f
   | ?x => x
   end.
 
@@ -941,7 +941,7 @@ Ltac2 Notation "tattac" n(opt(tactic)) := tattac_ n.
 Ltac2 rec guess_head_name t :=
   match! t with
   | not ?x => guess_head_name x
-  | ?f ?x => guess_head_name f
+  | ?f _ => guess_head_name f
   | forall _, ?t => guess_head_name t
   | exists _, ?t => guess_head_name t
   | ?x => match Constr.Unsafe.kind x with
@@ -1070,7 +1070,7 @@ Ltac2 find_i (t : constr) (solv : (unit -> unit) option) : ident :=
 Notation "`( t )" :=
   (ltac2:(let x :=
             Ltac2.Constr.Pretype.pretype
-              Constr.Pretype.Flags.open_constr_flags
+              Constr.Pretype.Flags.open_constr_flags_with_no_tc
               Constr.Pretype.expected_without_type_constraint
               t
           in
@@ -1078,18 +1078,6 @@ Notation "`( t )" :=
           exact $proof
   ))
     (only parsing).
-
-Notation "``( t )" :=
-  (ltac2:(let x :=
-            Ltac2.Constr.Pretype.pretype
-              Constr.Pretype.Flags.open_constr_flags
-              Constr.Pretype.expected_without_type_constraint
-              t
-          in
-          find_i x None
-  ))
-    (only parsing).
-
 
 Ltac2 consider_ (t : constr) (solver : (unit -> unit) option) :=
   let i := find_i t solver in
