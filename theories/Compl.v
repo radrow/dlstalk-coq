@@ -1058,7 +1058,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma Rad_set_set_unlocked [MN0 MN1 : MNet] [na n n'] :
+  Lemma Alg_set_set_unlocked [MN0 MN1 : MNet] [na n n'] :
     (MN0 =(na)=> MN1) ->
     locked (MN0 n) = Some n' ->
     locked (MN1 n) = None ->
@@ -1764,7 +1764,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           absurd (n0 <> n0); eauto using locked_M_no_send.
         }
         eauto using M_preserve_steady_locked, eq_sym with LTS.
-      + consider (exists v, na = NTau n0 (MActP (Recv (n1, R) v))) by eauto using Rad_set_set_unlocked with LTS.
+      + consider (exists v, na = NTau n0 (MActP (Recv (n1, R) v))) by eauto using Alg_set_set_unlocked with LTS.
         exfalso.
         assert (net_deinstr MN0 = MN1) by (eapply net_deinstr_act_skip; eauto; simpl; eauto).
         rewrite `(net_deinstr MN0 = _) in *.
