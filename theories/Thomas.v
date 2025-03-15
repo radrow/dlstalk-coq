@@ -692,7 +692,7 @@ Module Thomas.
 
   Lemma gen_net_dep : forall conf name i0 i1,
       lt i1 i0 ->
-      dep_on (gen_net conf) (Initiator name i0) (Initiator name i1).
+      trans_lock (gen_net conf) (Initiator name i0) (Initiator name i1).
 
   Proof.
     induction i0; intros.
@@ -708,7 +708,7 @@ Module Thomas.
   Qed.
 
   Lemma gen_net_dep_inv : forall conf n0 n1,
-      dep_on (gen_net conf) n0 n1 ->
+      trans_lock (gen_net conf) n0 n1 ->
       exists name i0 i1, n0 = Initiator name i0 /\ n1 = Initiator name i1 /\ lt i1 i0.
 
   Proof.

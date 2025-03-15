@@ -471,7 +471,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     ac n MN
 
   | ac_seek [m m'] :
-    (n = m \/ dep_on MN n m) ->
+    (n = m \/ trans_lock MN n m) ->
     lock MN m m' ->  (* TODO: try to relate to mon states exlusively *)
     sends_probe (m, R) (hot_of MN n) (NetMod.get m' MN) ->
     ac n MN
@@ -527,7 +527,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       (* Flushed monitor knows about everyone who waits on it *)
       (H_wait_C : forall n0 n1, lock MN n0 n1 -> NoRecvQ_from n0 (mserv_i (MN n1)) -> List.In n0 (wait (MN n1)))
       (* Self-dependency implies alarm condition *)
-      (H_alarm_C : forall n0, dep_on MN n0 n0 -> exists n1, dep_on MN n0 n1 /\ ac n1 MN)
+      (H_alarm_C : forall n0, trans_lock MN n0 n0 -> exists n1, trans_lock MN n0 n1 /\ ac n1 MN)
     : KIC MN.
 
 
@@ -1413,7 +1413,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma dep_self_deadlocked [N n] :
     well_formed N ->
-    dep_on N n n -> deadlocked n N.
+    trans_lock N n n -> deadlocked n N.
 
   Proof.
     intros.
@@ -1522,11 +1522,11 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma net_dep_close [N0 N1 na n0 n1] :
     well_formed N0 ->
     (N0 =(na)=> N1) ->
-    ~ dep_on N0 n0 n1 ->
-    dep_on N1 n0 n1 ->
+    ~ trans_lock N0 n0 n1 ->
+    trans_lock N1 n0 n1 ->
     exists m0 m1 v, na = NComm m0 m1 Q v
-                    /\ (m0 = n0 \/ (m0 <> n0 /\ dep_on N0 n0 m0 /\ dep_on N1 n0 m0))
-                    /\ (m1 = n1 \/ (m1 <> n1 /\ dep_on N0 m1 n1 /\ dep_on N1 m1 n1)).
+                    /\ (m0 = n0 \/ (m0 <> n0 /\ trans_lock N0 n0 m0 /\ trans_lock N1 n0 m0))
+                    /\ (m1 = n1 \/ (m1 <> n1 /\ trans_lock N0 m1 n1 /\ trans_lock N1 m1 n1)).
 
   Proof.
     intros.
@@ -1557,19 +1557,19 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma net_M_dep_close [N0 N1 : MNet] [na n0 n1] :
     well_formed '' N0 ->
     (N0 =(na)=> N1) ->
-    ~ dep_on N0 n0 n1 ->
-    dep_on N1 n0 n1 ->
+    ~ trans_lock N0 n0 n1 ->
+    trans_lock N1 n0 n1 ->
     exists m0 m1 v, na = NComm m0 m1 Q (MValP v)
-                    /\ (m0 = n0 \/ (m0 <> n0 /\ dep_on N0 n0 m0 /\ dep_on N1 n0 m0))
-                    /\ (m1 = n1 \/ (m1 <> n1 /\ dep_on N0 m1 n1 /\ dep_on N1 m1 n1)).
+                    /\ (m0 = n0 \/ (m0 <> n0 /\ trans_lock N0 n0 m0 /\ trans_lock N1 n0 m0))
+                    /\ (m1 = n1 \/ (m1 <> n1 /\ trans_lock N0 m1 n1 /\ trans_lock N1 m1 n1)).
 
   Proof.
     intros.
     destruct (MNAct_to_PNAct na) eqn:?.
     - assert ('' N0 =(p)=> '' N1) by eauto using net_deinstr_act_do.
       consider (exists m0 m1 v, p = @NComm PAct _ m0 m1 Q v
-                                /\ (m0 = n0 \/ (m0 <> n0 /\ dep_on N0 n0 m0 /\ dep_on N1 n0 m0))
-                                /\ (m1 = n1 \/ (m1 <> n1 /\ dep_on N0 m1 n1 /\ dep_on N1 m1 n1))
+                                /\ (m0 = n0 \/ (m0 <> n0 /\ trans_lock N0 n0 m0 /\ trans_lock N1 n0 m0))
+                                /\ (m1 = n1 \/ (m1 <> n1 /\ trans_lock N0 m1 n1 /\ trans_lock N1 m1 n1))
                )
         by eauto using net_dep_close with LTS.
 
@@ -1614,8 +1614,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     (N0 =(na)=> N1) ->
     ~ lock N0 n0 n1 ->
     lock N1 n0 n1 ->
-    dep_on N0 m0 m1 ->
-    dep_on N1 m0 m1.
+    trans_lock N0 m0 m1 ->
+    trans_lock N1 m0 m1.
 
   Proof.
     intros.
@@ -2062,8 +2062,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma deadlocked_M_dep_invariant1 [MN0 MN1 : MNet] [n0 n1 a] :
     (MN0 =(a)=> MN1) ->
     deadlocked n0 MN0 ->
-    dep_on MN0 n0 n1 ->
-    dep_on MN1 n0 n1.
+    trans_lock MN0 n0 n1 ->
+    trans_lock MN1 n0 n1.
 
   Proof.
     intros.
@@ -2349,10 +2349,10 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
   (* TODO to Locks *)
-  Lemma deadlocked_dep_on_loop [N n0] :
+  Lemma deadlocked_trans_lock_loop [N n0] :
     well_formed N ->
     deadlocked n0 N ->
-    exists n1, dep_on N n0 n1 /\ dep_on N n1 n1.
+    exists n1, trans_lock N n0 n1 /\ trans_lock N n1 n1.
 
   Proof with eattac.
     intros BSRPC Hd.
@@ -2373,7 +2373,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       consider (exists n1, lock_set N [n1] n0) by (eapply net_get_lock; eauto with LTS).
       unfold dep_set in HL.
       assert (lock N n0 n1) by eattac.
-      assert (dep_on N n0 n1) as HD' by attac.
+      assert (trans_lock N n0 n1) as HD' by attac.
       apply HL in HD'.
       bs.
     }
@@ -2385,9 +2385,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       eapply longest_lock_chain; eauto with LTS.
     }
 
-    enough (dep_on N n1 n1) by eauto with LTS.
+    enough (trans_lock N n1 n1) by eauto with LTS.
 
-    enough (exists n2, List.In n2 (n1::L) /\ dep_on N n1 n2) as [n2 [HIn1 HD1]].
+    enough (exists n2, List.In n2 (n1::L) /\ trans_lock N n1 n2) as [n2 [HIn1 HD1]].
     {
       kill HIn1.
       smash_eq n1 n2.
@@ -3128,23 +3128,23 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     KIC MN0 ->
     (MN0 =(a)=> MN1) ->
     deadlocked n0 '' MN1 ->
-    exists n1, dep_on MN1 n0 n1 /\ ac n1 MN1.
+    exists n1, trans_lock MN1 n0 n1 /\ ac n1 MN1.
 
   Proof.
     intros.
     have (well_formed '' MN0) by eauto with LTS.
     have (well_formed '' MN1) by eauto with LTS.
-    consider (exists n0', dep_on MN1 n0 n0' /\ dep_on MN1 n0' n0')
-      by re_have (eauto using deadlocked_dep_on_loop with LTS).
+    consider (exists n0', trans_lock MN1 n0 n0' /\ trans_lock MN1 n0' n0')
+      by re_have (eauto using deadlocked_trans_lock_loop with LTS).
 
-    enough (exists n1, dep_on MN1 n0' n1 /\ ac n1 MN1) by (hsimpl in *; exists n1; eattac).
+    enough (exists n1, trans_lock MN1 n0' n1 /\ ac n1 MN1) by (hsimpl in *; exists n1; eattac).
     clear H1 n0 H4.
     rename n0' into n0.
 
-    assert (dep_on MN0 n0 n0 \/ ~ dep_on MN0 n0 n0) as [|].
+    assert (trans_lock MN0 n0 n0 \/ ~ trans_lock MN0 n0 n0) as [|].
     {
-      enough (forall n1, dep_on MN1 n0 n1 -> dep_on MN0 n0 n1 \/ ~ dep_on MN0 n0 n1) by eauto.
-      clear H5. (* dep_on *)
+      enough (forall n1, trans_lock MN1 n0 n1 -> trans_lock MN0 n0 n1 \/ ~ trans_lock MN0 n0 n1) by eauto.
+      clear H5. (* trans_lock *)
       intros n1 ?.
       apply dep_lock_chain in H1 as [L [? ?]].
       generalize dependent n0.
@@ -3152,7 +3152,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       - destruct (well_formed_lock_dec '' MN0 n0 n1); eauto with LTS.
         consider (exists v, a = NComm n0 n1 Q # v) by eauto using SRPC_M_net_new_lock_query with LTS.
         right; intros ?.
-        consider (dep_on MN0 n0 n1).
+        consider (trans_lock MN0 n0 n1).
         smash_eq n2 n1.
         apply `(_ <> _).
         eauto using SRPC_M_net_no_immediate_relock, eq_sym with LTS.
@@ -3160,24 +3160,24 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         + destruct (well_formed_lock_dec '' MN0 n0 a0); eauto with LTS.
           consider (exists v, a = NComm n0 a0 Q # v) by eauto using SRPC_M_net_new_lock_query with LTS.
           right; intros ?.
-          consider (dep_on MN0 n0 n1).
+          consider (trans_lock MN0 n0 n1).
           * assert (n1 = a0). eauto using SRPC_M_net_no_immediate_relock with LTS. bs.
           * assert (n2 = a0). eauto using SRPC_M_net_no_immediate_relock with LTS. bs.
         + destruct (well_formed_lock_dec '' MN0 n0 a0); eauto with LTS.
           * right; intros ?.
-            eapply `(~ dep_on _ _ _).
-            consider (dep_on MN0 n0 n1).
+            eapply `(~ trans_lock _ _ _).
+            consider (trans_lock MN0 n0 n1).
             -- assert (n1 = a0). eauto with LTS. eapply `(lock_uniq_type '' MN0); eauto. bs.
             -- assert (n2 = a0). eauto with LTS. eapply `(lock_uniq_type '' MN0); eauto. bs.
           * consider (exists v, a = NComm n0 a0 Q # v) by eauto using SRPC_M_net_new_lock_query with LTS.
             right; intros ?.
-            consider (dep_on MN0 n0 n1).
+            consider (trans_lock MN0 n0 n1).
             -- assert (n1 = a0). eauto using SRPC_M_net_no_immediate_relock with LTS. bs.
             -- assert (n2 = a0). eauto using SRPC_M_net_no_immediate_relock with LTS. bs.
     }
-    - consider (exists m, dep_on MN0 n0 m /\ ac m MN0) by (consider (KIC MN0); auto).
+    - consider (exists m, trans_lock MN0 n0 m /\ ac m MN0) by (consider (KIC MN0); auto).
       assert (deadlocked n0 '' MN0) by eauto using dep_self_deadlocked with LTS.
-      assert (dep_on MN1 n0 m) by eauto using deadlocked_M_dep_invariant1 with LTS.
+      assert (trans_lock MN1 n0 m) by eauto using deadlocked_M_dep_invariant1 with LTS.
 
       consider (ac m MN0).
       + exists m.
@@ -3196,7 +3196,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           assert (deadlocked m '' MN0) by eauto 3 with LTS.
           assert (deadlocked m0 '' MN0) by (consider (m = m0 \/ _); eauto 3 with LTS).
           econstructor 2. 3: eauto.
-          consider (m = m0 \/ dep_on MN0 m m0) by attac > [left|right]; auto.
+          consider (m = m0 \/ trans_lock MN0 m m0) by attac > [left|right]; auto.
           -- eauto 3 using deadlocked_M_dep_invariant1 with LTS.
           -- consider (exists ppath, '' MN0 =[ppath]=> '' MN1) by eauto using Net_path_corr1; eauto 2 with LTS.
         * exists m.
@@ -3215,12 +3215,12 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
              smash_eq m0 m'; compat_hsimpl in *.
              rewrite H; attac.
              attac.
-          -- destruct `(m = m0 \/ dep_on MN0 m m0).
+          -- destruct `(m = m0 \/ trans_lock MN0 m m0).
              1: bs.
 
              assert (deadlocked m0 '' MN0) by eauto 3 with LTS.
              assert (deadlocked m '' MN0) by eauto 3 with LTS.
-             assert (exists m'', dep_on MN0 m m'' /\ lock MN0 m'' m0).
+             assert (exists m'', trans_lock MN0 m m'' /\ lock MN0 m'' m0).
              {
                apply dep_lock_chain in H9. hsimpl in H9.
                ltac1:(rev_induction L); intros; hsimpl in *.
@@ -3236,13 +3236,13 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
              hsimpl in *.
              assert (sends_probe (m'', R) (hot_of MN0 m) (NetMod.get m0 MN1)) by eauto using probe_pass_on.
 
-             assert (dep_on MN1 m m'') by eauto 4 using deadlocked_M_dep_invariant1 with LTS.
+             assert (trans_lock MN1 m m'') by eauto 4 using deadlocked_M_dep_invariant1 with LTS.
 
              assert (lock MN1 m'' m0) by
                (consider (exists ppath, '' MN0 =[ppath]=> '' MN1) by eauto using Net_path_corr1;
                 eauto 4 using deadlocked_lock_on_invariant with LTS
                ).
-             assert (dep_on MN1 m m0) by eauto 4 using deadlocked_M_dep_invariant1 with LTS.
+             assert (trans_lock MN1 m m0) by eauto 4 using deadlocked_M_dep_invariant1 with LTS.
 
              econstructor 2.
              3: replace (hot_of MN1 m) with (hot_of MN0 m) by eauto 3 using deadlocked_preserve_hot_of1 with LTS.
@@ -3374,12 +3374,12 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           all: compat_hsimpl in *; eattac.
 
     - assert (deadlocked n0 '' MN1) by re_have (eauto using dep_self_deadlocked).
-      consider (exists m0 m1 v, (n0 = m0 \/ dep_on MN1 n0 m0) /\ a = NComm m0 m1 Q (MValP v)).
+      consider (exists m0 m1 v, (n0 = m0 \/ trans_lock MN1 n0 m0) /\ a = NComm m0 m1 Q (MValP v)).
       {
         consider (exists (m0 m1 : Name) (v : Val),
                      a = NComm m0 m1 Q # v /\
-                       (m0 = n0 \/ m0 <> n0 /\ dep_on MN0 n0 m0 /\ dep_on MN1 n0 m0) /\
-                       (m1 = n0 \/ m1 <> n0 /\ dep_on MN0 m1 n0 /\ dep_on MN1 m1 n0))
+                       (m0 = n0 \/ m0 <> n0 /\ trans_lock MN0 n0 m0 /\ trans_lock MN1 n0 m0) /\
+                       (m1 = n0 \/ m1 <> n0 /\ trans_lock MN0 m1 n0 /\ trans_lock MN1 m1 n0))
           by re_have (eauto 2 using net_M_dep_close).
         do 2 (destruct `(_ \/ _)); eattac.
       }
@@ -3392,8 +3392,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       split.
       1: { consider (_ \/ _); eauto with LTS. }
 
-      assert (dep_on MN1 n0 m0) by
-        (destruct `(n0 = m0 \/ dep_on MN1 n0 m0); subst; eauto 4 using dep_reloop, dep_loop, dep_on_seq1 with LTS).
+      assert (trans_lock MN1 n0 m0) by
+        (destruct `(n0 = m0 \/ trans_lock MN1 n0 m0); subst; eauto 4 using dep_reloop, dep_loop, trans_lock_seq1 with LTS).
       assert (forall n : Name, AnySRPC_serv (NetMod.get n '' MN1)) by re_have (eauto with LTS).
       assert (sends_probe (m0, R) (hot_of MN1 m1) (NetMod.get m1 MN1)).
       {
@@ -3445,7 +3445,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
       econstructor 2. 3: eauto. all: eauto.
       right.
-      destruct `(n0 = m0 \/ dep_on MN1 n0 m0); subst; eauto 4 using dep_reloop, dep_loop, dep_on_seq1 with LTS.
+      destruct `(n0 = m0 \/ trans_lock MN1 n0 m0); subst; eauto 4 using dep_reloop, dep_loop, trans_lock_seq1 with LTS.
   Qed.
 
 
@@ -4682,7 +4682,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     generalize dependent N0.
     induction mpath; intros; hsimpl in *. 1: attac.
-    assert (dep_on N2 n0 n1) by attac.
+    assert (trans_lock N2 n0 n1) by attac.
     eapply (IHmpath N2); eauto using deadlocked_lock_chain_invariant1 with LTS.
   Qed.
 
@@ -4737,7 +4737,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma propagation [MN0 : MNet] [n m m' p] [DS] :
     KIC MN0 ->
     DeadSet DS '' MN0 ->
-    dep_on MN0 n m ->
+    trans_lock MN0 n m ->
     lock MN0 m m' ->
     In n DS ->
     sends_probe (m, R) p (NetMod.get m' MN0) ->
@@ -4926,7 +4926,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma propagation_finito [MN0 : MNet] [n m m' p] [DS] :
     KIC MN0 ->
     DeadSet DS '' MN0 ->
-    dep_on MN0 n m ->
+    trans_lock MN0 n m ->
     lock MN0 m m' ->
     In n DS ->
     hot MN0 p n ->
@@ -5156,27 +5156,27 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma propagation_init_finito [MN0 : MNet] [n m] [v] DS :
     KIC MN0 ->
     DeadSet DS MN0 ->
-    dep_on MN0 n m ->
+    trans_lock MN0 n m ->
     In n DS ->
     List.In (TrRecv (m, Q) v) (mserv_i (MN0 n)) ->
     exists MN1 mpath,
       (MN0 =[mpath]=> MN1)
       /\ detect_path DS mpath
-      /\ (exists n', dep_on MN0 n n' /\ alarm (MN1 n') = true).
+      /\ (exists n', trans_lock MN0 n n' /\ alarm (MN1 n') = true).
 
   Proof.
     intros.
     assert (well_formed '' MN0) by eauto with LTS.
 
     assert (lock MN0 m n) by eauto using mserv_Q_lock_sound.
-    assert (dep_on MN0 n n) by eauto with LTS.
+    assert (trans_lock MN0 n n) by eauto with LTS.
     assert (deadlocked n '' MN0) by (exists DS; eauto 2 with LTS).
 
     consider (exists MN1 mpath0,
                  (MN0 =[mpath0]=> MN1)
                  /\ detect_path DS mpath0
                  /\ sends_probe (m, R) (hot_of MN1 n) (NetMod.get n MN1))
-      by (consider (dep_on MN0 n n) by eauto using propagation_init'; eauto using propagation_init').
+      by (consider (trans_lock MN0 n n) by eauto using propagation_init'; eauto using propagation_init').
 
     consider (exists ppath, '' MN0 =[ppath]=> '' MN1) by eauto using Net_path_corr.
     have (well_formed '' MN1) by eauto with LTS.
@@ -5184,8 +5184,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     assert (deadlocked n '' MN1) by auto with LTS.
     assert (lock MN1 m n) by eauto with LTS.
-    assert (dep_on MN1 n n) by eauto with LTS.
-    assert (dep_on MN1 n m) by eauto with LTS.
+    assert (trans_lock MN1 n n) by eauto with LTS.
+    assert (trans_lock MN1 n m) by eauto with LTS.
 
     consider (exists mpath1 MN2, (MN1 =[mpath1]=> MN2) /\ _ /\ alarm (MN2 n) = true)
       by eauto using propagation_finito, hot_hot_of with LTS.
@@ -5385,7 +5385,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma ac_to_alarm [MN0 : MNet] [n] :
     KIC MN0 ->
     ac n MN0 ->
-    dep_on MN0 n n ->
+    trans_lock MN0 n n ->
     exists DS mpath MN1, (MN0 =[mpath]=> MN1) /\ DeadSet DS MN0 /\ detect_path DS mpath /\ alarm (MN1 n) = true.
 
   Proof.
@@ -5399,7 +5399,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     1: { exists [], MN0. unfold detect_path; eattac. }
 
     consider (ac n MN0).
-    - consider (n = m \/ dep_on MN0 n m).
+    - consider (n = m \/ trans_lock MN0 n m).
       + consider (exists mpath MN1, (MN0 =[ mpath ]=> MN1) /\ detect_path DS mpath /\ alarm (MN1 m) = true)
           by eauto using propagation_finito, hot_hot_of with LTS.
         exists mpath, MN1. split; eauto with LTS.
@@ -5420,7 +5420,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Lemma ac_to_alarm_instr [MN0 : MNet] [n] :
     KIC MN0 ->
     ac n MN0 ->
-    dep_on MN0 n n ->
+    trans_lock MN0 n n ->
     flushed MN0 ->
     ready_net MN0 ->
     exists mpath (i0 : instr), (MN0 =[mpath]=> i0 MN0) /\ alarm (i0 MN0 n) = true.
@@ -5474,9 +5474,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     assert (KIC MN1) by eauto with LTS.
-    consider (exists n, In n DS /\ dep_on MN1 n n) by (eauto 8 using deadset_dep_self with LTS).
-    consider (exists n', dep_on MN1 n n' /\ ac n' MN1) by (consider (KIC MN1); attac).
-    assert (dep_on MN1 n' n') by (eauto using dep_reloop with LTS).
+    consider (exists n, In n DS /\ trans_lock MN1 n n) by (eauto 8 using deadset_dep_self with LTS).
+    consider (exists n', trans_lock MN1 n n' /\ ac n' MN1) by (consider (KIC MN1); attac).
+    assert (trans_lock MN1 n' n') by (eauto using dep_reloop with LTS).
     consider (exists DS mpath1 MN2, (MN1 =[ mpath1 ]=> MN2) /\ DeadSet DS MN1 /\ _ /\  alarm (MN2 n') = true)
       by eauto using ac_to_alarm with LTS.
 
@@ -5498,11 +5498,11 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     intros.
     consider (exists mpath0 (i1 : instr), i0 N0 =[ mpath0 ]=> i1 N1)
       by eauto using Net_Transp_completeness.
-    consider (exists n, In n DS /\ dep_on N1 n n)
+    consider (exists n, In n DS /\ trans_lock N1 n n)
       by (eapply deadset_dep_self; eauto with LTS).
-    consider (exists n', dep_on (i1 N1) n n' /\ ac n' (i1 N1))
+    consider (exists n', trans_lock (i1 N1) n n' /\ ac n' (i1 N1))
       by (consider (KIC (i1 N1)); attac).
-    assert (dep_on (i1 N1) n' n')
+    assert (trans_lock (i1 N1) n' n')
       by (hsimpl; eauto using dep_reloop with LTS).
 
     consider (exists mpath1 (i2 : instr), (i1 N1 =[ mpath1 ]=> i2 _) /\ alarm (i2 _ n') = true)
