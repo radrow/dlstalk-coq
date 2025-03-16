@@ -1,7 +1,7 @@
 ---
-fullname: Deadlock Stalker (interceptive)
-shortname: dlstalki
-organization: DTU
+fullname: REDACTED
+shortname: REDACTED
+organization: REDACTED
 community: false
 action: true
 coqdoc: true
@@ -19,17 +19,12 @@ description: |-
 #   pub_doi: 
 
 authors:
-- name: Radosław Rowicki
+- name: REDACTED
   initial: true
-- name: Alceste Scalas
-- name: Adrian Francalanza
-  # orcid: 
 
 maintainers:
-- name: Radosław Rowicki
-  nickname: radrow / rjro
-
-# opam-file-maintainer: rjro@dtu.dk
+- name: REDACTED
+  nickname: REDACTED
 
 opam-file-version: dev
 
