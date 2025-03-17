@@ -1385,7 +1385,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       unfold deinstr in *.
       hsimpl in *.
       kill H0.
-      assert (MQ_s _ = [] /\ O0 = []) by eauto using app_eq_nil.
+      assert (retract_send _ = [] /\ O0 = []) by eauto using app_eq_nil.
       attac.
       (* TODO TO LEMMA *)
       clear - H0 H1.
@@ -1714,8 +1714,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       eapply lock_SRPC_Locked.
       2: eattac.
 
-      enough (NetMod.get n (net_deinstr MN0) = serv (&I ++ MQ_r MQ) P (MQ_s MQ ++ &O))
-        by (enough (AnySRPC_serv (serv (&I ++ MQ_r MQ) P (MQ_s MQ ++ &O))); eauto with LTS).
+      enough (NetMod.get n (net_deinstr MN0) = serv (&I ++ retract_recv MQ) P (retract_send MQ ++ &O))
+        by (enough (AnySRPC_serv (serv (&I ++ retract_recv MQ) P (retract_send MQ ++ &O))); eauto with LTS).
 
       unfold net_deinstr, deinstr in *.
       ltac1:(autorewrite with LTS in * ).
@@ -1780,9 +1780,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         kill H7. (* serv_lock *)
         assert (~ List.In (n1, R, v) I1) by (intros ?; eapply H11; eattac).
         hsimpl in *.
-        eassert (MQ_s _ = [] /\ O0 = []) by eauto using app_eq_nil.
+        eassert (retract_send _ = [] /\ O0 = []) by eauto using app_eq_nil.
         compat_hsimpl in *.
-        absurd (List.In (n1, R, v) ((I1 ++ [(n1, R, v)]) ++ MQ_r MQ)); attac.
+        absurd (List.In (n1, R, v) ((I1 ++ [(n1, R, v)]) ++ retract_recv MQ)); attac.
     - consider (exists v, na = NComm n0 n1 Q (MValP v)) by eauto using SRPC_M_net_new_lock_query.
       (* TODO fix this disgrace *)
       kill H2. hsimpl in *.
@@ -1888,15 +1888,15 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     compat_hsimpl in *. compat_hsimpl in *.
 
     kill H1.
-    consider (MQ_s MQ0 = [] /\ O0 = []) by auto using app_eq_nil.
+    consider (retract_send MQ0 = [] /\ O0 = []) by auto using app_eq_nil.
     compat_hsimpl in *.
 
     consider (mserv MQ0 _ _ =(_)=> _); compat_hsimpl in *; attac 4; hsimpl in |- *;
-      rewrite `(MQ_s _ = _) in *; attac.
+      rewrite `(retract_send _ = _) in *; attac.
     - destruct n0 as [? [|]].
       2: bs.
       assert (~ List.In (n1, R, v0) [(n0, Q, v)]) by (intros ?; attac).
-      assert (~ List.In (n1, R, v) (I1 ++ MQ_r MQ0)) by iattac.
+      assert (~ List.In (n1, R, v) (I1 ++ retract_recv MQ0)) by iattac.
       iattac.
       rewrite app_assoc in *.
       apply in_app_or in H6 as [|]; bs.
@@ -1904,7 +1904,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       bs.
     - kill TP; doubt.
       compat_hsimpl in *.
-      assert (~ (In (n1, R, v0) (I0 ++ MQ_r MQ1))) by eauto.
+      assert (~ (In (n1, R, v0) (I0 ++ retract_recv MQ1))) by eauto.
       bs (In (n1, R, v0) I0).
   Qed.
 
@@ -3328,7 +3328,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
              attac.
              kill H18; attac.
              kill H9.
-             apply `(~ In ((n', R), v) (I0 ++ MQ_r l1 ++ MQ_r l2)).
+             apply `(~ In ((n', R), v) (I0 ++ retract_recv l1 ++ retract_recv l2)).
              destruct n as [? [|]]; attac.
              consider (_ /\ handle (n, Q) = None) by eauto. bs.
              consider (_ /\ handle (n, Q) = None) by eauto.
@@ -4275,9 +4275,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
               compat_hsimpl in *.
               destruct S.
               hsimpl in *.
-              assert (List.In (n, Q, v) (MQ_r MQ0)) by eauto with LTS.
-              assert (List.In (n, Q, v0) (MQ_r MQ')) by eauto with LTS.
-              exists (serv_i0 ++ MQ_r MQ0), (MQ_r MQ'). eattac.
+              assert (List.In (n, Q, v) (retract_recv MQ0)) by eauto with LTS.
+              assert (List.In (n, Q, v0) (retract_recv MQ')) by eauto with LTS.
+              exists (serv_i0 ++ retract_recv MQ0), (retract_recv MQ'). eattac.
             }
 
             hsimpl in *.

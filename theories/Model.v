@@ -1070,97 +1070,97 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[export] Hint Rewrite @assg_inj using assumption : LTS.
 
 
-  Fixpoint MQ_r (MQ : list Event) : Que Val :=
+  Fixpoint retract_recv (MQ : list Event) : Que Val :=
     match MQ with
     | [] => []
-    | MqRecv n v :: MQ' => (n, v) :: MQ_r MQ'
-    | _ :: MQ' => MQ_r MQ'
+    | MqRecv n v :: MQ' => (n, v) :: retract_recv MQ'
+    | _ :: MQ' => retract_recv MQ'
     end.
 
 
-  Fixpoint MQ_s (MQ : list Event) : Que Val :=
+  Fixpoint retract_send (MQ : list Event) : Que Val :=
     match MQ with
     | [] => []
-    | MqSend n v :: MQ' => (n, v) :: MQ_s MQ'
-    | _ :: MQ' => MQ_s MQ'
+    | MqSend n v :: MQ' => (n, v) :: retract_send MQ'
+    | _ :: MQ' => retract_send MQ'
     end.
 
-  Lemma MQ_r_In [MQ n v] : List.In (MqRecv n v) MQ -> List.In (n, v) (MQ_r MQ).
+  Lemma retract_recv_In [MQ n v] : List.In (MqRecv n v) MQ -> List.In (n, v) (retract_recv MQ).
   Proof. intros; induction MQ; intros; hsimpl in *; attac.
          destruct H; subst; simpl in *; attac. destruct a; attac.
   Qed.
 
-  Lemma MQ_s_In [MQ n v] : List.In (MqSend n v) MQ -> List.In (n, v) (MQ_s MQ).
+  Lemma retract_send_In [MQ n v] : List.In (MqSend n v) MQ -> List.In (n, v) (retract_send MQ).
   Proof. intros; induction MQ; intros; hsimpl in *; attac.
          destruct H; subst; simpl in *; attac. destruct a; attac.
   Qed.
 
-  Lemma In_MQ_r MQ n v : List.In (n, v) (MQ_r MQ) -> List.In (MqRecv n v) MQ.
+  Lemma In_retract_recv MQ n v : List.In (n, v) (retract_recv MQ) -> List.In (MqRecv n v) MQ.
   Proof. intros; induction MQ; intros; hsimpl in *; attac.
          destruct a; attac. destruct H; hsimpl in *; eattac.
   Qed.
 
-  Lemma In_MQ_s [MQ n v] : List.In (n, v) (MQ_s MQ) -> List.In (MqSend n v) MQ.
+  Lemma In_retract_send [MQ n v] : List.In (n, v) (retract_send MQ) -> List.In (MqSend n v) MQ.
   Proof. intros; induction MQ; intros; hsimpl in *; attac.
          destruct a; attac. destruct H; hsimpl in *; eattac.
   Qed.
 
-  #[export] Hint Immediate MQ_r_In MQ_s_In In_MQ_r In_MQ_s : LTS.
-  #[export] Hint Resolve MQ_r_In MQ_s_In : LTS. (* strategy: the rewriter will reduce the other way, so solver has to infer it back*)
+  #[export] Hint Immediate retract_recv_In retract_send_In In_retract_recv In_retract_send : LTS.
+  #[export] Hint Resolve retract_recv_In retract_send_In : LTS. (* strategy: the rewriter will reduce the other way, so solver has to infer it back*)
 
 
-  Lemma MQ_r_In_inv MQ n v : List.In (MqRecv n v) MQ <-> List.In (n, v) (MQ_r MQ).
+  Lemma retract_recv_In_inv MQ n v : List.In (MqRecv n v) MQ <-> List.In (n, v) (retract_recv MQ).
   Proof. split; intros; eauto with LTS. Qed.
 
-  Lemma MQ_s_In_inv MQ n v : List.In (MqSend n v) MQ <-> List.In (n, v) (MQ_s MQ).
+  Lemma retract_send_In_inv MQ n v : List.In (MqSend n v) MQ <-> List.In (n, v) (retract_send MQ).
   Proof. split; intros; eauto with LTS. Qed.
 
-  #[export] Hint Rewrite <- MQ_r_In_inv MQ_s_In_inv using assumption : LTS LTS_concl.
+  #[export] Hint Rewrite <- retract_recv_In_inv retract_send_In_inv using assumption : LTS LTS_concl.
 
 
-  Lemma MQ_r_app MQ0 MQ1 : MQ_r (MQ0 ++ MQ1) = MQ_r MQ0 ++ MQ_r MQ1.
+  Lemma retract_recv_app MQ0 MQ1 : retract_recv (MQ0 ++ MQ1) = retract_recv MQ0 ++ retract_recv MQ1.
   Proof. induction MQ0; simpl in *; eattac. destruct a; eattac. Qed.
 
-  Lemma MQ_s_app MQ0 MQ1 : MQ_s (MQ0 ++ MQ1) = MQ_s MQ0 ++ MQ_s MQ1.
+  Lemma retract_send_app MQ0 MQ1 : retract_send (MQ0 ++ MQ1) = retract_send MQ0 ++ retract_send MQ1.
   Proof. induction MQ0; simpl in *; eattac. destruct a; eattac. Qed.
 
-  #[export] Hint Rewrite -> @MQ_r_app MQ_s_app using assumption : LTS LTS_concl.
-  #[export] Hint Resolve MQ_r_app MQ_s_app : LTS.
+  #[export] Hint Rewrite -> @retract_recv_app retract_send_app using assumption : LTS LTS_concl.
+  #[export] Hint Resolve retract_recv_app retract_send_app : LTS.
 
 
-  Lemma MQ_r_mrecv_nil MQ : MQ_Clear MQ -> MQ_r MQ = [].
+  Lemma retract_recv_mrecv_nil MQ : MQ_Clear MQ -> retract_recv MQ = [].
   Proof. induction MQ; eattac. Qed.
 
-  Lemma MQ_s_mrecv_nil MQ : MQ_Clear MQ -> MQ_s MQ = [].
+  Lemma retract_send_mrecv_nil MQ : MQ_Clear MQ -> retract_send MQ = [].
   Proof. induction MQ; eattac. Qed.
 
-  Lemma MQ_nil_mrecv MQ : MQ_r MQ = [] -> MQ_s MQ = [] -> MQ_Clear MQ.
+  Lemma MQ_nil_mrecv MQ : retract_recv MQ = [] -> retract_send MQ = [] -> MQ_Clear MQ.
   Proof. induction MQ; eattac. destruct a; eattac. Qed.
 
-  #[export] Hint Rewrite -> @MQ_r_mrecv_nil @MQ_s_mrecv_nil using assumption : LTS LTS_concl.
-  #[export] Hint Resolve MQ_r_mrecv_nil MQ_s_mrecv_nil MQ_nil_mrecv : LTS.
+  #[export] Hint Rewrite -> @retract_recv_mrecv_nil @retract_send_mrecv_nil using assumption : LTS LTS_concl.
+  #[export] Hint Resolve retract_recv_mrecv_nil retract_send_mrecv_nil MQ_nil_mrecv : LTS.
 
 
-  Lemma MQ_r_app_mrecv MQ0 MQ1 : MQ_Clear MQ1 -> MQ_r (MQ0 ++ MQ1) = MQ_r MQ0.
+  Lemma retract_recv_app_mrecv MQ0 MQ1 : MQ_Clear MQ1 -> retract_recv (MQ0 ++ MQ1) = retract_recv MQ0.
   Proof. eattac. Qed.
 
-  Lemma MQ_s_app_mrecv MQ0 MQ1 : MQ_Clear MQ1 -> MQ_s (MQ0 ++ MQ1) = MQ_s MQ0.
+  Lemma retract_send_app_mrecv MQ0 MQ1 : MQ_Clear MQ1 -> retract_send (MQ0 ++ MQ1) = retract_send MQ0.
   Proof. eattac. Qed.
 
-  Lemma MQ_r_mrecv_app MQ0 MQ1 : MQ_Clear MQ0 -> MQ_r (MQ0 ++ MQ1) = MQ_r MQ1.
+  Lemma retract_recv_mrecv_app MQ0 MQ1 : MQ_Clear MQ0 -> retract_recv (MQ0 ++ MQ1) = retract_recv MQ1.
   Proof. eattac. Qed.
 
-  Lemma MQ_s_mrecv_app MQ0 MQ1 : MQ_Clear MQ0 -> MQ_s (MQ0 ++ MQ1) = MQ_s MQ1.
+  Lemma retract_send_mrecv_app MQ0 MQ1 : MQ_Clear MQ0 -> retract_send (MQ0 ++ MQ1) = retract_send MQ1.
   Proof. eattac. Qed.
 
-  #[export] Hint Rewrite -> @MQ_r_app_mrecv @MQ_s_app_mrecv @MQ_r_mrecv_app MQ_s_mrecv_app using assumption : LTS_R LTS_concl_r.
-  #[export] Hint Resolve MQ_r_app_mrecv MQ_s_app_mrecv MQ_r_mrecv_app MQ_s_mrecv_app : LTS.
+  #[export] Hint Rewrite -> @retract_recv_app_mrecv @retract_send_app_mrecv @retract_recv_mrecv_app retract_send_mrecv_app using assumption : LTS_R LTS_concl_r.
+  #[export] Hint Resolve retract_recv_app_mrecv retract_send_app_mrecv retract_recv_mrecv_app retract_send_mrecv_app : LTS.
 
 
   (** Deinstrumentation. Strips off monitoring and disassembles monitor's queue. *)
   Coercion deinstr (MS0 : MServ) : Serv :=
     match MS0 with
-    | (mserv MQ0 _ (serv I0 P0 O0)) => (serv (I0 ++ (MQ_r MQ0)) P0 (MQ_s MQ0 ++ O0))
+    | (mserv MQ0 _ (serv I0 P0 O0)) => (serv (I0 ++ (retract_recv MQ0)) P0 (retract_send MQ0 ++ O0))
     end.
 
   (** Deinstrumentation is inversion of instrumentation *)
@@ -1556,7 +1556,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     end.
 
   Definition flush_M MQ M := MRecv (flush_Mstate MQ M).
-  Definition flush_S MQ S := match S with serv I0 P0 O0 => serv (I0 ++ MQ_r MQ) P0 O0 end.
+  Definition flush_S MQ S := match S with serv I0 P0 O0 => serv (I0 ++ retract_recv MQ) P0 O0 end.
   Definition flush_path MS := match MS with mserv MQ M _ => mk_flush_path MQ M end.
   Definition flush_MS MS0 := match MS0 with mserv MQ0 M0 S0 => mserv [] (flush_M MQ0 M0) (flush_S MQ0 S0) end.
 
@@ -1628,7 +1628,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
       1: eauto using flush_M_go.
 
       destruct a; eapply path_seq1; eattac 15.
-      now replace (I0 ++ (n, v) :: MQ_r MQ0) with ((I0 ++ [(n, v)]) ++ MQ_r MQ0) by eattac.
+      now replace (I0 ++ (n, v) :: retract_recv MQ0) with ((I0 ++ [(n, v)]) ++ retract_recv MQ0) by eattac.
   Qed.
 
   Lemma flush_go_MS : forall {MS0}, MS0 =[flush_path MS0]=> flush_MS MS0.
@@ -1768,7 +1768,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
       [ma]
       [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1],
       (mserv MQ0 M0 (serv I0 P0 O0) =(ma)=> mserv MQ1 M1 (serv I1 P1 O1)) ->
-      (serv (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0) =[MPath_to_PPath [ma]]=> serv (I1 ++ MQ_r MQ1) P1 (MQ_s MQ1 ++ O1)).
+      (serv (I0 ++ retract_recv MQ0) P0 (retract_send MQ0 ++ O0) =[MPath_to_PPath [ma]]=> serv (I1 ++ retract_recv MQ1) P1 (retract_send MQ1 ++ O1)).
 
   Proof.
     intros.
@@ -1783,7 +1783,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
       [mpath]
       [MQ0 M0 I0 P0 O0] [MQ1 M1 I1 P1 O1],
       (mserv MQ0 M0 (serv I0 P0 O0) =[mpath]=> mserv MQ1 M1 (serv I1 P1 O1)) ->
-      (serv (I0 ++ MQ_r MQ0) P0 (MQ_s MQ0 ++ O0) =[MPath_to_PPath mpath]=> serv (I1 ++ MQ_r MQ1) P1 (MQ_s MQ1 ++ O1)).
+      (serv (I0 ++ retract_recv MQ0) P0 (retract_send MQ0 ++ O0) =[MPath_to_PPath mpath]=> serv (I1 ++ retract_recv MQ1) P1 (retract_send MQ1 ++ O1)).
 
   Proof with (eauto with LTS).
     induction mpath; intros.
@@ -1794,7 +1794,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     destruct N1 as [MQ0' M0' [I0' P0' O0']].
     rewrite MPath_to_PPath_cons.
 
-    eapply path_seq with (middle := serv (I0' ++ MQ_r MQ0') P0' (MQ_s MQ0' ++ O0'));
+    eapply path_seq with (middle := serv (I0' ++ retract_recv MQ0') P0' (retract_send MQ0' ++ O0'));
       eauto using corr_extraction1.
   Qed.
 

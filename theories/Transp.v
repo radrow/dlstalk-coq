@@ -618,9 +618,9 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     exists (mk_flush_path MQ0 M0).
     simpl.
     unshelve eexists (flush_Mstate MQ0 M0).
-    exists (MQ_r MQ0).
+    exists (retract_recv MQ0).
     simpl.
-    replace (serv (I0 ++ MQ_r MQ0) P &O) with (flush_S MQ0 (serv I0 P &O)) by attac.
+    replace (serv (I0 ++ retract_recv MQ0) P &O) with (flush_S MQ0 (serv I0 P &O)) by attac.
     split; eauto using flush_go, flush_path_Flushing.
   Qed.
 
@@ -1512,7 +1512,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         hsimpl in |- *.
         kill H.
         destruct S0 as [I P O].
-        exists (NetMod.put n (serv (&I ++ MQ_r MQ) P (MQ_s MQ ++ &O)) (net_deinstr MN0)).
+        exists (NetMod.put n (serv (&I ++ retract_recv MQ) P (retract_send MQ ++ &O)) (net_deinstr MN0)).
         split.
         * constructor.
           unfold net_deinstr, deinstr in *.
