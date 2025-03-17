@@ -30,7 +30,7 @@ From Coq Require Import Structures.Equalities.
 Import ListNotations.
 Open Scope string_scope.
 
-(* this must be extracted or else coq bugs https://github.com/coq/coq/issues/19994 *)
+(* this must be extracted or else coq bugs *)
 Inductive Name_ : Set :=
 | Initiator : string -> nat -> Name_
 | Worker :> string -> Name_
