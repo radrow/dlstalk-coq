@@ -855,7 +855,7 @@ Module Thomas. (* This name does not refer to any of the authors. You get 1000'0
       intros.
       consider (exists DS, dead_set DS '' MN1 /\ In n DS); eattac.
     - unfold detect_complete; intros.
-      specialize detection_complete with
+      specialize KIC_detection_complete with
         (i0 := gen_instr)
         (N0 := gen_net conf)
         (MN1 := MN1)

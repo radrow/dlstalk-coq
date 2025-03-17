@@ -420,7 +420,7 @@ Check ac_to_alarm : forall MN0 n,
     exists DS mpath MN1,
       (MN0 =[ mpath ]=> MN1) /\ dead_set DS '' MN0 /\ detect_path DS mpath /\ alarm (MN1 n) = true.
 
-Check detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
+Check KIC_detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
     KIC (i0 N0) ->
     (i0 N0 =[ mpath0 ]=> MN1) ->
     dead_set DS '' MN1 ->

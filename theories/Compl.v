@@ -5466,7 +5466,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
+  Theorem KIC_detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
       KIC (i0 N0) ->
       (i0 N0 =[ mpath0 ]=> MN1) ->
       dead_set DS MN1 ->
@@ -5485,7 +5485,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     now eauto with LTS.
   Qed.
 
-  Check detection_complete.
+  Check KIC_detection_complete.
 
 
   Corollary find_detection  : forall (i0 : instr) (N0 N1 : Net) path (DS : Names),
