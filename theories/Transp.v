@@ -60,9 +60,9 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   #[export] Hint Resolve serv_i_net_inv' serv_p_net_inv' serv_o_net_inv' : LTS LTS_concl.
 
 
-  Lemma mserv_i_net_inv : forall MQ M S n [N : MNet],
+  Lemma mserv_q_net_inv : forall MQ M S n [N : MNet],
       NetMod.get n N = mserv MQ M S ->
-      mserv_i (NetMod.get n N) = MQ.
+      mserv_q (NetMod.get n N) = MQ.
   Proof. intros. rewrite H. attac. Qed.
 
   Lemma mserv_m_net_inv : forall MQ M S n [N : MNet],
@@ -75,8 +75,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       mserv_s (NetMod.get n N) = S.
   Proof. intros. rewrite H. attac. Qed.
 
-  #[export] Hint Rewrite -> mserv_i_net_inv mserv_m_net_inv mserv_s_net_inv using spank : LTS LTS_concl.
-  #[export] Hint Resolve mserv_i_net_inv mserv_m_net_inv mserv_s_net_inv : LTS LTS_concl.
+  #[export] Hint Rewrite -> mserv_q_net_inv mserv_m_net_inv mserv_s_net_inv using spank : LTS LTS_concl.
+  #[export] Hint Resolve mserv_q_net_inv mserv_m_net_inv mserv_s_net_inv : LTS LTS_concl.
 
 
   Definition PNAct := @NAct PAct gen_Act_PAct.
@@ -371,7 +371,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     attac. Qed.
   #[export] Hint Immediate MNetGet_get : LTS core.
 
-  Lemma flushed_in_NoSends_MQ : forall MN n, flushed_in n MN -> NoSends_MQ (mserv_i (MN n)).
+  Lemma flushed_in_NoSends_MQ : forall MN n, flushed_in n MN -> NoSends_MQ (mserv_q (MN n)).
   Proof. intros. assert (Flushed (MN n)) by auto. destruct (MN n). attac. Qed.
 
   #[export] Hint Immediate flushed_in_NoSends_MQ  : LTS.

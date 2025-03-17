@@ -797,7 +797,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[export] Hint Resolve <- ready_inv : LTS.
 
 
-  Inductive MServ := mserv { mserv_i : MQue; mserv_m :> MProc; mserv_s : Serv}.
+  Inductive MServ := mserv { mserv_q : MQue; mserv_m :> MProc; mserv_s : Serv}.
   #[export] Hint Constructors MServ : LTS.
 
 
