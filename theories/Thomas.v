@@ -373,7 +373,7 @@ Module Thomas.
     }.
 
 
-  Definition gen_net (conf : NetConf) : PNet :=
+  Definition gen_net (conf : NetConf) : Net :=
     NetMod.init (
         fun n => match n with
               | Worker name =>
@@ -864,7 +864,7 @@ Module Thomas.
       |}.
 
 
-    Definition example_net : PNet :=
+    Definition example_net : Net :=
       gen_net
         {| services name :=
             match name with

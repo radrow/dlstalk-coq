@@ -48,7 +48,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
   Import SrpcDefs.
 
   (* TODO: these to Transp *)
-  Lemma serv_i_net_inv : forall I P O n [N : PNet],
+  Lemma serv_i_net_inv : forall I P O n [N : Net],
       NetMod.get n N = serv I P O ->
       serv_i (NetMod.get n N) = I.
   Proof. intros. rewrite H. attac. Qed.
@@ -866,7 +866,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         pq_client n0 (NetMod.get n1 N) -> lock N n0 n1.
 
 
-    Inductive well_formed (N : PNet) : Prop :=
+    Inductive well_formed (N : Net) : Prop :=
     | WF
         (H_wf_SRPC : service_wf_net N)
         (H_lock_sound : locks_sound N)
@@ -880,10 +880,10 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     (* #[export] Hint Resolve service_wf_well_formed : LTS. (* TODO is this needed? *) *)
 
 
-    Lemma well_formed_service_wf [N : PNet] : well_formed N -> service_wf_net N.
+    Lemma well_formed_service_wf [N : Net] : well_formed N -> service_wf_net N.
     Proof. intros. kill H. intros ?. eauto with LTS. Qed.
 
-    Lemma well_formed_SRPC [N : PNet] : well_formed N -> SRPC_net N.
+    Lemma well_formed_SRPC [N : Net] : well_formed N -> SRPC_net N.
     Proof. intros. kill H. intros ?. destruct (H_wf_SRPC n). eauto with LTS. Qed.
 
     Lemma well_formed_lock_client [N S n0 n1] : well_formed N -> NetMod.get n1 N = S -> lock N n0 n1 -> pq_client n0 S.
@@ -897,7 +897,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
 
     (* This is to allow the condition from LocksStatic be used in Immediate hints. *)
-    Lemma well_formed_AnySRPC' (N : PNet) : well_formed N -> forall n, AnySRPC_serv (NetMod.get n N).
+    Lemma well_formed_AnySRPC' (N : Net) : well_formed N -> forall n, AnySRPC_serv (NetMod.get n N).
     Proof. intros. kill H. specialize (H_wf_SRPC n) as [? H]. kill H. attac. Qed.
     #[export] Hint Extern 0 (forall n, AnySRPC_serv (NetMod.get n _)) => simple apply well_formed_AnySRPC'; eassumption : LTS.
 
@@ -1164,7 +1164,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Theorem well_formed_no_self_reply [N0 N1 : PNet] [n0 n1 v] :
+    Theorem well_formed_no_self_reply [N0 N1 : Net] [n0 n1 v] :
       well_formed N0 ->
       (N0 =(NComm n0 n1 R v)=> N1) ->
       n0 <> n1.
@@ -1182,7 +1182,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma well_formed_new_lock_comm_Q_inv_sender [n0 n1 m0 m1 t v] [N0 N1 : PNet] :
+    Lemma well_formed_new_lock_comm_Q_inv_sender [n0 n1 m0 m1 t v] [N0 N1 : Net] :
       well_formed N0 ->
       (N0 =(NComm m0 m1 t v)=> N1) ->
       ~ lock N0 n0 n1 ->
@@ -1210,7 +1210,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         bs.
     Qed.
 
-    Lemma well_formed_new_lock_comm_Q_inv_tag [n0 n1 m0 m1 t v] [N0 N1 : PNet] :
+    Lemma well_formed_new_lock_comm_Q_inv_tag [n0 n1 m0 m1 t v] [N0 N1 : Net] :
       well_formed N0 ->
       (N0 =(NComm m0 m1 t v)=> N1) ->
       ~ lock N0 n0 n1 ->
@@ -1232,7 +1232,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       absurd (~ serv_lock [n1] &S); eauto using service_wf_send_R_no_lock_r with LTS.
     Qed.
 
-    Lemma well_formed_new_lock_comm_Q_inv_receiver [n0 n1 m0 m1 t v] [N0 N1 : PNet] :
+    Lemma well_formed_new_lock_comm_Q_inv_receiver [n0 n1 m0 m1 t v] [N0 N1 : Net] :
       well_formed N0 ->
       (N0 =(NComm m0 m1 t v)=> N1) ->
       ~ lock N0 n0 n1 ->
@@ -1267,7 +1267,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
     (* TODO CONSISTENT NAMES *)
-    Lemma well_formed_new_lock_send_Q [n0 n1] [a] [N0 N1 : PNet] :
+    Lemma well_formed_new_lock_send_Q [n0 n1] [a] [N0 N1 : Net] :
       well_formed N0 ->
       (N0 =(a)=> N1) ->
       ~ lock N0 n0 n1 ->
@@ -1301,7 +1301,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma well_formed_recv_R_SRPC [n0 n1 v] [N0 N1 : PNet] :
+    Lemma well_formed_recv_R_SRPC [n0 n1 v] [N0 N1 : Net] :
       well_formed N0 ->
       (N0 =(NComm n0 n1 R v)=> N1) ->
       exists n', service_wf (Locked n' n0) (NetMod.get n1 N0).
@@ -1360,7 +1360,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Theorem well_formed_reply_lock [N0 N1 : PNet] [n0 n1 v] :
+    Theorem well_formed_reply_lock [N0 N1 : Net] [n0 n1 v] :
       well_formed N0 ->
       (N0 =(NComm n0 n1 R v)=> N1) ->
       lock N0 n1 n0.
@@ -1379,7 +1379,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       attac.
     Qed.
 
-    Theorem well_formed_send_Q_new_lock [N0 N1 : PNet] [n0 n1 v] :
+    Theorem well_formed_send_Q_new_lock [N0 N1 : Net] [n0 n1 v] :
       well_formed N0 ->
       (N0 =(NComm n0 n1 Q v)=> N1) ->
       lock N1 n0 n1.
@@ -1924,7 +1924,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma trans_invariant_well_formed__well_formed_comm__sender_Q [n0 n1 v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed__well_formed_comm__sender_Q [n0 n1 v] [N0 N1 : Net] :
       n0 <> n1 ->
       (N0 =(NComm n0 n1 Q v)=> N1) ->
       well_formed N0 ->
@@ -1976,7 +1976,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma trans_invariant_well_formed__well_formed_comm__sender_R [n0 n1 v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed__well_formed_comm__sender_R [n0 n1 v] [N0 N1 : Net] :
       n0 <> n1 ->
       (N0 =(NComm n0 n1 R v)=> N1) ->
       well_formed N0 ->
@@ -2030,7 +2030,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       - attac.
     Qed.
 
-    Lemma trans_invariant_well_formed__well_formed_comm__sender [n0 n1 t v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed__well_formed_comm__sender [n0 n1 t v] [N0 N1 : Net] :
       n0 <> n1 ->
       (N0 =(NComm n0 n1 t v)=> N1) ->
       well_formed N0 ->
@@ -2046,7 +2046,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma trans_invariant_well_formed__well_formed_comm__receiver_Q [n0 n1 v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed__well_formed_comm__receiver_Q [n0 n1 v] [N0 N1 : Net] :
       n0 <> n1 ->
       (N0 =(NComm n0 n1 Q v)=> N1) ->
       well_formed N0 ->
@@ -2228,7 +2228,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma trans_invariant_well_formed__well_formed_comm__receiver_R [n0 n1 v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed__well_formed_comm__receiver_R [n0 n1 v] [N0 N1 : Net] :
       n0 <> n1 ->
       (N0 =(NComm n0 n1 R v)=> N1) ->
       well_formed N0 ->
@@ -2275,7 +2275,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       - attac.
     Qed.
 
-    Lemma trans_invariant_well_formed__well_formed_comm__receiver [n0 n1 t v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed__well_formed_comm__receiver [n0 n1 t v] [N0 N1 : Net] :
       n0 <> n1 ->
       (N0 =(NComm n0 n1 t v)=> N1) ->
       well_formed N0 ->
@@ -2290,7 +2290,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma trans_invariant_well_formed__well_formed_comm__self_Q [n0 v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed__well_formed_comm__self_Q [n0 v] [N0 N1 : Net] :
       (N0 =(NComm n0 n0 Q v)=> N1) ->
       well_formed N0 ->
       exists srpc, service_wf srpc (NetMod.get n0 N1).
@@ -2369,7 +2369,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma trans_invariant_well_formed__well_formed_comm__self [n0 t v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed__well_formed_comm__self [n0 t v] [N0 N1 : Net] :
       (N0 =(NComm n0 n0 t v)=> N1) ->
       well_formed N0 ->
       exists srpc, service_wf srpc (NetMod.get n0 N1).
@@ -2382,7 +2382,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma trans_invariant_well_formed_comm__service_wf [n0 n1 t v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed_comm__service_wf [n0 n1 t v] [N0 N1 : Net] :
       (N0 =(NComm n0 n1 t v)=> N1) ->
       well_formed N0 ->
       service_wf_net N1.
@@ -2396,7 +2396,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       - replace (NetMod.get n N1) with (NetMod.get n N0); attac.
     Qed.
 
-    Lemma trans_invariant_well_formed_comm__locks_sound_Q [n0 n1 v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed_comm__locks_sound_Q [n0 n1 v] [N0 N1 : Net] :
       (N0 =(NComm n0 n1 Q v)=> N1) ->
       well_formed N0 ->
       locks_sound N1.
@@ -2423,7 +2423,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       - smash_eq_on m1 n1 n0; subst; compat_hsimpl; attac.
     Qed.
 
-    Lemma trans_invariant_well_formed_comm__locks_sound_R [n0 n1 v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed_comm__locks_sound_R [n0 n1 v] [N0 N1 : Net] :
       (N0 =(NComm n0 n1 R v)=> N1) ->
       well_formed N0 ->
       locks_sound N1.
@@ -2447,7 +2447,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       - smash_eq_on m0 n1 n0; subst; compat_hsimpl; attac.
     Qed.
 
-    Lemma trans_invariant_well_formed_comm__locks_sound [n0 n1 t v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed_comm__locks_sound [n0 n1 t v] [N0 N1 : Net] :
       (N0 =(NComm n0 n1 t v)=> N1) ->
       well_formed N0 ->
       locks_sound N1.
@@ -2459,7 +2459,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma trans_invariant_well_formed_comm__locks_complete_Q [n0 n1 v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed_comm__locks_complete_Q [n0 n1 v] [N0 N1 : Net] :
       (N0 =(NComm n0 n1 Q v)=> N1) ->
       well_formed N0 ->
       locks_complete N1.
@@ -2538,7 +2538,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma trans_invariant_well_formed_comm__locks_complete_R [n0 n1 v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed_comm__locks_complete_R [n0 n1 v] [N0 N1 : Net] :
       (N0 =(NComm n0 n1 R v)=> N1) ->
       well_formed N0 ->
       locks_complete N1.
@@ -2639,7 +2639,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         (* TODO compress those cases *)
     Qed.
 
-    Lemma trans_invariant_well_formed_comm__locks_complete [n0 n1 t v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed_comm__locks_complete [n0 n1 t v] [N0 N1 : Net] :
       (N0 =(NComm n0 n1 t v)=> N1) ->
       well_formed N0 ->
       locks_complete N1.
@@ -2652,7 +2652,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
 
     Hint Resolve trans_Serv | 0 : typeclass_instances.
-    Lemma trans_invariant_well_formed_comm [n0 n1 t] [v] [N0 N1 : PNet] :
+    Lemma trans_invariant_well_formed_comm [n0 n1 t] [v] [N0 N1 : Net] :
       (N0 =(NComm n0 n1 t v)=> N1) ->
       well_formed N0 ->
       well_formed N1.

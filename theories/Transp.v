@@ -37,11 +37,11 @@ End TRANSP_PARAMS.
 Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Conf)).
 
   (** Not-monitored network *)
-  Notation PNet := (NetMod.t Serv).
+  Notation Net := (NetMod.t Serv).
   (** Monitored network *)
   Notation MNet := (NetMod.t MServ).
 
-  Lemma serv_i_net_inv' : forall I P O n [N : PNet], (* TODO prime' is due to a name clash in SRPCNet.v *)
+  Lemma serv_i_net_inv' : forall I P O n [N : Net], (* TODO prime' is due to a name clash in SRPCNet.v *)
       NetMod.get n N = serv I P O ->
       serv_i (NetMod.get n N) = I.
   Proof. intros. rewrite H. attac. Qed.
@@ -86,7 +86,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   #[export] Hint Transparent PNAct MNAct : LTS typeclass_instances.
 
 
-  Lemma PNet_trans_simpl_inv a n N I P O S :
+  Lemma Net_trans_simpl_inv a n N I P O S :
     NetMod.get n N = serv I P O ->
     (NetMod.get n N =(a)=> S) <-> (serv I P O =(a)=> S).
   Proof. split; intros; rewrite H in *; auto. Qed.
@@ -96,7 +96,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     (NetMod.get n N =(a)=> MS) <-> (mserv MQ M S =(a)=> MS).
   Proof. split; intros; rewrite H in *; auto. Qed.
 
-  #[export] Hint Rewrite -> @PNet_trans_simpl_inv @MNet_trans_simpl_inv using spank : LTS_concl.
+  #[export] Hint Rewrite -> @Net_trans_simpl_inv @MNet_trans_simpl_inv using spank : LTS_concl.
 
 
   Definition MNAct_to_PNAct (ma : MNAct) : option PNAct :=
@@ -139,7 +139,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Inductive instr := instr_ {instr_for : Name -> mon_assg}.
 
   (** Instrumentation of all processes in a network *)
-  Definition apply_instr (i : instr) (N : PNet) : MNet :=
+  Definition apply_instr (i : instr) (N : Net) : MNet :=
     NetMod.map (instr_for i) N.
 
   Coercion apply_instr : instr >-> Funclass.
@@ -148,7 +148,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** Deinstrumentation of all processes *)
-  Coercion deinstr (N : MNet) : PNet :=
+  Coercion deinstr (N : MNet) : Net :=
     NetMod.map (fun n S => serv_deinstr S) N.
 
 
@@ -188,7 +188,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** NV-transitions preserve mon_assg_ (almost). *)
-  Lemma NV_invariant : forall [n : Name] [a : MAct] [I0] [N0 : PNet] [MN1 : MNet],
+  Lemma NV_invariant : forall [n : Name] [a : MAct] [I0] [N0 : Net] [MN1 : MNet],
       (apply_instr I0 N0) ~(n@a)~> MN1 ->
       MN1 = NetMod.put n (NetMod.get n MN1) (apply_instr I0 N0).
 
@@ -196,7 +196,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** NV-receives of monitor stuff preserve mon_assg_ *)
-  Lemma recvm_invariant_instr : forall [n n' : Name] [t0 v I0] [N0 : PNet] [MN1 : MNet],
+  Lemma recvm_invariant_instr : forall [n n' : Name] [t0 v I0] [N0 : Net] [MN1 : MNet],
       NVTrans n (MActM (Recv (n', t0) v)) (apply_instr I0 N0) MN1 ->
       exists I1,
         MN1 = apply_instr I1 N0.
@@ -273,7 +273,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** Every process is always ready to receive. *)
-  Lemma recv_available_p : forall (n n' : Name) t0 v (N0 : PNet),
+  Lemma recv_available_p : forall (n n' : Name) t0 v (N0 : Net),
     exists N1, NVTrans n (recv (n', t0) v) N0 N1.
 
   Proof.
@@ -288,7 +288,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** If a process can send, then it can in any network. *)
-  Lemma send_available_p : forall [n n' : Name] [t0 v S] [N0 : PNet],
+  Lemma send_available_p : forall [n n' : Name] [t0 v S] [N0 : Net],
       (NetMod.get n N0 =(send (n', t0) v)=> S) ->
       exists N1, NVTrans n (send (n', t0) v) N0 N1
                  /\ S = NetMod.get n N1.
@@ -304,7 +304,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** Every process is always ready to receive. *)
-  Lemma send_comm_available_p : forall [n n' : Name] [t0 v S] [N0 : PNet],
+  Lemma send_comm_available_p : forall [n n' : Name] [t0 v S] [N0 : Net],
       (NetMod.get n N0 =(send (n', t0) v)=> S) ->
       exists N1,
         (N0 =(NComm n n' t0 v)=> N1).
@@ -364,7 +364,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
   #[export] Hint Immediate Clear_NoSends_MQ  : LTS.
 
-  Fact NetGet_get : forall (P : Serv -> Prop) n (N : PNet), P (NetGet _ N n) <-> P (NetMod.get n N).
+  Fact NetGet_get : forall (P : Serv -> Prop) n (N : Net), P (NetGet _ N n) <-> P (NetMod.get n N).
     attac. Qed.
   #[export] Hint Immediate NetGet_get : LTS core.
   Fact MNetGet_get : forall (P : MServ -> Prop) n (N : MNet), P (NetGet _ N n) <-> P (NetMod.get n N).
@@ -1067,7 +1067,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Qed.
 
 
-  Lemma net_instr_inv (I : instr) (N0 N1 : PNet) : I N0 = I N1 <-> N0 = N1.
+  Lemma net_instr_inv (I : instr) (N0 N1 : Net) : I N0 = I N1 <-> N0 = N1.
   Proof. attac. eauto using net_instr_inj. Qed.
 
 
@@ -1187,7 +1187,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Theorem Net_flush_exists : forall [chans] (MN0 : MNet),
       (forall n, not (In n chans) -> flushed_in n MN0) ->
       (forall n, not (In n chans) -> ready_in n MN0) ->
-      exists mnpath I1 (N1 : PNet),
+      exists mnpath I1 (N1 : Net),
         (MN0 =[ mnpath ]=> apply_instr I1 N1).
 
   Proof.
@@ -1582,7 +1582,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   #[export] Hint Resolve assg_mq_Clear : LTS. (* TODO to Model *)
 
   (** Soundness of network transparency *)
-  Theorem transp_sound_instr : forall {mnpath0} {I0} {N0 : PNet} {MN1 : MNet},
+  Theorem transp_sound_instr : forall {mnpath0} {I0} {N0 : Net} {MN1 : MNet},
       (apply_instr I0 N0 =[ mnpath0 ]=> MN1) ->
       exists mnpath1 pnpath I2 N2,
         (MN1 =[ mnpath1 ]=> apply_instr I2 N2)
@@ -1633,7 +1633,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** Completeness over NV: tau case. *)
-  Lemma Net_Vis_Transp_completeness_tau : forall (I : instr) {n : Name} {N0 N1 : PNet},
+  Lemma Net_Vis_Transp_completeness_tau : forall (I : instr) {n : Name} {N0 N1 : Net},
       (NVTrans n Tau N0 N1) ->
       (NVTrans n (MActP Tau) (apply_instr I N0) (apply_instr I N1)).
 
@@ -2052,7 +2052,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Qed.
 
 
-  Lemma prepare_send : forall I0 [N0 : PNet] [n n' v S1],
+  Lemma prepare_send : forall I0 [N0 : Net] [n n' v S1],
       (NetMod.get n N0 =(send n' v)=> S1) ->
       exists mnpath I1 MQ1 M1 MN1,
         (apply_instr I0 N0 =[mnpath]=> MN1)
@@ -2255,7 +2255,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** Network transparency completeness over a single action *)
-  Lemma transp_complete1 : forall I0 {na} {N0 N1 : PNet},
+  Lemma transp_complete1 : forall I0 {na} {N0 N1 : Net},
       (N0 =(na)=> N1) ->
       exists nmpath I1,
         (apply_instr I0 N0 =[nmpath]=> apply_instr I1 N1).
@@ -2411,7 +2411,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** Network transparency completeness *)
-  Theorem transp_complete : forall {path} I0 {N0 N1 : PNet},
+  Theorem transp_complete : forall {path} I0 {N0 N1 : Net},
       (N0 =[ path ]=> N1) ->
       exists mpath I1,
         (apply_instr I0 N0 =[ mpath ]=> apply_instr I1 N1).

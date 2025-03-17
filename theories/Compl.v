@@ -719,7 +719,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem SRPC_net_query_new_lock [N0 N1 : PNet] [n0 n1 v] :
+  Theorem SRPC_net_query_new_lock [N0 N1 : Net] [n0 n1 v] :
     well_formed N0 ->
     (N0 =(NComm n0 n1 Q v)=> N1) ->
     (~ lock N0 n0 n1 /\ lock N1 n0 n1).
@@ -747,7 +747,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem SRPC_net_reply_unlock [N0 N1 : PNet] [n0 n1 v] :
+  Theorem SRPC_net_reply_unlock [N0 N1 : Net] [n0 n1 v] :
     well_formed N0 ->
     (N0 =(NComm n0 n1 R v)=> N1) ->
     (lock N0 n1 n0 /\ ~ lock N1 n1 n0).
@@ -824,7 +824,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   #[export] Hint Resolve well_formed_lock_dec : LTS.
 
 
-  Theorem SRPC_net_tau_preserve_lock [N0 N1 : PNet] [n a] :
+  Theorem SRPC_net_tau_preserve_lock [N0 N1 : Net] [n a] :
     well_formed N0 ->
     (N0 =(NTau n a)=> N1) ->
     forall n0 n1, lock N0 n0 n1 <-> lock N1 n0 n1.
@@ -1421,7 +1421,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma well_formed_lock_chain_dec (N : PNet) n0 L n1 :
+  Lemma well_formed_lock_chain_dec (N : Net) n0 L n1 :
     well_formed N ->
     lock_chain N n0 L n1 \/ ~ lock_chain N n0 L n1.
 
@@ -1587,7 +1587,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma SRPC_net_new_lock_no_unlock [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
+  Lemma SRPC_net_new_lock_no_unlock [N0 N1 : Net] [na] [n0 n1 m0 m1] :
     well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ lock N0 n0 n1 ->
@@ -1609,7 +1609,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma SRPC_net_new_lock_no_unlock_dep [N0 N1 : PNet] [na] [n0 n1 m0 m1] :
+  Lemma SRPC_net_new_lock_no_unlock_dep [N0 N1 : Net] [na] [n0 n1 m0 m1] :
     well_formed N0 ->
     (N0 =(na)=> N1) ->
     ~ lock N0 n0 n1 ->
@@ -4648,7 +4648,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma deadlocked_lock_chain_invariant1 [N0 N1 : PNet] [L] [n0 n1 : Name] [a] :
+  Lemma deadlocked_lock_chain_invariant1 [N0 N1 : Net] [L] [n0 n1 : Name] [a] :
     (N0 =(a)=> N1) ->
     deadlocked n0 N0 ->
     lock_chain N0 n0 L n1 ->
@@ -4674,7 +4674,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   (* Hint Resolve  deadlocked_lock_chain_invariant1 | 0 : LTS. *)
 
 
-  Lemma deadlocked_lock_chain_invariant [N0 N1 : PNet] [L] [n0 n1 : Name] [mpath] :
+  Lemma deadlocked_lock_chain_invariant [N0 N1 : Net] [L] [n0 n1 : Name] [mpath] :
     (N0 =[mpath]=> N1) ->
     deadlocked n0 N0 ->
     lock_chain N0 n0 L n1 ->
@@ -5488,7 +5488,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Check detection_complete.
 
 
-  Corollary find_detection  : forall (i0 : instr) (N0 N1 : PNet) path (DS : Names),
+  Corollary find_detection  : forall (i0 : instr) (N0 N1 : Net) path (DS : Names),
       KIC (i0 N0) ->
       (N0 =[ path ]=> N1) ->
       dead_set DS N1 ->

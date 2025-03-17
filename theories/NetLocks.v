@@ -43,7 +43,7 @@ Module Type NET_LOCKS_PARAMS(Conf : NET_LOCKS_CONF).
 End NET_LOCKS_PARAMS.
 
 Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_PARAMS(Conf)).
-  Notation PNet := (NetMod.t Serv).
+  Notation Net := (NetMod.t Serv).
 
   (** Network is decisive when all services are *)
   Definition Decisive_net N := forall n, Decisive_q (NetMod.get n N).
@@ -562,7 +562,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Transitive closure of the individual lock relation *)
-    Inductive trans_lock (N : PNet) (n0 : Name) : Name -> Prop :=
+    Inductive trans_lock (N : Net) (n0 : Name) : Name -> Prop :=
     | trans_lock_Direct [n1] :
       lock N n0 n1 ->
       trans_lock N n0 n1
@@ -582,7 +582,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Indirect lock is transitive *)
-    Lemma trans_lock_seq [N : PNet] [n0 n1 n2] :
+    Lemma trans_lock_seq [N : Net] [n0 n1 n2] :
       trans_lock N n0 n1 ->
       trans_lock N n1 n2 ->
       trans_lock N n0 n2.
@@ -598,7 +598,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Indirect lock is transitive over locks (front) *)
-    Lemma trans_lock_seq1 [N : PNet] [n0 n1 n2] :
+    Lemma trans_lock_seq1 [N : Net] [n0 n1 n2] :
       lock N n0 n1 ->
       trans_lock N n1 n2 ->
       trans_lock N n0 n2.
@@ -609,7 +609,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Indirect lock is transitive over locks (back) *)
-    Lemma trans_lock_seq1' [N : PNet] [n0 n1 n2] :
+    Lemma trans_lock_seq1' [N : Net] [n0 n1 n2] :
       trans_lock N n0 n1 ->
       lock N n1 n2 ->
       trans_lock N n0 n2.
@@ -714,7 +714,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     (** Transitive closure of lock relation with exposed connection *)
-    Inductive lock_chain (N : PNet) : Name -> list Name -> Name -> Prop :=
+    Inductive lock_chain (N : Net) : Name -> list Name -> Name -> Prop :=
     | LC_nil [n0 n1] :
       lock N n0 n1 ->
       lock_chain N n0 [] n1
@@ -897,7 +897,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
     Lemma trans_lock_ind_right :
-      forall P : PNet -> Name -> Name -> Prop,
+      forall P : Net -> Name -> Name -> Prop,
         (forall N n0 n2, lock N n0 n2 -> P N n0 n2) ->
         (forall N n0 n1 n2, trans_lock N n0 n1 -> lock N n1 n2 -> P N n1 n2 -> P N n0 n2) ->
         forall N n0 n2, trans_lock N n0 n2 -> P N n0 n2.
@@ -1356,7 +1356,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Extern 10 (deadlocked _ _) => solve_invariant : LTS.
 
 
-    Lemma deadlocked_lock_on [N : PNet] [n0 : Name] [n1 : Name] :
+    Lemma deadlocked_lock_on [N : Net] [n0 : Name] [n1 : Name] :
       deadlocked n0 N ->
       lock N n0 n1 ->
       deadlocked n1 N.
@@ -1371,7 +1371,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     #[export] Hint Resolve deadlocked_lock_on : LTS.
 
-    Lemma deadlocked_dep [N : PNet] [n0 : Name] [n1 : Name] :
+    Lemma deadlocked_dep [N : Net] [n0 : Name] [n1 : Name] :
       deadlocked n0 N ->
       trans_lock N n0 n1 ->
       deadlocked n1 N.
@@ -1387,7 +1387,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Resolve deadlocked_dep : LTS.
 
 
-    Lemma deadlocked_lock' [N : PNet] [n0 : Name] [n1 : Name] :
+    Lemma deadlocked_lock' [N : Net] [n0 : Name] [n1 : Name] :
       deadlocked n1 N ->
       lock_set N [n1] n0 ->
       deadlocked n0 N.
@@ -1413,7 +1413,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Resolve deadlocked_lock' : LTS.
 
 
-    Lemma deadlocked_lock_invariant1 [N0 N1 : PNet] [n0 : Name] [L : Names] [a] :
+    Lemma deadlocked_lock_invariant1 [N0 N1 : Net] [n0 : Name] [L : Names] [a] :
       (N0 =(a)=> N1) ->
       deadlocked n0 N0 ->
       lock_set N0 L n0 ->
@@ -1429,7 +1429,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Resolve deadlocked_lock_invariant1 | 0 : LTS.
 
 
-    Lemma deadlocked_lock_on_invariant1 [N0 N1 : PNet] [n0 n1 : Name] [a] :
+    Lemma deadlocked_lock_on_invariant1 [N0 N1 : Net] [n0 n1 : Name] [a] :
       (N0 =(a)=> N1) ->
       deadlocked n0 N0 ->
       lock N0 n0 n1 ->
@@ -1463,7 +1463,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Rewrite -> lock_chain_split_inv using spank : LTS.
 
 
-    Lemma deadlocked_dep_invariant1 [N0 N1 : PNet] [n0 n1 : Name] [a] :
+    Lemma deadlocked_dep_invariant1 [N0 N1 : Net] [n0 n1 : Name] [a] :
       (N0 =(a)=> N1) ->
       deadlocked n0 N0 ->
       trans_lock N0 n0 n1 ->
@@ -1490,7 +1490,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     #[export] Hint Resolve  deadlocked_dep_invariant1 | 0 : LTS.
 
 
-    Lemma deadlocked_lock_on_invariant [N0 N1 : PNet] [n0 n1 : Name] [path] :
+    Lemma deadlocked_lock_on_invariant [N0 N1 : Net] [n0 n1 : Name] [path] :
       (N0 =[path]=> N1) ->
       deadlocked n0 N0 ->
       lock N0 n0 n1 ->
@@ -1504,7 +1504,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Hint Resolve deadlocked_lock_on_invariant | 0 : LTS.
 
 
-    Lemma deadlocked_dep_invariant [N0 N1 : PNet] [n0 n1 : Name] [path] :
+    Lemma deadlocked_dep_invariant [N0 N1 : Net] [n0 n1 : Name] [path] :
       (N0 =[path]=> N1) ->
       deadlocked n0 N0 ->
       trans_lock N0 n0 n1 ->
@@ -1537,7 +1537,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
       Section Static.
-        Variable (N : PNet).
+        Variable (N : Net).
 
         Hypothesis lock_uniq : lock_uniq_type N.
         Hypothesis lock_neq_nil : lock_neq_nil_type N.
@@ -2430,7 +2430,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
       Section Dynamic.
-        Variable N0 N1 : PNet.
+        Variable N0 N1 : Net.
 
         Theorem net_send_no_lock [L n0 n1 t v] :
           (N0 =(NComm n0 n1 t v)=> N1) ->
