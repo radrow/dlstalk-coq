@@ -2243,7 +2243,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Theorem detection_soundness : forall (i0 : instr) N0 MN1 mpath n,
+  Theorem KIS_detection_sound : forall (i0 : instr) N0 MN1 mpath n,
     KIS (i0 N0) ->
     (i0 N0 =[mpath]=> MN1) ->
     alarm (MN1 n) = true ->
@@ -2346,7 +2346,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   (* TODO: make it into a normal relation? *)
 
 
-  Corollary detection_soundness_instr : forall N0 (i0 : instr) MN1 mpath0 n,
+  Corollary KIS_detection_sound_instr : forall N0 (i0 : instr) MN1 mpath0 n,
     KIS (i0 N0) ->
     (i0 N0 =[ mpath0 ]=> MN1) ->
     alarm (MN1 n) = true ->
@@ -2364,7 +2364,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     hsimpl in *.
 
-    consider (exists DS, dead_set DS '' MN1 /\ In n DS) by eauto using detection_soundness.
+    consider (exists DS, dead_set DS '' MN1 /\ In n DS) by eauto using KIS_detection_sound.
 
     assert (dead_set DS '' (i2 N2)).
     {

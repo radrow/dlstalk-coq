@@ -845,7 +845,7 @@ Module Thomas. (* This name does not refer to any of the authors. You get 1000'0
   Proof.
     intros. split.
     - unfold detect_sound; intros.
-      specialize detection_soundness with
+      specialize KIS_detection_sound with
         (i0 := gen_instr)
         (N0 := gen_net conf)
         (MN1 := MN1)
