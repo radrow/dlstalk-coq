@@ -1202,7 +1202,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     1: right; attac.
 
     pose (init_case :=
-            exists (MQ' MQ'' : list Event)
+            exists (MQ' MQ'' : MQue)
                    (n' : Name) (v : Val),
               NoRecvR_from n' MQ' /\
                 NoSends_MQ MQ' /\
@@ -1213,7 +1213,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
          ).
 
     pose (prop_case :=
-            exists (MQ' MQ'' : list Event)
+            exists (MQ' MQ'' : MQue)
                    (n' : Name),
               NoRecvR_from n' MQ' /\
                 NoSends_MQ MQ' /\
@@ -2893,7 +2893,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     rewrite `(mserv_i (MN0 n1) = _) in *. clear H3.
 
 
-    (* consider (exists MQ10 MQ11 : list Event, MQ1 = MQ10 ++ MqProbe (n2, R) p :: MQ11) by eauto using in_split. *)
+    (* consider (exists MQ10 MQ11 : MQue, MQ1 = MQ10 ++ MqProbe (n2, R) p :: MQ11) by eauto using in_split. *)
 
     eapply sends_probe_prop_skip; eauto with LTS; subst.
     - enough (NoRecvR_MQ MQ) by eauto with LTS.
@@ -3496,7 +3496,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     unfold ready_in, ready in *.
     destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
 
-    remember ([] : list Event) as MQ0'.
+    remember ([] : MQue) as MQ0'.
     replace MQ0 with (MQ0 ++ MQ0') by attac.
     assert (MQ_Clear MQ0') by attac.
     clear HeqMQ0'.
@@ -3743,7 +3743,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     exists mpath, MN1.
     eattac.
 
-    consider (exists (MQ' : list Event) M', NetMod.get m MN1 = mserv (MQ ++ MQ') M' &S /\ (n <> m -> M' = M) /\ MQ_Clear MQ').
+    consider (exists (MQ' : MQue) M', NetMod.get m MN1 = mserv (MQ ++ MQ') M' &S /\ (n <> m -> M' = M) /\ MQ_Clear MQ').
     eexists MQ', M'.
     eattac.
   Qed.
@@ -3763,7 +3763,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
 
-    remember ([] : list Event) as MQ0'.
+    remember ([] : MQue) as MQ0'.
     replace MQ0 with (MQ0 ++ MQ0') by attac.
     assert (Forall (fun e => match e with MqSend _ _ => False | _ => True end) MQ0') by attac.
     clear HeqMQ0'.
@@ -3817,7 +3817,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
 
-    remember ([] : list Event) as MQ0'.
+    remember ([] : MQue) as MQ0'.
     replace MQ0 with (MQ0 ++ MQ0') by attac.
     assert (MQ_Clear MQ0') by attac.
     clear HeqMQ0'.
@@ -3913,7 +3913,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       hsimpl in *.
       exists mpath, MN1.
       eattac.
-      consider (exists MQ' : list Event,
+      consider (exists MQ' : MQue,
                    NetMod.get m MN1 = mserv (MQ ++ MQ') M &S /\
                      Forall (fun e : Event => match e with
                                               | MqSend _ _ => False
@@ -3944,7 +3944,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
     subst.
 
-    remember ([] : list Event) as MQ0'.
+    remember ([] : MQue) as MQ0'.
     replace MQ01 with (MQ01 ++ MQ0') by attac.
     assert (Forall (fun e => match e with MqSend _ _ => False | _ => True end) MQ0') by attac.
     clear HeqMQ0'.
@@ -3957,7 +3957,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       specialize (make_ready MN0 n) as ?.
       hsimpl in *.
       unfold NetGet in *.
-      consider (exists (MQ1' : list Event) (M1 : MProc),
+      consider (exists (MQ1' : MQue) (M1 : MProc),
                    NetMod.get n MN1 = mserv ((MQ01 ++ MQ0') ++ MQ1') M1 S0 /\ (n <> n -> M1 = M0) /\ MQ_Clear MQ1').
       simpl in *.
       eapply H3 in Heqm. attac.
@@ -3968,7 +3968,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
       eattac.
 
-      consider (exists (MQ' : list Event) (M' : MProc), NetMod.get m MN1 = mserv (MQ ++ MQ') M' &S /\ (n <> m -> M' = M) /\ MQ_Clear MQ').
+      consider (exists (MQ' : MQue) (M' : MProc), NetMod.get m MN1 = mserv (MQ ++ MQ') M' &S /\ (n <> m -> M' = M) /\ MQ_Clear MQ').
       exists MQ'0.
       replace M with M' by auto.
       eattac.

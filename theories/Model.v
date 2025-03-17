@@ -594,6 +594,8 @@ Module Type MON_PARAMS(Import Conf : MON_PROC_CONF).
   .
   #[export] Hint Constructors Event : LTS.
 
+  Notation MQue := (list Event).
+
 
   Inductive MVal :=
   | MValM : Msg -> MVal
@@ -795,7 +797,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[export] Hint Resolve <- ready_inv : LTS.
 
 
-  Inductive MServ := mserv { mserv_i : list Event; mserv_m :> MProc; mserv_s : Serv}.
+  Inductive MServ := mserv { mserv_i : MQue; mserv_m :> MProc; mserv_s : Serv}.
   #[export] Hint Constructors MServ : LTS.
 
 
@@ -1040,7 +1042,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[export] Hint Resolve MQ_Clear_NoSends : LTS.
 
 
-  Inductive mon_assg := _mon_assg {assg_mq : list Event; assg_clear : MQ_Clear assg_mq; assg_m : MState}.
+  Inductive mon_assg := _mon_assg {assg_mq : MQue; assg_clear : MQ_Clear assg_mq; assg_m : MState}.
   Arguments _mon_assg MQ M S : rename.
 
 
@@ -1070,7 +1072,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[export] Hint Rewrite @assg_inj using assumption : LTS.
 
 
-  Fixpoint retract_recv (MQ : list Event) : Que Val :=
+  Fixpoint retract_recv (MQ : MQue) : Que Val :=
     match MQ with
     | [] => []
     | MqRecv n v :: MQ' => (n, v) :: retract_recv MQ'
@@ -1078,7 +1080,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     end.
 
 
-  Fixpoint retract_send (MQ : list Event) : Que Val :=
+  Fixpoint retract_send (MQ : MQue) : Que Val :=
     match MQ with
     | [] => []
     | MqSend n v :: MQ' => (n, v) :: retract_send MQ'
@@ -1497,7 +1499,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Qed.
 
 
-  Definition flush1 (MQ : list Event) (M : MProc) : option MAct :=
+  Definition flush1 (MQ : MQue) (M : MProc) : option MAct :=
     match M with
     | MRecv _ =>
         match MQ with
@@ -1516,7 +1518,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
         let (n, s) := mcode_measure Mc
         in (S n, s)
     end.
-  Fixpoint flush_measure (MQ : list Event) (M : MProc) : nat :=
+  Fixpoint flush_measure (MQ : MQue) (M : MProc) : nat :=
     match MQ with
     | [] =>
         let (n, _) := mcode_measure M in
@@ -1539,7 +1541,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     | MSend nc e Mc => MActM (Send nc e) :: flush_mcode Mc
     end.
 
-  Fixpoint mk_flush_path (MQ : list Event) (M : MProc) : list MAct :=
+  Fixpoint mk_flush_path (MQ : MQue) (M : MProc) : list MAct :=
     match MQ with
     | [] => flush_mcode M
     | e :: MQ' =>
@@ -1548,7 +1550,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
         mpath0 ++ Event_to_MAct e :: mpath1
     end.
 
-  Fixpoint flush_Mstate (MQ : list Event) (M : MProc) : MState :=
+  Fixpoint flush_Mstate (MQ : MQue) (M : MProc) : MState :=
     match MQ with
     | [] => M
     | e :: MQ' =>
@@ -1698,7 +1700,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Definition flush_Mr MQ M := exist _ (flush_M MQ M) (flush_M_ready MQ M).
 
-  Definition flush_assg' (MQ : list Event) (M : MProc) : mon_assg :=
+  Definition flush_assg' (MQ : MQue) (M : MProc) : mon_assg :=
     {| assg_mq := []; assg_m := flush_Mstate MQ M; assg_clear := ltac:(attac)|}.
 
   Definition flush_assg (a : mon_assg) : mon_assg :=
@@ -2117,7 +2119,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[export] Hint Resolve flushing_nil_M : LTS.
 
 
-  Fixpoint flushing_M_artifact (self : Name) (M : MProc) (n : Name) : list Event :=
+  Fixpoint flushing_M_artifact (self : Name) (M : MProc) (n : Name) : MQue :=
     match M with
     | MRecv _ => []
     | MSend (n', t) e M' =>
@@ -2125,7 +2127,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
         if NAME.eqb n n' then MqProbe (self, t) e :: MQ else MQ
     end.
 
-  Fixpoint flushing_artifact (self : Name) (MQ : list Event) (M : MProc) (n : Name) : list Event :=
+  Fixpoint flushing_artifact (self : Name) (MQ : MQue) (M : MProc) (n : Name) : MQue :=
     match MQ with
     | [] => flushing_M_artifact self M n
     | e :: MQ' =>
@@ -2138,7 +2140,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     end.
 
 
-  Fixpoint path_artifact (self : Name) (mpath : list MAct) (n : Name) : list Event :=
+  Fixpoint path_artifact (self : Name) (mpath : list MAct) (n : Name) : MQue :=
     match mpath with
     | [] => []
     | MActM (Send (n', t) e) :: mpath' =>
