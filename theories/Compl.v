@@ -68,7 +68,7 @@ Module Type MH(Import Conf : DETECT_CONF)(Import Params : MON_PARAMS(Conf)) <: M
   Definition MSend_all (ns : list Name) t v (P : Params.MProc) :=
     List.fold_right (fun n P' => MSend (n, t) v P') P ns.
 
-  Definition mon_handle (ev : Event) (mstate : MState) : MProc :=
+  Definition mon_handle (ev : EMsg) (mstate : MState) : MProc :=
           match ev, mstate with
       (* Back probe *)
       | MqProbe (from, R) probe, {|locked := Some l|} =>
@@ -3915,7 +3915,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       eattac.
       consider (exists MQ' : MQue,
                    NetMod.get m MN1 = mserv (MQ ++ MQ') M &S /\
-                     Forall (fun e : Event => match e with
+                     Forall (fun e : EMsg => match e with
                                               | MqSend _ _ => False
                                               | _ => True
                                               end) MQ').

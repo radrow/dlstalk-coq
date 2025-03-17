@@ -587,14 +587,14 @@ Module Type MON_PROC_CONF := PROC_CONF <+ MON_CONF.
 Module Type MON_PARAMS(Import Conf : MON_PROC_CONF).
   Declare Module Export Proc : PROC(Conf).
 
-  Inductive Event :=
-  | MqSend : NameTag -> Val -> Event
-  | MqRecv : NameTag -> Val -> Event
-  | MqProbe : NameTag -> Msg -> Event
+  Inductive EMsg :=
+  | MqSend : NameTag -> Val -> EMsg
+  | MqRecv : NameTag -> Val -> EMsg
+  | MqProbe : NameTag -> Msg -> EMsg
   .
-  #[export] Hint Constructors Event : LTS.
+  #[export] Hint Constructors EMsg : LTS.
 
-  Notation MQue := (list Event).
+  Notation MQue := (list EMsg).
 
 
   Inductive MVal :=
@@ -621,7 +621,7 @@ Module Type MON_PARAMS(Import Conf : MON_PROC_CONF).
 End MON_PARAMS.
 
 Module Type MON_HANDLE(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf)).
-  Parameter mon_handle : Event -> MState -> MProc.
+  Parameter mon_handle : EMsg -> MState -> MProc.
 End MON_HANDLE.
 
 Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf)).
@@ -687,7 +687,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Coercion next_state : MProc >-> MState.
 
   Inductive MonAct : Set :=
-  | MonRecv : Event -> MonAct
+  | MonRecv : EMsg -> MonAct
   | MonSend : NameTag -> Msg -> MonAct
   .
   #[export] Hint Constructors MonAct : LTS.
@@ -1528,7 +1528,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
         S n + flush_measure MQ' M
     end.
 
-  Definition Event_to_MAct (e : Event) : MAct :=
+  Definition EMsg_to_MAct (e : EMsg) : MAct :=
     match e with
     | MqRecv nc v => MActP (Recv nc v)
     | MqSend nc v => MActT (Send nc v)
@@ -1547,7 +1547,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     | e :: MQ' =>
         let mpath0 := flush_mcode M in
         let mpath1 := mk_flush_path MQ' (mon_handle e M) in
-        mpath0 ++ Event_to_MAct e :: mpath1
+        mpath0 ++ EMsg_to_MAct e :: mpath1
     end.
 
   Fixpoint flush_Mstate (MQ : MQue) (M : MProc) : MState :=
@@ -1643,13 +1643,13 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   #[export] Hint Resolve flush_go_MS flush_go : LTS.
 
 
-  Lemma Event_to_MAct_Flushing : forall e, Flushing_act (Event_to_MAct e).
+  Lemma EMsg_to_MAct_Flushing : forall e, Flushing_act (EMsg_to_MAct e).
   Proof. destruct e; attac. Qed.
 
   Lemma flush_M_Flushing : forall M, Forall Flushing_act (flush_mcode M).
   Proof. induction M; attac. Qed.
 
-  #[export] Hint Resolve Event_to_MAct_Flushing flush_M_Flushing : LTS.
+  #[export] Hint Resolve EMsg_to_MAct_Flushing flush_M_Flushing : LTS.
 
 
   Lemma flush_path_Flushing : forall MQ M, Forall Flushing_act (mk_flush_path MQ M).
