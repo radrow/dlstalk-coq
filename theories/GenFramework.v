@@ -90,7 +90,7 @@ Module Name_ <: UsualDecidableSet.
   Qed.
 End Name_.
 
-Module Thomas.
+Module Thomas. (* This name does not refer to any of the authors. You get 1000'000 points for getting the reference. *)
   Module DetConf <: Compl.DETECT_CONF.
     Parameter Val : Set.
 
@@ -110,6 +110,23 @@ Module Thomas.
   Proof. apply NAME.eqb_eq. auto. Qed.
 
   Hint Rewrite -> Name_eqb_refl using assumption : LTS LTS_concl.
+
+
+  Definition detect_sound N0 (i0 : instr) :=
+    forall path' MN1 n,
+      (i0 N0 =[ path' ]=> MN1) /\ alarm (MN1 n) = true ->
+      exists DS, In n DS /\ dead_set DS (deinstr MN1).
+
+  Definition detect_complete N0 (i0 : instr) :=
+    forall path0' (MN1 : MNet) (DS : list Name),
+      (i0 N0 =[ path0' ]=> MN1) ->
+      dead_set DS (deinstr MN1) ->
+      exists path1' (MN2 : MNet) (n : Name),
+        (MN1 =[ path1' ]=> MN2)
+        /\ In n DS /\ alarm (MN2 n) = true.
+
+  Definition detect_correct (N : Net) (i : instr) :=
+    detect_sound N i /\ detect_complete N i.
 
 
   Import SrpcNet.
@@ -644,7 +661,7 @@ Module Thomas.
   Qed.
 
 
-  Lemma make_well_formed : forall conf, (well_formed (gen_net conf)).
+  Lemma gen_net_well_formed : forall conf, (well_formed (gen_net conf)).
 
   Proof.
     intros.
@@ -661,7 +678,7 @@ Module Thomas.
   Qed.
 
 
-  Definition make_mon_state n : MState :=
+  Definition gen_mon_state n : MState :=
     match n with
     | Worker name => {| self := n
                     ;  locked := None
@@ -684,10 +701,10 @@ Module Thomas.
     end.
 
 
-  Definition make_instr : instr :=
-    instr_ (fun n => _mon_assg [] MQ_Clear_nil (MRecv (make_mon_state n))).
+  Definition gen_instr : instr :=
+    instr_ (fun n => _mon_assg [] MQ_Clear_nil (MRecv (gen_mon_state n))).
 
-  Definition gen_mnet (conf : NetConf) := make_instr (gen_net conf).
+  Definition gen_mnet (conf : NetConf) := gen_instr (gen_net conf).
 
 
   Lemma gen_net_dep : forall conf name i0 i1,
@@ -729,60 +746,56 @@ Module Thomas.
   Qed.
 
 
-  Lemma gen_mnet_KIC : forall conf, (KIC (gen_mnet conf)).
+  Lemma gen_KIC : forall conf, (KIC (gen_instr (gen_net conf))).
     intros.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
-    1: unfold gen_mnet; rewrite instr_inv; eauto using make_well_formed.
+    1: rewrite instr_inv; eauto using gen_net_well_formed.
 
-    1: destruct (NetMod.get n (gen_mnet conf)) eqn:?.
-    2: destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
-    3: destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
-    4: destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
+    1: destruct (NetMod.get n _) eqn:?.
+    2: destruct (NetMod.get n0 _) eqn:?.
+    3: destruct (NetMod.get n1 _) eqn:?.
 
-    1: unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net in *; try (rewrite NetMod.init_get in * ); simpl in *.
+    1: unfold gen_instr, apply_instr, serv_instr, gen_net in *; try (rewrite NetMod.init_get in * ); simpl in *.
     - hsimpl in *.
-      unfold make_mon_state.
+      unfold gen_mon_state.
       blast_cases; compat_hsimpl in *; attac.
-    - unfold gen_mnet in *.
-      rewrite instr_inv in *.
+    - rewrite instr_inv in *.
       apply gen_lock_set_inv in H.
       attac.
-      unfold gen_net, make_instr, apply_instr, serv_instr in *.
+      unfold gen_net, gen_instr, apply_instr, serv_instr in *.
       attac.
-    - unfold gen_mnet in *.
-      rewrite instr_inv in *.
+    - rewrite instr_inv in *.
       apply gen_lock_set_inv in H.
       attac.
-      unfold gen_net, make_instr, apply_instr, serv_instr in *.
+      unfold gen_net, gen_instr, apply_instr, serv_instr in *.
       attac.
       destruct i; attac.
-    - unfold gen_mnet in *.
-      rewrite instr_inv in *.
+    - rewrite instr_inv in *.
       apply gen_net_dep_inv in H.
       attac.
   Qed.
 
 
-  Lemma gen_mnet_KIS : forall conf, (KIS (gen_mnet conf)).
+  Lemma gen_KIS : forall conf, (KIS (gen_instr (gen_net conf))).
     intros.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
-    1: unfold gen_mnet; rewrite instr_inv; eauto using make_well_formed.
+    1: unfold gen_mnet; rewrite instr_inv; eauto using gen_net_well_formed.
 
     - destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
-      unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold gen_mnet, gen_instr, apply_instr, serv_instr, gen_net, gen_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases; attac.
       blast_cases; attac.
     - left.
       unfold gen_mnet in *.
       rewrite instr_inv.
-      unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold gen_mnet, gen_instr, apply_instr, serv_instr, gen_net, gen_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases; attac.
       blast_cases; attac.
       apply gen_lock_set_finger.
     -  unfold gen_mnet in *.
        rewrite instr_inv.
-       unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+       unfold gen_instr, apply_instr, serv_instr, gen_net, gen_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
 
        blast_cases; attac.
        blast_cases; attac.
@@ -790,12 +803,12 @@ Module Thomas.
        apply gen_lock_set_finger.
     - unfold gen_mnet in *.
       rewrite instr_inv.
-      unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold gen_instr, apply_instr, serv_instr, gen_net, gen_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases; attac.
-    - unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+    - unfold gen_mnet, gen_instr, apply_instr, serv_instr, gen_net, gen_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases; attac.
-    - unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
+    - unfold gen_mnet, gen_instr, apply_instr, serv_instr, gen_net, gen_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases.
       rewrite NetMod.get_map in *.
@@ -805,25 +818,51 @@ Module Thomas.
       bs.
     - unfold gen_mnet in *.
       rewrite instr_inv.
-      unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold gen_instr, apply_instr, serv_instr, gen_net, gen_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases.
       rewrite NetMod.get_map in *.
       rewrite NetMod.init_get in *.
       bs.
     - unfold gen_mnet in *.
       rewrite instr_inv.
-      unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold gen_instr, apply_instr, serv_instr, gen_net, gen_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases.
       rewrite NetMod.get_map in *.
       rewrite NetMod.init_get in *.
       bs.
     - unfold gen_mnet in *.
       rewrite instr_inv.
-      unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
+      unfold gen_instr, apply_instr, serv_instr, gen_net, gen_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases.
       rewrite NetMod.get_map in *.
       rewrite NetMod.init_get in *.
       blast_cases; attac.
+  Qed.
+
+
+  Theorem gen_correct : forall conf, detect_correct (gen_net conf) gen_instr.
+
+  Proof.
+    intros. split.
+    - unfold detect_sound; intros.
+      specialize detection_soundness with
+        (i0 := gen_instr)
+        (N0 := gen_net conf)
+        (MN1 := MN1)
+        (n := n)
+        (mpath := path').
+      specialize gen_KIS with (conf:=conf).
+      intros.
+      consider (exists DS, dead_set DS '' MN1 /\ In n DS); eattac.
+    - unfold detect_complete; intros.
+      specialize detection_complete with
+        (i0 := gen_instr)
+        (N0 := gen_net conf)
+        (MN1 := MN1)
+        (DS := DS)
+        (mpath0 := path0').
+      specialize gen_KIC with (conf:=conf).
+      attac.
   Qed.
 
 

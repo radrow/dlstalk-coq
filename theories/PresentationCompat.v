@@ -45,6 +45,7 @@ End DetConf.
 Module Import Theory := ModelData.Empty <+ Sound.SOUND(DetConf).
 Import SrpcDefs.
 
+(** Exact definitions as in the paper *)
 Module Paper.
   Definition serv_lock (n : Name) (S : Serv) :=
     (forall v E, ~ Deq (n, R) v (serv_i S) E) /\ (exists c, SRPC (Locked c n) (serv_p S)) /\ (serv_o S = []).
@@ -76,15 +77,12 @@ Module Paper.
     SRPCI (Working c) P0 -> SRPCC (Working c) P0
   | SRPCC_L c s P0 : (forall v P1, P0 =(Recv (s, R) v)=> P1 -> SRPCC (Working c) P1) -> SRPCI (Locked c s) P0 -> SRPCC (Locked c s) P0
   .
-End Paper.
 
-Fact client_eq : forall n S, serv_client n S <-> Paper.client n S.
-Proof.
-  unfold Paper.client.
-  split; intros.
-  - consider `(serv_client _ _); unfold proc_client in *; attac.
-  - destruct `(_ \/ _); eattac.
-Qed.
+  Definition client (n : Name) (S : Serv) :=
+    (exists v, In (n, Q, v) (serv_i S)  \/ In (n, R, v) (serv_o S))
+    \/ SRPCC (Working n) (serv_p S)  \/  (exists s, SRPCC (Locked n s) (serv_p S)).
+
+End Paper.
 
 
 Fact serv_lock_eq : forall S n, AnySRPC_serv S -> serv_lock [n] S <-> Paper.serv_lock n S.
@@ -265,4 +263,18 @@ Proof.
       consider ((s0, R) = (s, R)). apply H2; attac.
       apply H in H1.
       auto.
+Qed.
+
+
+Fact client_eq : forall n S, serv_client n S <-> Paper.client n S.
+Proof.
+  unfold Paper.client.
+  split; intros.
+  - consider (serv_client _ _); unfold proc_client in *; attac.
+    rewrite SRPC_eq in *.
+    destruct srpcb; eattac.
+  - destruct S.
+    destruct `(_ \/ _); hsimpl in *.
+    + destruct `(_ \/ _); eattac.
+    + destruct `(_ \/ _); eattac; rewrite <- SRPC_eq in *; eattac.
 Qed.

@@ -15,4 +15,6 @@ theories/SRPC.v
 theories/SRPCNet.v
 theories/Compl.v
 theories/Sound.v
-theories/Thomas.v
+theories/GenFramework.v
+theories/PresentationCompat.v
+theories/Presentation.v
