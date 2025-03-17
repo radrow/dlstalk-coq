@@ -123,9 +123,9 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   #[export] Hint Constructors Decisive : LTS.
 
   (** Service decisiveness *)
-  Definition Decisive_q (S : Serv) := Decisive (serv_p S).
+  Definition Decisive_serv (S : Serv) := Decisive (serv_p S).
 
-  #[export] Hint Transparent Decisive_q : LTS.
+  #[export] Hint Transparent Decisive_serv : LTS.
 
 
   (** Process is locked on L when it's waiting for a Reply from some n in L *)
@@ -184,12 +184,12 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     Qed.
   End Examples.
 
-  Lemma Decisive_q_inv I P O : Decisive_q (serv I P O) <-> Decisive P.
+  Lemma Decisive_serv_inv I P O : Decisive_serv (serv I P O) <-> Decisive P.
   Proof. split; intros; eattac. Qed.
 
-  #[export] Hint Rewrite -> Decisive_q_inv using assumption : LTS LTS_concl.
-  #[export] Hint Resolve <- Decisive_q_inv : LTS.
-  #[export] Hint Immediate Decisive_q_inv : LTS.
+  #[export] Hint Rewrite -> Decisive_serv_inv using assumption : LTS LTS_concl.
+  #[export] Hint Resolve <- Decisive_serv_inv : LTS.
+  #[export] Hint Immediate Decisive_serv_inv : LTS.
 
 
   (** Decisiveness is invariantd under transitions *)
@@ -207,7 +207,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   Lemma prop_transport_l_Decisive :
-    prop_transport_l Decisive_q Decisive (fun S => match S with serv _ P _ => P end).
+    prop_transport_l Decisive_serv Decisive (fun S => match S with serv _ P _ => P end).
 
   Proof.
     unfold prop_transport_l.
@@ -218,7 +218,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   Lemma prop_transport_r_Decisive :
-    prop_transport_r Decisive_q Decisive (fun S => match S with serv _ P _ => P end).
+    prop_transport_r Decisive_serv Decisive (fun S => match S with serv _ P _ => P end).
 
   Proof.
     unfold prop_transport_r.
@@ -232,7 +232,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   (** Decisiveness is invariantd under transitions (service version) *)
-  Fact Decisive_q_invariant : trans_invariant Decisive_q always.
+  Fact Decisive_serv_invariant : trans_invariant Decisive_serv always.
 
   Proof with eattac.
     unfold trans_invariant.
@@ -240,7 +240,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     kill H; eattac.
   Qed.
 
-  #[export] Hint Resolve Decisive_q_invariant : LTS inv.
+  #[export] Hint Resolve Decisive_serv_invariant : LTS inv.
 
 
   (** Unlocking message is a reply with sender in the lockset *)
@@ -337,7 +337,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   (** Extraction of decisiveness from the lock property (it's guaranteed trivially) *)
-  Fact serv_lock_Decisive L S : serv_lock L S -> Decisive_q S.
+  Fact serv_lock_Decisive L S : serv_lock L S -> Decisive_serv S.
 
   Proof with attac.
     intros.

@@ -1102,9 +1102,9 @@ Module Thomas. (* This name does not refer to any of the authors. You get 1000'0
 
     match! goal with [_ : _ =[_]=> ?n |- _] => remember $n as N end.
 
-    assert (forall n, Decisive_q (NetMod.get n N)).
+    assert (forall n, Decisive_serv (NetMod.get n N)).
     {
-      enough (forall n, AnySRPC (serv_p (NetMod.get n N))) by (unfold Decisive_q; eauto using SRPC_Decisive).
+      enough (forall n, AnySRPC (serv_p (NetMod.get n N))) by (unfold Decisive_serv; eauto using SRPC_Decisive).
       enough (forall n, AnySRPC_serv (NetMod.get n N)) by (intros;
                                                     destruct `(AnySRPC_serv (NetMod.get n N)) as [srpc ?]; exists srpc;
                                                     destruct (NetMod.get n N);

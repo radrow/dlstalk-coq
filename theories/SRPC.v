@@ -1339,12 +1339,12 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   #[export] Hint Resolve SRPC_Decisive : LTS.
 
 
-  Lemma SRPC_Decisive_q [S] :
+  Lemma SRPC_Decisive_serv [S] :
     AnySRPC_serv S ->
-    Decisive_q S.
+    Decisive_serv S.
   Proof. intros. destruct S; eattac. Qed.
 
-  #[export] Hint Resolve SRPC_Decisive_q : LTS.
+  #[export] Hint Resolve SRPC_Decisive_serv : LTS.
 
 
   Lemma SRPC_tau_no_lock_r [S0 S1 L] :

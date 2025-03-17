@@ -46,7 +46,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
   Notation Net := (NetMod.t Serv).
 
   (** Network is decisive when all services are *)
-  Definition Decisive_net N := forall n, Decisive_q (NetMod.get n N).
+  Definition Decisive_net N := forall n, Decisive_serv (NetMod.get n N).
 
   Lemma Decisive_lookup [N n I P O] :
     Decisive_net N ->
@@ -57,7 +57,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
   Lemma Decisive_serv_lookup [N n S] :
     Decisive_net N ->
     NetMod.get n N = S ->
-    Decisive_q S.
+    Decisive_serv S.
   Proof. intros. specialize (H n). rewrite H0 in *. auto. Qed.
 
     #[export] Hint Resolve Decisive_lookup : LTS.  (* serv variant seems redundant *)
