@@ -141,7 +141,7 @@ Print NTrans.
 
 (** ** Locks and Deadlocks *)
 
-(** Paper-compatible definition of a service lock and deadset (see [DlStalk.Locks] and [DlStalk.NetLocks]) *)
+(** Paper-compatible definition of a service lock and dead_set (see [DlStalk.Locks] and [DlStalk.NetLocks]) *)
 Print Paper.serv_lock.
 Print Paper.dead_set.
 
@@ -152,22 +152,22 @@ Print lock_set.
 Print lock.
 Print dead_set.
 
-Check deadset_invariant : forall DS, trans_invariant (dead_set DS) always. (* TODO rename *)
+Check dead_set_invariant : forall DS, trans_invariant (dead_set DS) always. (* TODO rename *)
 
 (** Compatibility of project and paper definitions (for SRPC services; see
 [DlStalk.SRPCNet]) *)
 Check serv_lock_eq : forall S n, (exists srpc, SRPC_serv srpc S) -> serv_lock [n] S <-> Paper.serv_lock n S.
-Check deadset_eq : forall (N : Net) (DS : Names), SRPC_net N -> dead_set DS N <-> Paper.dead_set DS N.
+Check dead_set_eq : forall (N : Net) (DS : Names), SRPC_net N -> dead_set DS N <-> Paper.dead_set DS N.
 
 (** Deadset-cycle equivalence (see [DlStalk.NetLocks]) *)
-Check deadset_dep_self : forall N : Net,
+Check dead_set_dep_self : forall N : Net,
           lock_uniq_type N -> lock_neq_nil_type N -> locks_dec_in N ->
           forall DS, dead_set DS N -> exists n, In n DS /\ trans_lock N n n. (* TODO rename *)
-Check dep_self_deadset : forall N : Net,
+Check dep_self_dead_set : forall N : Net,
           lock_uniq_type N -> lock_neq_nil_type N ->
           forall n, trans_lock N n n -> exists DS, In n DS /\ dead_set DS N.
 
-(** Well formed SRPC networks fulfill the prerequisites for deadset-cycle
+(** Well formed SRPC networks fulfill the prerequisites for dead_set-cycle
 equivalence. (see [DlStalk.SRPCNet]) *)
 Import SrpcNet.
 Check SRPC_lock_set_uniq : forall [N : Net], SRPC_net N -> lock_uniq_type N.

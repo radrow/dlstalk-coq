@@ -102,7 +102,7 @@ Proof.
 Qed.
 
 
-Fact deadset_eq : forall N DS, SRPC_net N -> dead_set DS N <-> Paper.dead_set DS N.
+Fact dead_set_eq : forall N DS, SRPC_net N -> dead_set DS N <-> Paper.dead_set DS N.
 
 Proof.
   unfold Paper.dead_set.
