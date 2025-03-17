@@ -78,6 +78,14 @@ Module Paper.
   .
 End Paper.
 
+Fact client_eq : forall n S, serv_client n S <-> Paper.client n S.
+Proof.
+  unfold Paper.client.
+  split; intros.
+  - consider `(serv_client _ _); unfold proc_client in *; attac.
+  - destruct `(_ \/ _); eattac.
+Qed.
+
 
 Fact serv_lock_eq : forall S n, AnySRPC_serv S -> serv_lock [n] S <-> Paper.serv_lock n S.
 Proof.
