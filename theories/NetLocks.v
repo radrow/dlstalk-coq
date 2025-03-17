@@ -176,7 +176,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
     (** Deadlocked set is a list of processes so that their lock lists are sublists of it *)
     Inductive dead_set (DS : list Name) N :=
-      dead_set
+      dead_set_
         (HDS_Nil : DS <> [])
         (HDS_Sub : forall (n : Name),
             List.In n DS ->
