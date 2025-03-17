@@ -1417,7 +1417,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Proof.
     intros.
-    eapply dep_self_dead_set; eauto with LTS.
+    eapply cycle_dead_set; eauto with LTS.
   Qed.
 
 
@@ -5475,7 +5475,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     assert (KIC MN1) by eauto with LTS.
-    consider (exists n, In n DS /\ trans_lock MN1 n n) by (eauto 8 using dead_set_dep_self with LTS).
+    consider (exists n, In n DS /\ trans_lock MN1 n n) by (eauto 8 using dead_set_cycle with LTS).
     consider (exists n', trans_lock MN1 n n' /\ ac n' MN1) by (consider (KIC MN1); attac).
     assert (trans_lock MN1 n' n') by (eauto using dep_reloop with LTS).
     consider (exists DS mpath1 MN2, (MN1 =[ mpath1 ]=> MN2) /\ dead_set DS MN1 /\ _ /\  alarm (MN2 n') = true)
@@ -5502,7 +5502,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     consider (exists mpath0 (i1 : instr), i0 N0 =[ mpath0 ]=> i1 N1)
       by eauto using transp_complete.
     consider (exists n, In n DS /\ trans_lock N1 n n)
-      by (eapply dead_set_dep_self; eauto with LTS).
+      by (eapply dead_set_cycle; eauto with LTS).
     consider (exists n', trans_lock (i1 N1) n n' /\ ac n' (i1 N1))
       by (consider (KIC (i1 N1)); attac).
     assert (trans_lock (i1 N1) n' n')

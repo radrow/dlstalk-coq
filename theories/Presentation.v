@@ -160,10 +160,10 @@ Check serv_lock_eq : forall S n, (exists srpc, SRPC_serv srpc S) -> serv_lock [n
 Check dead_set_eq : forall (N : Net) (DS : Names), SRPC_net N -> dead_set DS N <-> Paper.dead_set DS N.
 
 (** Deadset-cycle equivalence (see [DlStalk.NetLocks]) *)
-Check dead_set_dep_self : forall N : Net,
+Check dead_set_cycle : forall N : Net,
           lock_uniq_type N -> lock_neq_nil_type N -> locks_dec_in N ->
           forall DS, dead_set DS N -> exists n, In n DS /\ trans_lock N n n. (* TODO rename *)
-Check dep_self_dead_set : forall N : Net,
+Check cycle_dead_set : forall N : Net,
           lock_uniq_type N -> lock_neq_nil_type N ->
           forall n, trans_lock N n n -> exists DS, In n DS /\ dead_set DS N.
 

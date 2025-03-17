@@ -2116,7 +2116,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
         (** If there is anyone dependent on itself, then it is a member of a dead_set *)
-        Corollary dep_self_dead_set [n] :
+        Corollary cycle_dead_set [n] :
           trans_lock N n n ->
           exists DS, List.In n DS /\ dead_set DS N.
 
@@ -2370,7 +2370,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
 
 
           (** In any dead_set, someone is dependent on itself *)
-          Corollary dead_set_dep_self [DS] :
+          Corollary dead_set_cycle [DS] :
             dead_set DS N ->
             exists n, List.In n DS /\ trans_lock N n n.
 
