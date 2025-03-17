@@ -574,7 +574,7 @@ Module Thomas.
   Qed.
 
   Lemma gen_net_client_finger : forall conf name i,
-      pq_client  (Initiator name (S i)) (NetMod.get (Initiator name i) (gen_net conf)).
+      serv_client  (Initiator name (S i)) (NetMod.get (Initiator name i) (gen_net conf)).
 
   Proof.
     intros.
@@ -590,7 +590,7 @@ Module Thomas.
   Qed.
 
   Lemma gen_net_client_worker : forall conf name other,
-      ~ pq_client other (NetMod.get (Worker name) (gen_net conf)).
+      ~ serv_client other (NetMod.get (Worker name) (gen_net conf)).
 
   Proof.
     intros.
@@ -621,7 +621,7 @@ Module Thomas.
 
 
   Lemma gen_net_client_inv : forall conf n0 n1,
-      pq_client n0 (NetMod.get n1 (gen_net conf)) ->
+      serv_client n0 (NetMod.get n1 (gen_net conf)) ->
       exists name i, n0 = Initiator name (S i) /\ n1 = Initiator name i.
 
   Proof.

@@ -220,7 +220,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   #[export] Hint Resolve NoRecvQ_MQ_from NoRecvR_MQ_from : LTS.
 
 
-  Lemma pq_MqRecvQ_pop [MQ0 M0 S0 MQ1 M1 S1 a n] :
+  Lemma serv_MqRecvQ_pop [MQ0 M0 S0 MQ1 M1 S1 a n] :
     (mserv MQ0 M0 S0 =(a)=> mserv MQ1 M1 S1) ->
     ~ NoRecvQ_from n MQ0 ->
     NoRecvQ_from n MQ1 ->
@@ -380,7 +380,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     - ltac1:(autounfold with LTS_get in * ). hsimpl in *. hsimpl in *.
       destruct (NetMod.get m MN0).
       destruct S.
-      assert (exists v, a = MActP (Recv (n, Q) v)) by eauto using pq_MqRecvQ_pop.
+      assert (exists v, a = MActP (Recv (n, Q) v)) by eauto using serv_MqRecvQ_pop.
       hsimpl in *.
       exists v; auto.
     - ltac1:(autounfold with LTS_get in * ).
@@ -622,7 +622,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma SRPC_pq_no_immediate_relock [n0 n1 S0 S1 a] :
+  Lemma SRPC_serv_no_immediate_relock [n0 n1 S0 S1 a] :
     AnySRPC_serv S0 ->
     (S0 =(a)=> S1) ->
     serv_lock [n0] S0 ->
@@ -793,9 +793,9 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma SRPC_pq_client_dec [n S] :
+  Lemma SRPC_serv_client_dec [n S] :
     AnySRPC_serv S ->
-    pq_client n S \/ ~ pq_client n S.
+    serv_client n S \/ ~ serv_client n S.
 
   Proof.
     intros.
@@ -817,8 +817,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Proof.
     intros.
-    enough (pq_client n0 (NetMod.get n1 N) \/ ~ pq_client n0 (NetMod.get n1 N)) as [|] by eattac.
-    eauto using SRPC_pq_client_dec with LTS.
+    enough (serv_client n0 (NetMod.get n1 N) \/ ~ serv_client n0 (NetMod.get n1 N)) as [|] by eattac.
+    eauto using SRPC_serv_client_dec with LTS.
   Qed.
 
   #[export] Hint Resolve well_formed_lock_dec : LTS.
@@ -2908,7 +2908,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       enough (self (MN0 n1) = n1) by (ltac1:(autounfold with LTS_get in * ); attac 2).
       consider (KIC MN0). (* TODO to lemma... *)
 
-    - consider (pq_client n0 (NetMod.get n1 '' MN0)) by eauto with LTS.
+    - consider (serv_client n0 (NetMod.get n1 '' MN0)) by eauto with LTS.
       + unfold deinstr in *.
         compat_hsimpl in *.
 
@@ -3068,7 +3068,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     }
     assert (locked (MN1 n1) = Some n2) by eauto using KIC_invariant_H_locked with LTS.
     assert (locked (MN1 n1) = Some n2) by eauto using KIC_invariant_H_locked with LTS.
-    assert (pq_client n0 (NetMod.get n1 '' MN1)) by eauto with LTS.
+    assert (serv_client n0 (NetMod.get n1 '' MN1)) by eauto with LTS.
     assert (wait (MN1 n1) = wait (MN0 n1)).
     {
       clear - H3. kill H3; hsimpl in *.
@@ -5042,7 +5042,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     consider (well_formed '' MN).
-    enough (pq_client m (NetMod.get n '' MN)); attac.
+    enough (serv_client m (NetMod.get n '' MN)); attac.
     unfold deinstr, NetGet in *.
     destruct (NetMod.get n MN) as [MQ M S] eqn:?.
     hsimpl in |- *.
@@ -5357,14 +5357,14 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     auto.
   Qed.
 
-  Lemma KIC_AnySRPC_pq_instr [I : instr] [N] : KIC (I N) ->
+  Lemma KIC_AnySRPC_serv_instr [I : instr] [N] : KIC (I N) ->
                                                forall n, AnySRPC_serv (NetMod.get n N).
   Proof.
     intros ?.
     consider (KIC _); attac.
   Qed.
 
-  #[export] Hint Immediate KIC_AnySRPC_pq_instr : LTS.
+  #[export] Hint Immediate KIC_AnySRPC_serv_instr : LTS.
 
   Lemma net_preserve_alarm_path
     : forall mpath (MN0 MN1 : MNet) (n : Transp.Net.NAME.t'),

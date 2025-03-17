@@ -52,7 +52,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Section Inversions.
     (* These hints should not quadrate with SRPC_serv variants because SRPC_net does not expose
-      SRPC_pq_in_net *)
+      SRPC_serv_in_net *)
 
 
     Lemma SRPC_M_net_AnySrpc [N S n] :
@@ -1622,7 +1622,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       destruct (NetMod.get n1 '' MN0) as [I0' P0' O0'] eqn:?.
       destruct (NetMod.get n1 MN0) as [MQ0 M0 [I0 P0 O0]] eqn:?.
 
-      enough (pq_client n0 (NetMod.get n1 '' MN0)) by eauto with LTS.
+      enough (serv_client n0 (NetMod.get n1 '' MN0)) by eauto with LTS.
       enough (exists v, List.In (n0, Q, v) I0') by iattac.
       enough (exists v, List.In (MqRecv (n0, Q) v) MQ0)
         by (compat_hsimpl in *; exists v0; unfold deinstr, serv_deinstr in *; ieattac).
@@ -1718,7 +1718,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           bs.
         }
 
-        enough (pq_client n0 (NetMod.get n1 '' MN0)) by eauto with LTS.
+        enough (serv_client n0 (NetMod.get n1 '' MN0)) by eauto with LTS.
           enough (List.In (MqRecv (n0, Q) v) (mserv_i (MN0 n1)))
           by (ltac1:(autounfold with LTS_get in * ); unfold deinstr, serv_deinstr in *; attac).
         ltac1:(autounfold with LTS_get in * ); compat_hsimpl in *.

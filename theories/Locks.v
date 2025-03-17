@@ -655,7 +655,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
       eapply nodup_In; eauto.
   Qed.
 
-  Lemma pq_tau_no_lock_l [S0 S1 L] :
+  Lemma serv_tau_no_lock_l [S0 S1 L] :
     (S0 =(Tau)=> S1) ->
     ~ serv_lock L S0.
 
@@ -664,7 +664,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     consider (_ =(_)=> _).
   Qed.
 
-  Lemma pq_send_no_lock_l [S0 S1 nc v L] :
+  Lemma serv_send_no_lock_l [S0 S1 nc v L] :
     (S0 =(Send nc v)=> S1) ->
     ~ serv_lock L S0.
 
@@ -674,7 +674,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
   Qed.
 
 
-  Lemma pq_recv_R_bad_sender_derive_lock [S0 S1 n v L] :
+  Lemma serv_recv_R_bad_sender_derive_lock [S0 S1 n v L] :
     ~ In n L ->
     serv_lock L S1 ->
     (S0 =(Recv (n, R) v)=> S1) ->
@@ -689,7 +689,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     bs (~ In (n0, R, v0) (I0 ++ [(n, R, v)])).
   Qed.
 
-  Lemma pq_recv_no_new_lock [S0 S1 nc v L] :
+  Lemma serv_recv_no_new_lock [S0 S1 nc v L] :
     ~ serv_lock L S0 ->
     (S0 =(Recv nc v)=> S1) ->
     ~ serv_lock L S1.
@@ -703,7 +703,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     bs (~ In (n, R, v0) (I0 ++ [(nc, v)])).
   Qed.
 
-  Lemma pq_recv_Q_derive_lock [S0 S1 n v L] :
+  Lemma serv_recv_Q_derive_lock [S0 S1 n v L] :
     serv_lock L S1 ->
     (S0 =(Recv (n, Q) v)=> S1) ->
     serv_lock L S0.

@@ -263,40 +263,40 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
 
     (** [c] is the client of this service (not necessarily handled at the moment) *)
-    Inductive pq_client (c : Name) : Serv -> Prop  :=
+    Inductive serv_client (c : Name) : Serv -> Prop  :=
     | PQH_in [I P O v] :
       List.In (c, Q, v) I ->
-      pq_client c (serv I P O)
+      serv_client c (serv I P O)
 
     | PQH_proc [I P O] :
       proc_client c P  ->
-      pq_client c (serv I P O)
+      serv_client c (serv I P O)
 
     | PQH_out [I P O v] :
       List.In (c, R, v) O ->
-      pq_client c (serv I P O)
+      serv_client c (serv I P O)
     .
 
-    #[export] Hint Constructors pq_client : LTS.
+    #[export] Hint Constructors serv_client : LTS.
 
 
-    Fact pq_client_app_I_r [c I P O] I' :
-      pq_client c (serv I P O) -> pq_client c (serv (I ++ I') P O).
+    Fact serv_client_app_I_r [c I P O] I' :
+      serv_client c (serv I P O) -> serv_client c (serv (I ++ I') P O).
     Proof. intros. kill H; eattac. Qed.
 
-    Fact pq_client_app_I_l [c I P O] I' :
-      pq_client c (serv I P O) -> pq_client c (serv (I' ++ I) P O).
+    Fact serv_client_app_I_l [c I P O] I' :
+      serv_client c (serv I P O) -> serv_client c (serv (I' ++ I) P O).
     Proof. intros. kill H; eattac. Qed.
 
-    Fact pq_client_app_O_r [c I P O] O' :
-      pq_client c (serv I P O) -> pq_client c (serv I P (O ++ O')).
+    Fact serv_client_app_O_r [c I P O] O' :
+      serv_client c (serv I P O) -> serv_client c (serv I P (O ++ O')).
     Proof. intros. kill H; eattac. Qed.
 
-    Fact pq_client_app_O_l [c I P O] O' :
-      pq_client c (serv I P O) -> pq_client c (serv I P (O' ++ O)).
+    Fact serv_client_app_O_l [c I P O] O' :
+      serv_client c (serv I P O) -> serv_client c (serv I P (O' ++ O)).
     Proof. intros. kill H; eattac. Qed.
 
-    #[export] Hint Resolve pq_client_app_I_l pq_client_app_I_r pq_client_app_O_l pq_client_app_O_r : LTS.
+    #[export] Hint Resolve serv_client_app_I_l serv_client_app_I_r serv_client_app_O_l serv_client_app_O_r : LTS.
 
 
     Definition service_wf_Q_in (S : Serv) := forall c v v' I', Deq (c, Q) v (serv_i S) I' -> ~ List.In (c, Q, v') I'.
@@ -846,7 +846,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
           enough (incl [n] L) by attac.
           eauto with LTS.
         + absurd (serv_lock L S1); eauto using service_wf_send_R_no_lock_r.
-      - absurd (serv_lock L S1); eauto using pq_recv_no_new_lock.
+      - absurd (serv_lock L S1); eauto using serv_recv_no_new_lock.
       - absurd (serv_lock L S1); eauto using SRPC_tau_no_lock_r with LTS.
     Qed.
 
@@ -858,12 +858,12 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     (* If n0 is locked on n1, then n1 handles the query of n0 *)
     Definition locks_sound N := forall n0 n1,
         lock N n0 n1 ->
-        pq_client n0 (NetMod.get n1 N).
+        serv_client n0 (NetMod.get n1 N).
 
 
     (* If n1 handles a query from n0, then n0 is locked on n1   *)
     Definition locks_complete N := forall n0 n1,
-        pq_client n0 (NetMod.get n1 N) -> lock N n0 n1.
+        serv_client n0 (NetMod.get n1 N) -> lock N n0 n1.
 
 
     Inductive well_formed (N : Net) : Prop :=
@@ -886,10 +886,10 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Lemma well_formed_SRPC [N : Net] : well_formed N -> SRPC_net N.
     Proof. intros. kill H. intros ?. destruct (H_wf_SRPC n). eauto with LTS. Qed.
 
-    Lemma well_formed_lock_client [N S n0 n1] : well_formed N -> NetMod.get n1 N = S -> lock N n0 n1 -> pq_client n0 S.
+    Lemma well_formed_lock_client [N S n0 n1] : well_formed N -> NetMod.get n1 N = S -> lock N n0 n1 -> serv_client n0 S.
     Proof. intros. kill H. auto. Qed.
 
-    Lemma well_formed_client_lock [N S n0 n1] : well_formed N -> NetMod.get n1 N = S -> pq_client n0 S -> lock N n0 n1.
+    Lemma well_formed_client_lock [N S n0 n1] : well_formed N -> NetMod.get n1 N = S -> serv_client n0 S -> lock N n0 n1.
     Proof. intros. kill H. auto. Qed.
 
 
@@ -1100,7 +1100,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       remember (NComm n0 n1 R v) as na.
       induction `(N0 =(na)=> N1) using (net_ind_of n0); hsimpl in *; doubt.
       - enough (forall L, ~ serv_lock L (NetMod.get n1 N1)) by (unfold lock, lock_set in *; intros ?; eattac); intros.
-        enough (~ serv_lock L S0) by eauto using pq_recv_no_new_lock.
+        enough (~ serv_lock L S0) by eauto using serv_recv_no_new_lock.
         consider (exists srpc, service_wf srpc (NetMod.get n1 N0)) by eauto with LTS.
         eauto using service_wf_send_R_no_lock_r with LTS.
       - enough (forall L, ~ serv_lock L (NetMod.get n0 N1)) by (unfold lock, lock_set in *; intros ?; eattac); intros.
@@ -1116,7 +1116,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
     Proof.
       intros.
-      enough (pq_client n0 (NetMod.get n1 N0)) by attac.
+      enough (serv_client n0 (NetMod.get n1 N0)) by attac.
       consider (_ =(_)=> _); hsimpl in *.
       destruct (NetMod.get n1 N0) as [I0 P0 O0] eqn:?.
       compat_hsimpl in *.
@@ -1176,7 +1176,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
       enough (lock N0 n n) by bs (n <> n) by eauto using lock_no_send.
 
-      enough (pq_client n (NetMod.get n N0)) by attac.
+      enough (serv_client n (NetMod.get n N0)) by attac.
 
       consider (_ =(NComm n n R v)=> _); compat_hsimpl in *; attac.
     Qed.
@@ -1252,13 +1252,13 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
       consider (_ =(_)=> _); hsimpl in *.
       smash_eq m0 m1; hsimpl in *.
-      - assert (serv_lock [n1] S0) by eauto using pq_recv_Q_derive_lock.
+      - assert (serv_lock [n1] S0) by eauto using serv_recv_Q_derive_lock.
         assert (serv_lock [m0] S0) by eauto using service_wf_send_Q_lock.
         enough (m0 = n1) by bs.
         enough (In n1 [m0]) by attac.
         enough (incl [n1] [m0]) by attac.
         eauto using serv_lock_incl.
-      - assert (serv_lock [n1] S0) by eauto using pq_recv_Q_derive_lock.
+      - assert (serv_lock [n1] S0) by eauto using serv_recv_Q_derive_lock.
         assert (serv_lock [m1] S0) by eauto using service_wf_send_Q_lock.
         enough (m1 = n1) by bs.
         enough (In n1 [m1]) by attac.
@@ -1289,8 +1289,8 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
     Lemma well_formed_handler_uniq [N n0 n1 n1'] :
       well_formed N ->
-      pq_client n0 (NetMod.get n1 N) ->
-      pq_client n0 (NetMod.get n1' N) ->
+      serv_client n0 (NetMod.get n1 N) ->
+      serv_client n0 (NetMod.get n1' N) ->
       n1' = n1.
 
     Proof.
@@ -1766,8 +1766,8 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
     Qed.
 
 
-    Lemma pq_client_invariant_tau [c] :
-      trans_invariant (fun S => AnySRPC_serv S /\ pq_client c S) (eq Tau).
+    Lemma serv_client_invariant_tau [c] :
+      trans_invariant (fun S => AnySRPC_serv S /\ serv_client c S) (eq Tau).
 
     Proof.
       unfold trans_invariant.
@@ -1777,7 +1777,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       split.
       1: eauto with LTS.
 
-      consider (pq_client c N0); consider (_ =(Tau)=> _);
+      consider (serv_client c N0); consider (_ =(Tau)=> _);
         try (solve [eattac]);
         try (destruct `(NameTag) as [n [|]]); doubt.
 
@@ -1830,9 +1830,9 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
       enough (lock N0 n0 n1).
       {
-        assert (pq_client n0 (NetMod.get n1 N0)) by attac.
+        assert (serv_client n0 (NetMod.get n1 N0)) by attac.
         smash_eq n n1.
-        + eapply pq_client_invariant_tau; eattac.
+        + eapply serv_client_invariant_tau; eattac.
         + now replace (NetMod.get n1 N1) with (NetMod.get n1 N0) by (eauto using NV_stay with LTS).
       }
 
@@ -1851,7 +1851,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
       assert (N0 =(NTau n Tau)=> N1) by attac.
       enough (lock N0 n0 n1) by eauto using lock_tau_preserve.
-      enough (pq_client n0 (NetMod.get n1 N0)) by attac.
+      enough (serv_client n0 (NetMod.get n1 N0)) by attac.
 
       smash_eq n n1.
       2: { now replace (NetMod.get n1 N1) with (NetMod.get n1 N0) by (eauto using NV_stay with LTS). }
@@ -1868,7 +1868,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
       - consider (SRPC Ready P0 /\ SRPC (Working n1) P1) by eauto using SRPC_recv_Q.
         smash_eq n0 n1; eauto with LTS.
-        consider (pq_client n0 _).
+        consider (serv_client n0 _).
         + enough (List.In (n0, Q, v0) I0) by eattac.
           unshelve eapply (Deq_neq_In _ `(Deq _ _ I0 I1)); eattac.
         + consider (proc_client n0 P1); eattac.
@@ -1876,7 +1876,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
       - consider (exists c', SRPC (Locked c' n1) P0 /\ SRPC (Working c') P1) by eauto using SRPC_recv_R.
         smash_eq n0 c'; eauto with LTS.
-        consider (pq_client n0 _).
+        consider (serv_client n0 _).
         + enough (List.In (n0, Q, v0) I0) by eattac.
           unshelve eapply (Deq_neq_In _ `(Deq _ _ I0 I1)); eattac.
         + hsimpl in *.
@@ -1885,14 +1885,14 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
       - consider (exists c', SRPC (Working c') P0 /\ SRPC (Locked c' n1) P1) by eauto using SRPC_send_Q.
         smash_eq n0 c'; eauto with LTS.
-        consider (pq_client n0 _).
+        consider (serv_client n0 _).
         + attac.
         + consider (proc_client n0 P1); eattac.
         + assert (List.In (n0, R, v0) O0 \/ List.In (n0, R, v0) [(n1, Q, v)]) as [|] by (hsimpl in * |-; eattac); eattac.
 
       - consider (SRPC (Working n1) P0 /\ SRPC Ready P1) by eauto using SRPC_send_R.
         smash_eq n0 n1; eauto with LTS.
-        consider (pq_client n0 _).
+        consider (serv_client n0 _).
         + attac.
         + consider (proc_client n0 P1); eattac.
           bs (Ready = Busy `(_)) by eattac.
@@ -1900,7 +1900,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
       - consider (exists c', SRPC (Working c') P0 /\ SRPC (Working c') P1) by eauto using SRPC_tau.
         smash_eq n0 c'; eauto with LTS.
-        consider (pq_client n0 _).
+        consider (serv_client n0 _).
         + attac.
         + consider (proc_client n0 P1); eattac.
         + attac.
@@ -2059,7 +2059,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       exists srpc. (* The process did not change! *)
 
       assert (lock N1 n0 n1) by eauto using well_formed_send_Q_new_lock.
-      assert (~ pq_client n0 (NetMod.get n1 N0)).
+      assert (~ serv_client n0 (NetMod.get n1 N0)).
       {
         intros ?.
         absurd (lock N0 n0 n1).
@@ -2224,7 +2224,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       2: { attac. }
 
       consider (_ =(_)=> _); hsimpl in *.
-      eauto using pq_recv_Q_derive_lock.
+      eauto using serv_recv_Q_derive_lock.
     Qed.
 
 
@@ -2302,7 +2302,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       exists srpc. (* The process did not change! *)
 
       assert (lock N1 n0 n0) by eauto using well_formed_send_Q_new_lock.
-      assert (~ pq_client n0 (NetMod.get n0 N0)).
+      assert (~ serv_client n0 (NetMod.get n0 N0)).
       {
         intros ?.
         absurd (lock N0 n0 n0).
@@ -2405,7 +2405,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       intros * ? ? m0 m1 ?.
       assert (lock N1 n0 n1) by eauto using well_formed_send_Q_new_lock.
       assert (~ lock N0 n0 n1) by (bs (n0 <> n0) by eauto using lock_no_send).
-      assert (~ pq_client n0 (NetMod.get n1 N0)) by attac.
+      assert (~ serv_client n0 (NetMod.get n1 N0)) by attac.
 
       smash_eq n0 m0.
       1: { assert (SRPC_net N1) by attac.
@@ -2417,7 +2417,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       assert (lock N0 m0 m1) by eauto using well_formed_Q_bad_sender_derive_lock.
 
       consider (_ =(_)=> _); hsimpl in *.
-      consider (pq_client m0 (NetMod.get m1 N0)) by attac; compat_hsimpl in *.
+      consider (serv_client m0 (NetMod.get m1 N0)) by attac; compat_hsimpl in *.
       - smash_eq_on m1 n1 n0; subst; compat_hsimpl; attac.
       - smash_eq_on m1 n1 n0; subst; compat_hsimpl; attac.
       - smash_eq_on m1 n1 n0; subst; compat_hsimpl; attac.
@@ -2441,7 +2441,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       assert (lock N0 m1 m0) by eauto using well_formed_R_derive_lock.
 
       consider (_ =(_)=> _); hsimpl in *.
-      consider (pq_client m1 (NetMod.get m0 N0)) by attac; compat_hsimpl in *.
+      consider (serv_client m1 (NetMod.get m0 N0)) by attac; compat_hsimpl in *.
       - smash_eq_on m0 n1 n0; subst; compat_hsimpl; attac.
       - smash_eq_on m0 n1 n0; subst; compat_hsimpl; attac.
       - smash_eq_on m0 n1 n0; subst; compat_hsimpl; attac.
@@ -2475,16 +2475,16 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
       assert (service_wf_net N1) by eauto using trans_invariant_well_formed_comm__service_wf.
 
-      assert (pq_client n0 (NetMod.get n1 N1)) by (consider (_ =(_)=> _); compat_hsimpl in *; attac).
+      assert (serv_client n0 (NetMod.get n1 N1)) by (consider (_ =(_)=> _); compat_hsimpl in *; attac).
 
       smash_eq n1 m1.
       2: {
-        assert (pq_client m0 (NetMod.get m1 N0)).
+        assert (serv_client m0 (NetMod.get m1 N0)).
         {
           consider (_ =(_)=> _); compat_hsimpl in *.
           smash_eq n1 n0; attac.
           smash_eq m1 n0; attac.
-          consider (pq_client m0 _); attac.
+          consider (serv_client m0 _); attac.
         }
         assert (lock N0 m0 m1) by attac.
         eauto using lock_Q_preserve.
@@ -2498,9 +2498,9 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         replace (NetMod.get m0 N1) with (NetMod.get m0 N0)
         by (eapply act_particip_stay with (a := NComm n0 n1 Q v); attac).
         enough (lock N0 m0 n1) by attac.
-        enough (pq_client m0 (NetMod.get n1 N0)) by attac.
+        enough (serv_client m0 (NetMod.get n1 N0)) by attac.
         consider (_ =(_)=> _); compat_hsimpl in *.
-        consider (pq_client m0 _); attac.
+        consider (serv_client m0 _); attac.
         - assert (In (m0, Q, v0) I0 \/ In (m0, Q, v0) [(n0, Q, v)]) as [|]; attac.
           smash_eq n0 n1; compat_hsimpl in *.
           + rewrite `(NetMod.get n0 N0 = _); attac.
@@ -2532,8 +2532,8 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
         assert (In (n, R, v0) In10 \/ In (n, R, v0) [(n0, Q, v)]) as [|]; eattac.
       }
 
-      enough (pq_client n1 (NetMod.get n1 N0)) by attac.
-      consider (pq_client n1 _); attac.
+      enough (serv_client n1 (NetMod.get n1 N0)) by attac.
+      consider (serv_client n1 _); attac.
       assert (In (n1, Q, v0) In10 \/ In (n1, Q, v0) [(n0, Q, v)]) as [|]; attac.
     Qed.
 
@@ -2554,7 +2554,7 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       enough (serv_lock [m0] (NetMod.get m1 N1)) by attac.
 
       assert (n0 <> n1) by eauto using well_formed_no_self_reply.
-      assert (pq_client n1 (NetMod.get n0 N0)) by attac.
+      assert (serv_client n1 (NetMod.get n0 N0)) by attac.
 
       assert (service_wf_net N1) by eauto using trans_invariant_well_formed_comm__service_wf.
 
@@ -2573,15 +2573,15 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
       consider (_ =(_)=> _); compat_hsimpl in *.
       smash_eq m0 m1 n0 n1; compat_hsimpl in *|-.
       - enough (serv_lock [m0] (NetMod.get m0 N0)) by bs.
-        enough (pq_client m0 (NetMod.get m0 N0)) by attac.
+        enough (serv_client m0 (NetMod.get m0 N0)) by attac.
         rewrite `(NetMod.get m0 N0 = _).
-        consider (pq_client m0 _); attac.
+        consider (serv_client m0 _); attac.
       - constructor.
         + attac.
         + enough (serv_lock [m0] (NetMod.get m0 N0)) by bs.
-          enough (pq_client m0 (NetMod.get m0 N0)) by attac.
+          enough (serv_client m0 (NetMod.get m0 N0)) by attac.
           rewrite `(NetMod.get m0 N0 = _).
-          consider (pq_client m0 (serv _ _ [])); attac.
+          consider (serv_client m0 (serv _ _ [])); attac.
           assert (In (m0, Q, v0) Im10 \/ In (m0, Q, v0) [(n0, R, v)]) as [|]; eattac.
         + intros. hsimpl in *.
           intros ?.
@@ -2597,28 +2597,28 @@ Module Type SRPC_NET_F(Import Conf : SRPC_NET_CONF)(Import Params : SRPC_NET_PAR
 
           bs (Locked c' n = Locked c n0).
       - enough (serv_lock [m0] (NetMod.get m0 N0)) by bs.
-        enough (pq_client m0 (NetMod.get m0 N0)) by attac.
+        enough (serv_client m0 (NetMod.get m0 N0)) by attac.
         rewrite `(NetMod.get m0 N0 = _).
-        consider (pq_client m0 _); attac.
+        consider (serv_client m0 _); attac.
       - exfalso.
         consider (exists srpc, service_wf srpc (NetMod.get m0 N0)) by attac.
         rewrite `(NetMod.get m0 N0 = _) in *.
-        consider (pq_client m1 (serv _ _ Om01)).
+        consider (serv_client m1 (serv _ _ Om01)).
         + bs.
         + absurd (proc_client m1 Pm01); auto.
           eauto using well_formed_in_net_R_excl_c with LTS.
         + assert (Deq (m1, R) v ((m1, R, v)::Om01) Om01); attac.
-      - enough (pq_client m1 (NetMod.get m0 N0)) by (rewrite <- `(NetMod.get m1 N0 = _); attac).
-        consider (pq_client m1 _); attac.
+      - enough (serv_client m1 (NetMod.get m0 N0)) by (rewrite <- `(NetMod.get m1 N0 = _); attac).
+        consider (serv_client m1 _); attac.
       - enough (serv_lock [m0] (NetMod.get m1 N0)) by bs.
-        enough (pq_client m1 (NetMod.get m0 N0)) by attac.
-        consider (pq_client m1 _); attac.
+        enough (serv_client m1 (NetMod.get m0 N0)) by attac.
+        consider (serv_client m1 _); attac.
         assert (In (m1, Q, v0) Im00 \/ In (m1, Q, v0) [(m1, R, v)]) as [|]; attac.
-      - enough (pq_client m1 (NetMod.get m0 N0)) by (rewrite <- `(NetMod.get m1 N0 = _); attac).
-        consider (pq_client m1 _); attac.
+      - enough (serv_client m1 (NetMod.get m0 N0)) by (rewrite <- `(NetMod.get m1 N0 = _); attac).
+        consider (serv_client m1 _); attac.
         assert (In (m1, Q, v0) Im00 \/ In (m1, Q, v0) [(n0, R, v)]) as [|]; attac.
       - enough (serv_lock [m0] (NetMod.get m1 N0)) by bs.
-        enough (pq_client m1 (NetMod.get m0 N0)) by attac.
+        enough (serv_client m1 (NetMod.get m0 N0)) by attac.
         attac.
       - constructor; attac.
         + enough (serv_lock [m0] (NetMod.get m1 N0)); attac.

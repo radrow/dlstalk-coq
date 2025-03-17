@@ -54,7 +54,7 @@ Module Type NET_LOCKS_F(Import Conf : NET_LOCKS_CONF)(Import Params : NET_LOCKS_
     Decisive P.
   Proof. intros. specialize (H n). rewrite H0 in *. auto. Qed.
 
-  Lemma Decisive_pq_lookup [N n S] :
+  Lemma Decisive_serv_lookup [N n S] :
     Decisive_net N ->
     NetMod.get n N = S ->
     Decisive_q S.
