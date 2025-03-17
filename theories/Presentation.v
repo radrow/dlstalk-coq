@@ -65,8 +65,12 @@ Check Name : Set.
 
 (** Process and service (see [DlStalk.Model]) *)
 Print Proc.
-Check Que Val.
+Check ((_ : Que Val) : list (Name * Tag * Val)).
+
 Print Serv.
+Check serv_i : Serv -> Que Val.
+Check serv_p : Serv -> Proc.
+Check serv_o : Serv -> Que Val.
 
 (** We abstract implementation of the network to a module type. Contrary to the
 paper, we do not use plain functions to represent networks, because that would
@@ -84,36 +88,31 @@ Check NetMod.get : Name -> NetMod.t Serv -> Serv.
 Check NetMod.put : Name -> Serv -> NetMod.t Serv -> NetMod.t Serv.
 
 (** Initialisation access axiom *)
-Check NetMod.init_get :
-        forall (f : Name -> Serv) (n : Name),
-          NetMod.get n (NetMod.init f) = f n.
+Check NetMod.init_get : forall (f : Name -> Serv) (n : Name),
+    NetMod.get n (NetMod.init f) = f n.
 
 (** Fresh access axioms *)
-Check NetMod.get_put_eq :
-        forall n S N,
-          NetMod.get n (NetMod.put n S N) = S.
-Check NetMod.get_put_neq :
-        forall n n' S N,
-          n <> n' ->
-          NetMod.get n (NetMod.put n' S N) = NetMod.get n N.
+Check NetMod.get_put_eq : forall n S N,
+    NetMod.get n (NetMod.put n S N) = S.
+Check NetMod.get_put_neq : forall n n' S N,
+    n <> n' ->
+    NetMod.get n (NetMod.put n' S N) = NetMod.get n N.
 
 (** Update axioms *)
-Check NetMod.put_put_eq :
-        forall n S0 S1 N,
-          NetMod.put n S1 (NetMod.put n S0 N) = NetMod.put n S1 N.
-Check NetMod.put_put_neq :
-        forall n n' S0 S1 N,
-          n <> n' ->
-          NetMod.put n S1 (NetMod.put n' S0 N) = NetMod.put n' S0 (NetMod.put n S1 N).
+Check NetMod.put_put_eq : forall n S0 S1 N,
+    NetMod.put n S1 (NetMod.put n S0 N) = NetMod.put n S1 N.
+Check NetMod.put_put_neq : forall n n' S0 S1 N,
+    n <> n' ->
+    NetMod.put n S1 (NetMod.put n' S0 N) = NetMod.put n' S0 (NetMod.put n S1 N).
 
 (** Overwrite axiom *)
 Check NetMod.put_get_eq :
-        forall n N, NetMod.put n (NetMod.get n N) N = N.
+  forall n N, NetMod.put n (NetMod.get n N) N = N.
 
 (** Extensionality axiom *)
 Check NetMod.extensionality :
-        forall N0 N1,
-          (forall n, NetMod.get n N0 = NetMod.get n N1) -> N0 = N1.
+  forall N0 N1,
+    (forall n, NetMod.get n N0 = NetMod.get n N1) -> N0 = N1.
 
 (** ** Semantics of Processes, Queues, Services, and Networks *)
 
@@ -127,7 +126,8 @@ Locate "_ =[ _ ]=> _".
 Print Act.
 Print QAct.
 
-(** Process, Queue and Service transitions. All are instances of the LTS class. *)
+(** Process, Queue and Service transitions. All are instances of the LTS class.
+ *)
 Print ProcTrans.
 Print QTrans.
 Print STrans.
@@ -141,7 +141,8 @@ Print NTrans.
 
 (** ** Locks and Deadlocks *)
 
-(** Paper-compatible definition of a service lock and dead_set (see [DlStalk.Locks] and [DlStalk.NetLocks]) *)
+(** Paper-compatible definition of a service lock and dead_set (see
+[DlStalk.Locks] and [DlStalk.NetLocks]) *)
 Print Paper.serv_lock.
 Print Paper.dead_set.
 
@@ -161,30 +162,42 @@ singleton (modulo duplicates). Additionally, [serv_lock] relies on an additional
 predicate [Decisive], which asserts that the process does not receive queries
 and responses at the same time --- in the submission, this problem is irrelevant
 as it is prevented by the syntax, thus not mentioned there to avoid confusion.
-*)
+ *)
 Print Decisive.
-Check serv_lock_eq : forall S n, (exists srpc, SRPC_serv srpc S) -> serv_lock [n] S <-> Paper.serv_lock n S.
-Check dead_set_eq : forall (N : Net) (DS : Names), SRPC_net N -> dead_set DS N <-> Paper.dead_set DS N.
+Check serv_lock_eq : forall S n,
+    (exists srpc, SRPC_serv srpc S) ->
+    serv_lock [n] S <-> Paper.serv_lock n S.
+Check dead_set_eq : forall (N : Net) (DS : Names),
+    SRPC_net N ->
+    dead_set DS N <-> Paper.dead_set DS N.
 
 (** Deadset-cycle equivalence (see [DlStalk.NetLocks]) *)
 Check dead_set_cycle : forall N : Net,
-          lock_uniq_type N -> lock_neq_nil_type N -> locks_dec_in N ->
-          forall DS, dead_set DS N -> exists n, In n DS /\ trans_lock N n n.
+    lock_uniq_type N -> lock_neq_nil_type N -> locks_dec_in N ->
+    forall DS, dead_set DS N -> exists n, In n DS /\ trans_lock N n n.
 Check cycle_dead_set : forall N : Net,
-          lock_uniq_type N -> lock_neq_nil_type N ->
-          forall n, trans_lock N n n -> exists DS, In n DS /\ dead_set DS N.
+    lock_uniq_type N -> lock_neq_nil_type N ->
+    forall n, trans_lock N n n -> exists DS, In n DS /\ dead_set DS N.
 
 (** Well formed SRPC networks fulfill the prerequisites for dead_set-cycle
 equivalence. (see [DlStalk.SRPCNet]) *)
 Import SrpcNet.
-Check SRPC_lock_set_uniq : forall [N : Net], SRPC_net N -> lock_uniq_type N.
-Check SRPC_lock_set_neq_nil : forall [N : Net], SRPC_net N -> lock_neq_nil_type N.
+Check SRPC_lock_set_uniq : forall [N : Net],
+    SRPC_net N ->
+    lock_uniq_type N.
+Check SRPC_lock_set_neq_nil : forall [N : Net],
+    SRPC_net N ->
+    lock_neq_nil_type N.
 Print locks_dec_in.
-Check well_formed_lock_dec  : forall (N : Net) n0 n1, well_formed N -> lock N n0 n1 \/ ~ lock N n0 n1.
+Check well_formed_lock_dec :
+  forall (N : Net) n0 n1,
+    well_formed N ->
+    lock N n0 n1 \/ ~ lock N n0 n1.
 
 (** ** Single-Threaded RPC (SRPC) Services *)
 
-(** SRPC Working and SRPC Locked are stored separately from SRPC Ready (see [DlStalk.SRPC]) *)
+(** SRPC Working and SRPC Locked are stored separately from SRPC Ready (see
+[DlStalk.SRPC]) *)
 Print SRPC_State.
 Print SRPC_Busy_State.
 
@@ -193,7 +206,7 @@ Print Paper.SRPCC.
 Print Paper.SRPCI.
 
 (**  Original SRPC property is defined slightly differently *)
-Check SRPC_eq.
+Check SRPC_eq : forall P srpc, SRPC srpc P <-> Paper.SRPCC srpc P.
 
 (** ** A Coq Framework for Modelling Erlang/OTP-Style SRPC Networks *)
 
@@ -209,7 +222,8 @@ Section Framework.
   Print NetConf.
 
   (** The network is SRPC! *)
-  Check gen_net_SRPC : forall conf n, exists srpc, SRPC_serv srpc (NetMod.get n (gen_net conf)).
+  Check gen_net_SRPC : forall conf n,
+    exists srpc, SRPC_serv srpc (NetMod.get n (gen_net conf)).
 
   (** Example services and network *)
   Print echo.
@@ -217,15 +231,17 @@ Section Framework.
   Print example_net.
 
   (** Can deadlock *)
-  Check can_deadlock : exists path N, (example_net =[ path ]=> N) /\ dead_set ["A"; "B"; "C"; "D"]%list N.
+  Check can_deadlock : exists path N,
+      (example_net =[ path ]=> N) /\ dead_set ["A"; "B"; "C"; "D"]%list N.
 End Framework.
 
 (** * Monitors, Instrumentation, and Transparency *)
 
-(** Probes. [MProbe] is an alias for a slightly more generic [MProbe'] (see [DlStalk.Compl]) *)
+(** Probes. [MProbe] is an alias for a slightly more generic [MProbe'] (see
+[DlStalk.Compl]) *)
 Locate MProbe.
 Print MProbe'.
-Check origin : MProbe -> Name.
+Check origin  : MProbe -> Name.
 Check lock_id : MProbe -> nat.
 
 (** Monitor messages (stored in the monitor queue) (see [DlStalk.Model]) *)
@@ -235,11 +251,11 @@ Locate MQue.
 (** Monitor state (see [DlStalk.Compl]) *)
 Locate MState.
 Print MState'.
-Check self : MState -> Name.
-Check locked : MState -> option Name.
-Check wait : MState -> list Name.
+Check self       : MState -> Name.
+Check locked     : MState -> option Name.
+Check wait       : MState -> list Name.
 Check lock_count : MState -> nat.
-Check alarm : MState -> bool.
+Check alarm      : MState -> bool.
 
 (** Monitor process (see [DlStalk.Model]) *)
 Print MProc.
@@ -248,9 +264,9 @@ Check MSend : (Name * Tag) -> MProbe -> MProc -> MProc.
 
 (** Monitored service (see [DlStalk.Model]) *)
 Print MServ.
-Check mserv_q.
-Check mserv_m.
-Check mserv_s.
+Check mserv_q : MServ -> MQue.
+Check mserv_m : MServ -> MProc.
+Check mserv_s : MServ -> Serv.
 
 (** Transition of monitored services (see [DlStalk.Model]) *)
 Print MTrans.
@@ -258,7 +274,7 @@ Print MTrans.
 (** Instrumentation (see [DlStalk.Model]) *)
 Print mon_assg.
 Print instr.
-Check apply_instr.
+Check apply_instr : instr -> Net -> MNet.
 
 (** De-instrumentation (see [DlStalk.Model]) *)
 Print retract_recv.
@@ -274,9 +290,9 @@ Check (NetMod.get : Name -> Net  -> Serv).
 
 (** Transparency (see [DlStalk.Transp]) *)
 Check transp_sound : forall mnpath (MN0 MN1 : MNet),
-          MN0 =[ mnpath ]=> MN1 -> exists pnpath, deinstr MN0 =[ pnpath ]=> deinstr MN1.
+    MN0 =[ mnpath ]=> MN1 -> exists pnpath, deinstr MN0 =[ pnpath ]=> deinstr MN1.
 Check @transp_complete : forall path (i0 : instr) (N0 N1 : Net),
-          N0 =[ path ]=> N1 -> exists mpath (i1 : instr), i0 N0 =[ mpath ]=> i1 N1.
+    N0 =[ path ]=> N1 -> exists mpath (i1 : instr), i0 N0 =[ mpath ]=> i1 N1.
 
 
 (** * A Black-Box Distributed Deadlock Detection Algorithm *)
@@ -308,7 +324,8 @@ End Correct.
 
 (** *** Well-Formed SRPC Networks  *)
 
-(** Definition of the client relation and compatibility between the project and the paper (see [DlStalk.PresentationCompat]) *)
+(** Definition of the client relation and compatibility between the project and
+the paper (see [DlStalk.PresentationCompat]) *)
 Print Paper.client.
 Print serv_client.
 Check client_eq : forall n S, serv_client n S <-> Paper.client n S.
@@ -393,19 +410,46 @@ Check stm_seek : forall n nc' p p' M,
 Print KIS.
 
 Check KIS_well_formed : forall [MN], KIS MN -> well_formed '' MN.
-Check KIS_self : forall [MN], KIS MN -> forall n0, self (MN n0) = n0.
-Check KIS_locked : forall [MN], KIS MN -> forall n0 n1, locked (MN n0) = Some n1 -> lock '' MN n0 n1 \/ exists v, List.In (MqRecv (n1, R) v) (mserv_q (MN n0)).
-Check KIS_wait : forall [MN], KIS MN -> forall n0 n1, List.In n0 (wait (MN n1)) -> lock '' MN n0 n1.
-Check KIS_sendp : forall [MN], KIS MN -> forall n0 n1 p, sends_to MN n1 n0 p -> lock '' MN n0 n1.
-Check KIS_lock_id_sendp : forall [MN], KIS MN -> forall n0 n1 p, sends_to MN n0 n1 p -> (lock_id p <= lock_count (MN (origin p)))%nat.
-Check KIS_lock_id_recvp : forall [MN], KIS MN -> forall n0 n1 p, List.In (MqProbe (n1, R) p) (mserv_q (MN n0)) -> (lock_id p <= lock_count (MN (origin p)))%nat.
-Check KIS_sendp_active : forall [MN], KIS MN -> forall n0 n1 n2, sends_to MN n1 n0 (active_probe_of MN n2) -> locked (MN n2) <> None -> trans_lock '' MN n0 n2.
-Check KIS_recvp_active : forall [MN], KIS MN -> forall n0 n1 n2, List.In (active_ev_of MN n2 n0) (mserv_q (MN n1)) -> locked (MN n0) <> None -> trans_lock '' MN n1 n0.
-Check KIS_alarm : forall [MN], KIS MN -> forall n, alarm (MN n) = true -> trans_lock '' MN n n.
+Check KIS_self : forall [MN],
+    KIS MN -> forall n0,
+      self (MN n0) = n0.
+Check KIS_locked : forall [MN],
+    KIS MN -> forall n0 n1,
+      locked (MN n0) = Some n1 ->
+      lock '' MN n0 n1 \/ exists v, List.In (MqRecv (n1, R) v) (mserv_q (MN n0)).
+Check KIS_wait : forall [MN],
+    KIS MN -> forall n0 n1,
+      List.In n0 (wait (MN n1)) ->
+      lock '' MN n0 n1.
+Check KIS_sendp : forall [MN],
+    KIS MN -> forall n0 n1 p,
+      sends_to MN n1 n0 p ->
+      lock '' MN n0 n1.
+Check KIS_lock_id_sendp : forall [MN],
+    KIS MN -> forall n0 n1 p,
+      sends_to MN n0 n1 p -> (lock_id p <= lock_count (MN (origin p)))%nat.
+Check KIS_lock_id_recvp : forall [MN],
+    KIS MN -> forall n0 n1 p,
+      List.In (MqProbe (n1, R) p) (mserv_q (MN n0)) ->
+      (lock_id p <= lock_count (MN (origin p)))%nat.
+Check KIS_sendp_active : forall [MN],
+    KIS MN -> forall n0 n1 n2,
+      sends_to MN n1 n0 (active_probe_of MN n2) ->
+      locked (MN n2) <> None -> trans_lock '' MN n0 n2.
+Check KIS_recvp_active : forall [MN],
+    KIS MN -> forall n0 n1 n2,
+      List.In (active_ev_of MN n2 n0) (mserv_q (MN n1)) ->
+      locked (MN n0) <> None ->
+      trans_lock '' MN n1 n0.
+Check KIS_alarm : forall [MN],
+    KIS MN -> forall n,
+      alarm (MN n) = true ->
+      trans_lock '' MN n n.
 
 Check KIS_invariant : trans_invariant KIS always.
 Check KIS_detection_sound : forall (i0 : instr) N0 MN1 mpath n,
-    KIS (i0 N0) -> (i0 N0 =[ mpath ]=> MN1) -> alarm (MN1 n) = true ->
+    KIS (i0 N0) -> (i0 N0 =[ mpath ]=> MN1) ->
+    alarm (MN1 n) = true ->
     exists DS, dead_set DS '' MN1 /\ In n DS.
 
 (** Monitor message (in monitor queue) holding an active probe *)
@@ -416,7 +460,7 @@ Print active_ev_of.
 (**  (see [DlStalk.Compl]) *)
 
 Print sends_probe.
-Print alarm_condition. (* TODO rename *)
+Print alarm_condition.
 Print KIC.
 
 Check KIC_invariant : trans_invariant KIC always.
@@ -425,7 +469,10 @@ Check ac_to_alarm : forall MN0 n,
     alarm_condition n MN0 ->
     trans_lock '' MN0 n n ->
     exists DS mpath MN1,
-      (MN0 =[ mpath ]=> MN1) /\ dead_set DS '' MN0 /\ detect_path DS mpath /\ alarm (MN1 n) = true.
+      (MN0 =[ mpath ]=> MN1)
+      /\ dead_set DS '' MN0
+      /\ detect_path DS mpath
+      /\ alarm (MN1 n) = true.
 
 Check KIC_detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
     KIC (i0 N0) ->
@@ -434,7 +481,7 @@ Check KIC_detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
     exists mpath1 MN2 n,
       (MN1 =[ mpath1 ]=> MN2) /\ In n DS /\ alarm (MN2 n) = true.
 
-(** ** Correct Monitoring for Erlang << gen_server >> -Style Applications  *)
+(** ** Correct Monitoring for Erlang << gen_server >> -Style Applications *)
 
 Section Correct.
   Import Thomas. Import Sound.
@@ -458,6 +505,7 @@ Section Correct.
         )
         (forall path0' MN1 DS,
             (gen_instr N0 =[ path0' ]=> MN1) -> dead_set DS '' MN1 ->
-            exists path1' MN2 n, (MN1 =[ path1' ]=> MN2) /\ In n DS /\ alarm (MN2 n) = true
+            exists path1' MN2 n,
+              (MN1 =[ path1' ]=> MN2) /\ In n DS /\ alarm (MN2 n) = true
         ).
 End Correct.
