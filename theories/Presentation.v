@@ -409,13 +409,13 @@ Print active_ev_of.
 (**  (see [DlStalk.Compl]) *)
 
 Print sends_probe.
-Print ac. (* TODO rename *)
+Print alarm_condition. (* TODO rename *)
 Print KIC.
 
 Check KIC_invariant : trans_invariant KIC always.
 Check ac_to_alarm : forall MN0 n,
     KIC MN0 ->
-    ac n MN0 ->
+    alarm_condition n MN0 ->
     trans_lock '' MN0 n n ->
     exists DS mpath MN1,
       (MN0 =[ mpath ]=> MN1) /\ dead_set DS '' MN0 /\ detect_path DS mpath /\ alarm (MN1 n) = true.

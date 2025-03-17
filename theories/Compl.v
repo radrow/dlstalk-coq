@@ -465,25 +465,25 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   (** ** Alarm condition *)
   (** Either there is an alarm, or an alarm is inevitable due to probe and locked alignment *)
-  Inductive ac (n : Name) (MN : MNet) : Prop :=
+  Inductive alarm_condition (n : Name) (MN : MNet) : Prop :=
   | ac_alarm :
     alarm (MN n) = true ->
-    ac n MN
+    alarm_condition n MN
 
   | ac_seek [m m'] :
     (n = m \/ trans_lock MN n m) ->
     lock MN m m' ->  (* TODO: try to relate to mon states exlusively *)
     sends_probe (m, R) (active_probe_of MN n) (NetMod.get m' MN) ->
-    ac n MN
+    alarm_condition n MN
 
   | ac_fin [n'] :
     lock MN n n' ->
     List.In (active_ev_of MN n' n) (mserv_q (MN n)) ->
-    ac n MN
+    alarm_condition n MN
   .
 
 
-  Hint Constructors ac : LTS.
+  Hint Constructors alarm_condition : LTS.
 
   Lemma mserv_preserve_self [a MQ0 M0 S0 MQ1 M1 S1] :
     (mserv MQ0 M0 S0 =(a)=> mserv MQ1 M1 S1) ->
@@ -527,7 +527,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       (* Flushed monitor knows about everyone who waits on it *)
       (H_wait_C : forall n0 n1, lock MN n0 n1 -> NoRecvQ_from n0 (mserv_q (MN n1)) -> List.In n0 (wait (MN n1)))
       (* Self-dependency implies alarm condition *)
-      (H_alarm_C : forall n0, trans_lock MN n0 n0 -> exists n1, trans_lock MN n0 n1 /\ ac n1 MN)
+      (H_alarm_C : forall n0, trans_lock MN n0 n0 -> exists n1, trans_lock MN n0 n1 /\ alarm_condition n1 MN)
     : KIC MN.
 
 
@@ -3128,7 +3128,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     KIC MN0 ->
     (MN0 =(a)=> MN1) ->
     deadlocked n0 '' MN1 ->
-    exists n1, trans_lock MN1 n0 n1 /\ ac n1 MN1.
+    exists n1, trans_lock MN1 n0 n1 /\ alarm_condition n1 MN1.
 
   Proof.
     intros.
@@ -3137,7 +3137,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     consider (exists n0', trans_lock MN1 n0 n0' /\ trans_lock MN1 n0' n0')
       by re_have (eauto using deadlocked_trans_lock_loop with LTS).
 
-    enough (exists n1, trans_lock MN1 n0' n1 /\ ac n1 MN1) by (hsimpl in *; exists n1; eattac).
+    enough (exists n1, trans_lock MN1 n0' n1 /\ alarm_condition n1 MN1) by (hsimpl in *; exists n1; eattac).
     clear H1 n0 H4.
     rename n0' into n0.
 
@@ -3175,11 +3175,11 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
             -- assert (n1 = a0). eauto using SRPC_M_net_no_immediate_relock with LTS. bs.
             -- assert (n2 = a0). eauto using SRPC_M_net_no_immediate_relock with LTS. bs.
     }
-    - consider (exists m, trans_lock MN0 n0 m /\ ac m MN0) by (consider (KIC MN0); auto).
+    - consider (exists m, trans_lock MN0 n0 m /\ alarm_condition m MN0) by (consider (KIC MN0); auto).
       assert (deadlocked n0 '' MN0) by eauto using dep_self_deadlocked with LTS.
       assert (trans_lock MN1 n0 m) by eauto using deadlocked_M_dep_invariant1 with LTS.
 
-      consider (ac m MN0).
+      consider (alarm_condition m MN0).
       + exists m.
         split; eauto 2 with LTS.
         constructor 1.
@@ -5385,7 +5385,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma ac_to_alarm [MN0 : MNet] [n] :
     KIC MN0 ->
-    ac n MN0 ->
+    alarm_condition n MN0 ->
     trans_lock MN0 n n ->
     exists DS mpath MN1, (MN0 =[mpath]=> MN1) /\ dead_set DS MN0 /\ detect_path DS mpath /\ alarm (MN1 n) = true.
 
@@ -5399,7 +5399,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     destruct (alarm (MN0 n)) eqn:?.
     1: { exists [], MN0. unfold detect_path; eattac. }
 
-    consider (ac n MN0).
+    consider (alarm_condition n MN0).
     - consider (n = m \/ trans_lock MN0 n m).
       + consider (exists mpath MN1, (MN0 =[ mpath ]=> MN1) /\ detect_path DS mpath /\ alarm (MN1 m) = true)
           by eauto using propagation_finito, active_active_probe_of with LTS.
@@ -5420,7 +5420,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma ac_to_alarm_instr [MN0 : MNet] [n] :
     KIC MN0 ->
-    ac n MN0 ->
+    alarm_condition n MN0 ->
     trans_lock MN0 n n ->
     flushed MN0 ->
     ready_net MN0 ->
@@ -5476,7 +5476,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     intros.
     assert (KIC MN1) by eauto with LTS.
     consider (exists n, In n DS /\ trans_lock MN1 n n) by (eauto 8 using dead_set_cycle with LTS).
-    consider (exists n', trans_lock MN1 n n' /\ ac n' MN1) by (consider (KIC MN1); attac).
+    consider (exists n', trans_lock MN1 n n' /\ alarm_condition n' MN1) by (consider (KIC MN1); attac).
     assert (trans_lock MN1 n' n') by (eauto using dep_reloop with LTS).
     consider (exists DS mpath1 MN2, (MN1 =[ mpath1 ]=> MN2) /\ dead_set DS MN1 /\ _ /\  alarm (MN2 n') = true)
       by eauto using ac_to_alarm with LTS.
@@ -5503,7 +5503,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       by eauto using transp_complete.
     consider (exists n, In n DS /\ trans_lock N1 n n)
       by (eapply dead_set_cycle; eauto with LTS).
-    consider (exists n', trans_lock (i1 N1) n n' /\ ac n' (i1 N1))
+    consider (exists n', trans_lock (i1 N1) n n' /\ alarm_condition n' (i1 N1))
       by (consider (KIC (i1 N1)); attac).
     assert (trans_lock (i1 N1) n' n')
       by (hsimpl; eauto using dep_reloop with LTS).
