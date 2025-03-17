@@ -367,7 +367,7 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
   #[export] Hint Resolve SRPC_AnySRPC SRPC_serv_AnySRPC_serv : LTS.
 
   (** SRPC is preserved for processes *)
-  Lemma trans_invariant_AnySRPC : trans_invariant AnySRPC always.
+  Lemma AnySRPC_invariant : trans_invariant AnySRPC always.
 
   Proof with eattac.
     intros N0 N1 a T Hsrpc _.
@@ -387,19 +387,19 @@ Module Type SRPC_F(Import Conf : SRPC_CONF)(Import Params : SRPC_PARAMS(Conf)).
     - attac.
   Qed.
 
-  #[export] Hint Resolve trans_invariant_AnySRPC : inv.
+  #[export] Hint Resolve AnySRPC_invariant : inv.
   #[export] Hint Extern 10 (AnySRPC _) => solve_invariant : LTS.
 
 
   (** SRPC is preserved for services *)
-  Lemma trans_invariant_AnySRPC_serv : trans_invariant AnySRPC_serv always.
+  Lemma AnySRPC_serv_invariant : trans_invariant AnySRPC_serv always.
 
   Proof.
     intros N0 N1 a T.
     kill T; attac.
   Qed.
 
-  #[export] Hint Resolve trans_invariant_AnySRPC_serv : inv.
+  #[export] Hint Resolve AnySRPC_serv_invariant : inv.
   #[export] Hint Extern 10 (AnySRPC_serv _) => solve_invariant : LTS.
 
 

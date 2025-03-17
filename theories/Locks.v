@@ -193,7 +193,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   (** Decisiveness is invariantd under transitions *)
-  Fact trans_invariant_Decisive : trans_invariant Decisive always.
+  Fact Decisive_invariant : trans_invariant Decisive always.
 
   Proof with attac.
     repeat (intros ?).
@@ -203,7 +203,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     all: eattac.
   Qed.
 
-  #[export] Hint Resolve trans_invariant_Decisive : LTS inv.
+  #[export] Hint Resolve Decisive_invariant : LTS inv.
 
 
   Lemma prop_transport_l_Decisive :
@@ -232,7 +232,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
 
 
   (** Decisiveness is invariantd under transitions (service version) *)
-  Fact trans_invariant_Decisive_q : trans_invariant Decisive_q always.
+  Fact Decisive_q_invariant : trans_invariant Decisive_q always.
 
   Proof with eattac.
     unfold trans_invariant.
@@ -240,7 +240,7 @@ Module Type LOCKS_F(Import Conf : LOCKS_CONF)(Import Params : LOCKS_PARAMS(Conf)
     kill H; eattac.
   Qed.
 
-  #[export] Hint Resolve trans_invariant_Decisive_q : LTS inv.
+  #[export] Hint Resolve Decisive_q_invariant : LTS inv.
 
 
   (** Unlocking message is a reply with sender in the lockset *)

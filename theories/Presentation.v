@@ -370,7 +370,7 @@ Check service_wf_c_excl_R_inv : forall [srpc : SRPC_State] [c v I P O],
     ~ In (c, R, v) O.
 
 Print well_formed.
-Check trans_invariant_well_formed : trans_invariant well_formed always. (* TODO rename *)
+Check well_formed_invariant : trans_invariant well_formed always. (* TODO rename *)
 
 (** *** Monitor Knowledge Invariant for Sound Deadlock Detection  *)
 
