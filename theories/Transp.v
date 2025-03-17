@@ -169,7 +169,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
 
   (** Deinstrumentation is inversion of instrumentation *)
-  Lemma deinstr_instr : forall I N,
+  Lemma instr_inv : forall I N,
       deinstr (apply_instr I N) = N.
 
   Proof.
@@ -183,8 +183,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     attac.
   Qed.
 
-  #[export] Hint Immediate deinstr_instr : LTS.
-  #[export] Hint Rewrite -> deinstr_instr using spank : LTS LTS_concl.
+  #[export] Hint Immediate instr_inv : LTS.
+  #[export] Hint Rewrite -> instr_inv using spank : LTS LTS_concl.
 
 
   (** NV-transitions preserve mon_assg_ (almost). *)
@@ -2245,7 +2245,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     destruct (flushed_ready_instr HFN HRN) as (I1, HEq).
     exists I1.
     rewrite HEq.
-    specialize deinstr_instr as HNDI.
+    specialize instr_inv as HNDI.
     unfold apply_instr, deinstr in *.
     repeat (rewrite NetMod.put_map in * ).
     repeat (rewrite HNDI).
@@ -2296,7 +2296,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         unfold serv_deinstr.
         destruct Sn. eattac.
         rewrite NetMod.put_map.
-        specialize (deinstr_instr) as HNDI.
+        specialize (instr_inv) as HNDI.
         unfold apply_instr in *.
         unfold deinstr in *.
         rewrite HNDI.
@@ -2399,7 +2399,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       rewrite H in *.
       rewrite H0 in *.
       subst.
-      specialize deinstr_instr as HNDI.
+      specialize instr_inv as HNDI.
       unfold apply_instr in *.
       unfold deinstr in *.
 

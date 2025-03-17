@@ -1166,7 +1166,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     end.
 
   (** Deinstrumentation is inversion of instrumentation *)
-  Theorem service_serv_deinstr_instr : forall (a : mon_assg) S, serv_deinstr (a S) = S.
+  Theorem serv_instr_inv : forall (a : mon_assg) S, serv_deinstr (a S) = S.
 
   Proof.
     intros.
@@ -1175,8 +1175,8 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     induction serv_i0; simpl; attac.
   Qed.
 
-  #[export] Hint Rewrite @service_serv_deinstr_instr using assumption : LTS.
-  #[export] Hint Resolve service_serv_deinstr_instr : LTS.
+  #[export] Hint Rewrite @serv_instr_inv using assumption : LTS.
+  #[export] Hint Resolve serv_instr_inv : LTS.
 
 
   Lemma serv_deinstr_In_recv [MQ M S I P O n v] :
