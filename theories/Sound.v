@@ -61,7 +61,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       AnySRPC_serv S.
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       kill H. eauto with LTS.
     Qed.
 
@@ -92,7 +92,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
       hsimpl in *.
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       rewrite retract_recv_app.
       remember (retract_recv MQ1) as I1 eqn:x; clear x.
       repeat (rewrite (app_assoc) in * ).
@@ -142,7 +142,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       intros.
       kill H. specialize (H_wf_SRPC n) as [srpc H].
       hsimpl in *.
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       assert (Deq (c, Q) v (&I ++ retract_recv MQ) (I' ++ retract_recv MQ)) by attac.
       iattac.
     Qed.
@@ -174,7 +174,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
       hsimpl in *.
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       remember (retract_recv MQ1) as I1 eqn:x; clear x.
       repeat (rewrite (app_assoc) in * ).
       remember (&I ++ retract_recv MQ0) as I0 eqn:x.
@@ -226,7 +226,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       intros.
       kill H. specialize (H_wf_SRPC n) as [srpc H].
       hsimpl in *.
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
 
@@ -258,7 +258,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       exists c, SRPC_serv (Locked c s) (NetMod.get n N).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *.
+      unfold deinstr, serv_deinstr in *.
       hsimpl in *.
       consider (exists c, srpc = Locked c s); eattac.
     Qed.
@@ -270,7 +270,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       exists c, SRPC_serv (Locked c s) (NetMod.get n N).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *.
+      unfold deinstr, serv_deinstr in *.
       hsimpl in *.
       consider (exists c, srpc = Locked c s); eattac.
     Qed.
@@ -283,7 +283,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
       hsimpl in *.
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       repeat (rewrite <- app_assoc in * ).
       repeat (rewrite <- app_comm_cons in * ).
       remember (retract_send MQ1 ++ &O) as O1 eqn:x; clear x.
@@ -335,7 +335,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       intros.
       kill H. specialize (H_wf_SRPC n) as [srpc H].
       hsimpl in *.
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       remember (retract_send MQ) as O1 eqn:x; clear x.
 
       destruct (Deq_dec' O1 (c, R)); hsimpl in *.
@@ -375,7 +375,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ (List.In (s, Q, v') (retract_send MQ ++ O)).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_Q_MM [N : MNet] [ n s v v' MQ M S] :
@@ -406,7 +406,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ (List.In (s, Q, v') (retract_send MQ ++ O)).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_Q_PM [N : MNet] [ n s v v' MQ M I P O] :
@@ -437,7 +437,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ (List.In (s, R, v') (I ++ retract_recv MQ)).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_R_MM [N : MNet] [ n s v v' MQ M S] :
@@ -468,7 +468,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ (List.In (s, R, v') (I ++ retract_recv MQ)).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_R_PM [N : MNet] [ n s v v' MQ M I P O] :
@@ -499,7 +499,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ List.In (c, R, v') (retract_send MQ ++ O).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_excl_R_MM [N : MNet] [ n c v v' MQ M S] :
@@ -530,7 +530,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ List.In (c, R, v') (retract_send MQ ++ O).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_Q_excl_R_PM [N : MNet] [ n c v v' MQ M I P O] :
@@ -561,7 +561,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ proc_client c P.
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
 
@@ -572,7 +572,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ proc_client c P.
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
 
@@ -583,7 +583,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ List.In (c, Q, v') (I ++ retract_recv MQ).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_excl_Q_MM [N : MNet] [ n c v v' MQ M S] :
@@ -614,7 +614,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ List.In (c, Q, v') (I ++ retract_recv MQ).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
     Lemma SRPC_M_net_in_net_R_excl_Q_PM [N : MNet] [ n c v v' MQ M I P O] :
@@ -645,7 +645,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ proc_client c P.
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
 
@@ -656,7 +656,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ proc_client c P.
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       attac.
     Qed.
 
@@ -667,7 +667,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ List.In (MqRecv (c, Q) v) MQ.
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       enough (~ In (c, Q, v) (&I ++ retract_recv MQ)) by attac.
       eattac.
     Qed.
@@ -679,7 +679,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ List.In (c, Q, v) (I).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       enough (~ In (c, Q, v) (&I ++ retract_recv MQ)) by attac.
       iattac.
     Qed.
@@ -691,7 +691,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       ~ List.In (c, R, v) (retract_send MQ ++ O).
     Proof.
       intros. kill H. specialize (H_wf_SRPC n) as [srpc H].
-      unfold net_deinstr, deinstr in *; hsimpl in *.
+      unfold deinstr, serv_deinstr in *; hsimpl in *.
       iattac.
     Qed.
 
@@ -1065,8 +1065,8 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     intros.
     assert (well_formed '' MN0) by eauto with LTS.
     destruct (MNAct_to_PNAct a) eqn:?.
-    - eauto using net_deinstr_act_do with LTS.
-    - now replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
+    - eauto using deinstr_act_do with LTS.
+    - now replace ('' MN1) with ('' MN0) by eauto using deinstr_act_skip with LTS.
   Qed.
 
   Hint Immediate KIS_invariant_well_formed : LTS.
@@ -1159,7 +1159,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     assert (List.In (n1, R, v0) I0).
     {
       destruct (NetMod.get m0 MN0) as [MQ0 M0 [I0' P0' O0']] eqn:?.
-      unfold net_deinstr, deinstr in *. hsimpl in *.
+      unfold deinstr, serv_deinstr in *. hsimpl in *.
       attac.
     }
 
@@ -1174,7 +1174,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     consider (_ =(_)=> _).
     compat_hsimpl in *.
-    unfold net_deinstr, deinstr in *.
+    unfold deinstr, serv_deinstr in *.
     hsimpl in *.
     destruct P1.
     bs.
@@ -1236,7 +1236,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         {
           unfold NetGet in *.
           destruct (NetMod.get n0 MN0) as [MQ0 M0 [I0' P0' O0']] eqn:?.
-          unfold net_deinstr, deinstr in *. hsimpl in *.
+          unfold deinstr, serv_deinstr in *. hsimpl in *.
           attac.
         }
 
@@ -1251,13 +1251,13 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
         consider (_ =(_)=> _).
         compat_hsimpl in *.
-        unfold net_deinstr, deinstr in *.
+        unfold deinstr, serv_deinstr in *.
         hsimpl in *.
         destruct P1.
         bs.
     - consider (_ =(_)=> _).
       compat_hsimpl in *.
-      unfold net_deinstr, deinstr in *.
+      unfold deinstr, serv_deinstr in *.
       hsimpl in *.
       destruct s.
       simpl in *.
@@ -1279,7 +1279,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     assert (List.In (n1, R, v) I0).
     {
       unfold NetGet in *.
-      unfold net_deinstr, deinstr in *. hsimpl in *.
+      unfold deinstr, serv_deinstr in *. hsimpl in *.
       attac.
     }
 
@@ -1292,7 +1292,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       eauto using service_wf_R_in_out_nil with LTS.
     }
 
-    unfold net_deinstr, deinstr in *.
+    unfold deinstr, serv_deinstr in *.
     attac.
   Qed.
 
@@ -1625,7 +1625,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       enough (pq_client n0 (NetMod.get n1 '' MN0)) by eauto with LTS.
       enough (exists v, List.In (n0, Q, v) I0') by iattac.
       enough (exists v, List.In (MqRecv (n0, Q) v) MQ0)
-        by (compat_hsimpl in *; exists v0; unfold net_deinstr, deinstr in *; ieattac).
+        by (compat_hsimpl in *; exists v0; unfold deinstr, serv_deinstr in *; ieattac).
       compat_hsimpl in *; eattac.
   Qed.
 
@@ -1720,7 +1720,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
         enough (pq_client n0 (NetMod.get n1 '' MN0)) by eauto with LTS.
           enough (List.In (MqRecv (n0, Q) v) (mserv_i (MN0 n1)))
-          by (ltac1:(autounfold with LTS_get in * ); unfold net_deinstr, deinstr in *; attac).
+          by (ltac1:(autounfold with LTS_get in * ); unfold deinstr, serv_deinstr in *; attac).
         ltac1:(autounfold with LTS_get in * ); compat_hsimpl in *.
         blast_cases; attac.
       + enough (List.In n0 (wait (MN1 n1))) by eauto using KIS_invariant_wait.
@@ -1896,9 +1896,9 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     destruct (MNAct_to_PNAct ma) as [a|] eqn:?.
-    - assert ('' MN0 =(a)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
+    - assert ('' MN0 =(a)=> '' MN1) by eauto using deinstr_act_do with LTS.
       now eauto using dep_dec_after.
-    - replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
+    - replace ('' MN1) with ('' MN0) by eauto using deinstr_act_skip with LTS.
       now left.
   Qed.
 
@@ -1968,7 +1968,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       assert (trans_lock '' MN0 n0 n2) by eauto with LTS.
 
       enough ('' MN0 = '' MN1) by attac.
-      eapply net_deinstr_act_skip; attac.
+      eapply deinstr_act_skip; attac.
     }
 
     destruct (locked (MN1 n2)) as [n3|] eqn:?. 2: doubt.
@@ -2012,7 +2012,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       consider (exists n0' v, (n0 = n0' \/ trans_lock '' MN1 n0 n0') /\ a = NComm n2 n0' R (MValP v)).
       {
         destruct (MNAct_to_PNAct a) eqn:?.
-        - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
+        - assert ('' MN0 =(p)=> '' MN1) by eauto using deinstr_act_do with LTS.
           consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ trans_lock '' MN1 n0 n0')).
           {
             eapply net_trans_lock_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
@@ -2023,7 +2023,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           1: { destruct `(_ \/ _); eauto using eq_sym. }
           destruct_mna a; doubt.
           attac.
-        - replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
+        - replace ('' MN1) with ('' MN0) by eauto using deinstr_act_skip with LTS.
           bs.
       }
 
@@ -2105,13 +2105,13 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         {
           subst.
           destruct (MNAct_to_PNAct (NTau n1 (MActM Tau))) eqn:?.
-          - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
+          - assert ('' MN0 =(p)=> '' MN1) by eauto using deinstr_act_do with LTS.
             consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ trans_lock '' MN1 n0 n0')).
             {
               eapply net_trans_lock_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
             }
             bs.
-          - replace ('' MN1) with ('' MN0) by eauto using eq_sym, net_deinstr_act_skip.
+          - replace ('' MN1) with ('' MN0) by eauto using eq_sym, deinstr_act_skip.
             bs.
         }
         hsimpl in *; bs.
@@ -2158,7 +2158,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       consider (exists n0' v, (n0 = n0' \/ trans_lock '' MN1 n0 n0') /\ a = NComm n2 n0' R (MValP v)).
       {
         destruct (MNAct_to_PNAct a) eqn:?.
-        - assert ('' MN0 =(p)=> '' MN1) by eauto using net_deinstr_act_do with LTS.
+        - assert ('' MN0 =(p)=> '' MN1) by eauto using deinstr_act_do with LTS.
           consider (exists n0' v, p = NComm n2 n0' R v /\ (n0' = n0 \/ trans_lock '' MN1 n0 n0')).
           {
             eapply net_trans_lock_unlock with (n0:=n0)(n1:=n2)(N1:=''MN1)(N0:=''MN0); eauto with LTS.
@@ -2169,7 +2169,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           1: { destruct `(_ \/ _); eauto using eq_sym. }
             destruct_mna a; doubt.
           attac.
-        - replace ('' MN1) with ('' MN0) by eauto using net_deinstr_act_skip with LTS.
+        - replace ('' MN1) with ('' MN0) by eauto using deinstr_act_skip with LTS.
           bs.
       }
 
@@ -2257,7 +2257,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Lemma MNPath_do : forall mpath (MN0 MN1 : MNet),
       (MN0 =[mpath]=> MN1) ->
-      (net_deinstr MN0 =[mpath]=> net_deinstr MN1).
+      (deinstr MN0 =[mpath]=> deinstr MN1).
 
   Proof.
     induction mpath; intros.
@@ -2267,11 +2267,11 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     - apply path_seq1 with (middle:=''N1).
       2: eauto.
       destruct a; kill Heqo; blast_cases; doubt; compat_hsimpl in |- *.
-      + assert ('' MN0 =(p)=> '' N1). eapply net_deinstr_act_do. 2: eauto. simpl in *. eauto.
+      + assert ('' MN0 =(p)=> '' N1). eapply deinstr_act_do. 2: eauto. simpl in *. eauto.
         attac.
         {
           constructor. eauto with LTS.
-          unfold net_deinstr in *.
+          unfold deinstr in *.
           rewrite NetMod.put_map in *.
           constructor.
           rewrite NetMod.get_map in *.
@@ -2287,12 +2287,12 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
           eauto.
         }
 
-      + assert ('' MN0 =(p)=> '' N1). eapply net_deinstr_act_do. 2: eauto. simpl in *. eauto.
+      + assert ('' MN0 =(p)=> '' N1). eapply deinstr_act_do. 2: eauto. simpl in *. eauto.
         attac.
         kill H2.
         kill H1.
         kill H3.
-        unfold net_deinstr in *.
+        unfold deinstr in *.
         smash_eq n n0; hsimpl in *.
         * rewrite NetMod.put_map in *.
           rewrite H7 in *.
@@ -2307,31 +2307,31 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
              eapply H2.
           -- eauto.
              eattac.
-    - replace ('' MN0) with ('' N1) by eauto using net_deinstr_act_skip, eq_sym.
+    - replace ('' MN0) with ('' N1) by eauto using deinstr_act_skip, eq_sym.
       eapply path_seq1 with (middle:=N1).
       2: eauto.
       destruct a; kill Heqo; blast_cases; doubt; hsimpl in |- *.
       + eapply NTrans_Tau_inv.
         kill H; hsimpl in *.
-        unfold net_deinstr.
+        unfold deinstr.
         rewrite NetMod.put_map in *.
         hsimpl.
         eexists; eattac.
       + eapply NTrans_Tau_inv.
         kill H; hsimpl in *.
-        unfold net_deinstr.
+        unfold deinstr.
         rewrite NetMod.put_map in *.
         hsimpl.
         eexists; eattac.
       + eapply NTrans_Tau_inv.
         kill H; hsimpl in *.
-        unfold net_deinstr.
+        unfold deinstr.
         rewrite NetMod.put_map in *.
         hsimpl.
         eexists; eattac.
       + eapply NTrans_Tau_inv.
         kill H; hsimpl in *.
-        unfold net_deinstr.
+        unfold deinstr.
         rewrite NetMod.put_map in *.
         hsimpl.
         eexists; eattac.

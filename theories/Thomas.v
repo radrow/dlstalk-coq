@@ -732,7 +732,7 @@ Module Thomas.
   Lemma gen_mnet_KIC : forall conf, (KIC (gen_mnet conf)).
     intros.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
-    1: unfold gen_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
+    1: unfold gen_mnet; rewrite deinstr_instr; eauto using make_well_formed.
 
     1: destruct (NetMod.get n (gen_mnet conf)) eqn:?.
     2: destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
@@ -744,20 +744,20 @@ Module Thomas.
       unfold make_mon_state.
       blast_cases; compat_hsimpl in *; attac.
     - unfold gen_mnet in *.
-      rewrite net_deinstr_instr in *.
+      rewrite deinstr_instr in *.
       apply gen_lock_set_inv in H.
       attac.
       unfold gen_net, make_instr, apply_instr, serv_instr in *.
       attac.
     - unfold gen_mnet in *.
-      rewrite net_deinstr_instr in *.
+      rewrite deinstr_instr in *.
       apply gen_lock_set_inv in H.
       attac.
       unfold gen_net, make_instr, apply_instr, serv_instr in *.
       attac.
       destruct i; attac.
     - unfold gen_mnet in *.
-      rewrite net_deinstr_instr in *.
+      rewrite deinstr_instr in *.
       apply gen_net_dep_inv in H.
       attac.
   Qed.
@@ -766,7 +766,7 @@ Module Thomas.
   Lemma gen_mnet_KIS : forall conf, (KIS (gen_mnet conf)).
     intros.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
-    1: unfold gen_mnet; rewrite net_deinstr_instr; eauto using make_well_formed.
+    1: unfold gen_mnet; rewrite deinstr_instr; eauto using make_well_formed.
 
     - destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
       unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
@@ -774,14 +774,14 @@ Module Thomas.
       blast_cases; attac.
     - left.
       unfold gen_mnet in *.
-      rewrite net_deinstr_instr.
+      rewrite deinstr_instr.
       unfold gen_mnet, make_instr, apply_instr, serv_instr, gen_net, make_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases; attac.
       blast_cases; attac.
       apply gen_lock_set_finger.
     -  unfold gen_mnet in *.
-       rewrite net_deinstr_instr.
+       rewrite deinstr_instr.
        unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
 
        blast_cases; attac.
@@ -789,7 +789,7 @@ Module Thomas.
        apply gen_lock_set_finger.
        apply gen_lock_set_finger.
     - unfold gen_mnet in *.
-      rewrite net_deinstr_instr.
+      rewrite deinstr_instr.
       unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
 
       blast_cases; attac.
@@ -804,21 +804,21 @@ Module Thomas.
       simpl in *.
       bs.
     - unfold gen_mnet in *.
-      rewrite net_deinstr_instr.
+      rewrite deinstr_instr.
       unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases.
       rewrite NetMod.get_map in *.
       rewrite NetMod.init_get in *.
       bs.
     - unfold gen_mnet in *.
-      rewrite net_deinstr_instr.
+      rewrite deinstr_instr.
       unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases.
       rewrite NetMod.get_map in *.
       rewrite NetMod.init_get in *.
       bs.
     - unfold gen_mnet in *.
-      rewrite net_deinstr_instr.
+      rewrite deinstr_instr.
       unfold make_instr, apply_instr, serv_instr, gen_net, make_mon_state in * |-; try (rewrite NetMod.init_get in * ); simpl in *.
       blast_cases.
       rewrite NetMod.get_map in *.

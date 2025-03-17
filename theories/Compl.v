@@ -194,7 +194,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Notation MProbe := (@MProbe' Name).
 
-  Notation "'' MN" := (net_deinstr MN) (at level 1).
+  Notation "'' MN" := (deinstr MN) (at level 1).
 
   Notation NoRecvQ_MQ := (Forall (fun e => match e with MqRecv (_, Q) _ => False | _ => True end)).
   Notation NoRecvR_MQ := (Forall (fun e => match e with MqRecv (_, R) _ => False | _ => True end)).
@@ -742,7 +742,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     assert ('' N0 =(@NComm _ gen_Act_PAct n0 n1 Q v)=> '' N1)
-      by (eapply net_deinstr_act_do; eauto with LTS; simpl; eauto with LTS).
+      by (eapply deinstr_act_do; eauto with LTS; simpl; eauto with LTS).
     eauto using SRPC_net_query_new_lock.
   Qed.
 
@@ -768,7 +768,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     assert ('' N0 =(@NComm _ gen_Act_PAct n0 n1 R v)=> '' N1)
-      by (eapply net_deinstr_act_do; eauto with LTS; simpl; eauto with LTS).
+      by (eapply deinstr_act_do; eauto with LTS; simpl; eauto with LTS).
     eauto using SRPC_net_reply_unlock.
   Qed.
 
@@ -1372,17 +1372,17 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     unfold no_sends_in, NoMqSend, lock, lock_set in *.
-    unfold net_deinstr in *.
+    unfold deinstr in *.
     ltac1:(autorewrite with LTS in * ).
     hsimpl in *.
     destruct (NetMod.get n MN) as [MQ0 M0 [I0 P0 O0]].
     apply Forall_forall.
     intros.
     destruct x; auto.
-    destruct (deinstr (mserv MQ0 M0 (serv I0 P0 O0))) as [I' P' O'] eqn:?.
+    destruct (serv_deinstr (mserv MQ0 M0 (serv I0 P0 O0))) as [I' P' O'] eqn:?.
     absurd (List.In (n0, v) O').
     - intros ?.
-      unfold deinstr in *.
+      unfold serv_deinstr in *.
       hsimpl in *.
       kill H0.
       assert (retract_send _ = [] /\ O0 = []) by eauto using app_eq_nil.
@@ -1566,7 +1566,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
     destruct (MNAct_to_PNAct na) eqn:?.
-    - assert ('' N0 =(p)=> '' N1) by eauto using net_deinstr_act_do.
+    - assert ('' N0 =(p)=> '' N1) by eauto using deinstr_act_do.
       consider (exists m0 m1 v, p = @NComm PAct _ m0 m1 Q v
                                 /\ (m0 = n0 \/ (m0 <> n0 /\ trans_lock N0 n0 m0 /\ trans_lock N1 n0 m0))
                                 /\ (m1 = n1 \/ (m1 <> n1 /\ trans_lock N0 m1 n1 /\ trans_lock N1 m1 n1))
@@ -1581,7 +1581,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         destruct a; bs.
       + destruct p; doubt.
         attac.
-    - assert ('' N0 = '' N1) by eauto using net_deinstr_act_skip.
+    - assert ('' N0 = '' N1) by eauto using deinstr_act_skip.
       rewrite `('' N0 = _) in *.
       bs.
   Qed.
@@ -1670,7 +1670,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       hsimpl in *.
       consider (serv_lock L _).
       apply (`(~ List.In (n', R, v) _)).
-      unfold net_deinstr, deinstr in *.
+      unfold deinstr, serv_deinstr in *.
       ltac1:(autorewrite with LTS in * ).
       rewrite `(NetMod.get n MN0 = _) in *.
       destruct S.
@@ -1682,25 +1682,25 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     enough ((exists c0, SRPC (Locked c0 n0) P) /\ (exists c', SRPC (Locked c' n') &P)) as [[c0 ?] [c' ?]]
         by (consider (Locked c0 n0 = Locked c' n') by (eapply SRPC_inv; eattac); auto).
     split.
-    - destruct (NetMod.get n (net_deinstr MN0)) as [I0 P0 O0] eqn:?.
+    - destruct (NetMod.get n (deinstr MN0)) as [I0 P0 O0] eqn:?.
 
       enough (P = P0 /\ List.In (n0, R, v) I0) as [? ?].
       {
         subst.
-        unfold net_deinstr in *. simpl in *.
+        unfold deinstr in *. simpl in *.
         ltac1:(autorewrite with LTS in * ).
         enough (exists c0, SRPC_serv (Locked c0 n0) (serv I0 P0 O0)) by attac.
         rewrite <- `(_ = serv I0 P0 O0).
 
-        replace (deinstr (NetMod.get n MN0)) with (NetMod.get n (net_deinstr MN0)) by (unfold net_deinstr, deinstr; attac).
+        replace (serv_deinstr (NetMod.get n MN0)) with (NetMod.get n (deinstr MN0)) by (unfold deinstr, serv_deinstr; attac).
 
         eauto using well_formed_in_net_R_in_lock.
       }
 
-      unfold net_deinstr in *.
+      unfold deinstr in *.
       ltac1:(autorewrite with LTS in * ).
       split.
-      + unfold deinstr in *.
+      + unfold serv_deinstr in *.
         rewrite `(NetMod.get n MN0 = _) in *.
         attac.
       + rewrite `(NetMod.get n MN0 = _) in *.
@@ -1708,16 +1708,16 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         eattac.
     - assert (lock_set MN0 [n'] n) by eauto using lock_singleton with LTS.
       unfold lock_set in *.
-      unfold net_deinstr, deinstr in *.
+      unfold deinstr, serv_deinstr in *.
       ltac1:(autorewrite with LTS in * ).
       rewrite `(NetMod.get n MN0 = _) in *.
       eapply lock_SRPC_Locked.
       2: eattac.
 
-      enough (NetMod.get n (net_deinstr MN0) = serv (&I ++ retract_recv MQ) P (retract_send MQ ++ &O))
+      enough (NetMod.get n (deinstr MN0) = serv (&I ++ retract_recv MQ) P (retract_send MQ ++ &O))
         by (enough (AnySRPC_serv (serv (&I ++ retract_recv MQ) P (retract_send MQ ++ &O))); eauto with LTS).
 
-      unfold net_deinstr, deinstr in *.
+      unfold deinstr, serv_deinstr in *.
       ltac1:(autorewrite with LTS in * ).
       rewrite `(NetMod.get n MN0 = _) in *.
       auto.
@@ -1766,15 +1766,15 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         eauto using M_preserve_steady_locked, eq_sym with LTS.
       + consider (exists v, na = NTau n0 (MActP (Recv (n1, R) v))) by eauto using Alg_set_set_unlocked with LTS.
         exfalso.
-        assert (net_deinstr MN0 = MN1) by (eapply net_deinstr_act_skip; eauto; simpl; eauto).
-        rewrite `(net_deinstr MN0 = _) in *.
+        assert (deinstr MN0 = MN1) by (eapply deinstr_act_skip; eauto; simpl; eauto).
+        rewrite `(deinstr MN0 = _) in *.
         assert (lock_set MN1 [n1] n0) by eauto using lock_singleton with LTS.
 
         (* TODO no taus when locked *)
         destruct (NetMod.get n0 MN1) as [MQ0 M0 [I0 P0 O0]] eqn:?.
         destruct (NetMod.get n0 MN1) as [I0' P0' O0'] eqn:?.
         unfold lock, lock_set in *.
-        unfold net_deinstr, deinstr in *.
+        unfold deinstr, serv_deinstr in *.
         hsimpl in *.
         compat_hsimpl in *.
         kill H7. (* serv_lock *)
@@ -1800,7 +1800,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
 
-    assert (exists path, net_deinstr MN0 =[ path ]=> MN1) as [? ?] by eauto using transp_sound1.
+    assert (exists path, deinstr MN0 =[ path ]=> MN1) as [? ?] by eauto using transp_sound1.
     assert (deadlocked n MN1) by eauto with LTS.
 
     assert (exists m, lock MN0 n m) by eauto using deadlocked_M_get_lock with LTS.
@@ -1829,7 +1829,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Proof.
     intros.
-    consider (exists ppath, net_deinstr MN0 =[ppath]=> MN1) by eauto using transp_sound1.
+    consider (exists ppath, deinstr MN0 =[ppath]=> MN1) by eauto using transp_sound1.
     eauto with LTS.
   Qed.
 
@@ -1863,7 +1863,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     hsimpl in *.
     transitivity '(locked (N1 n)).
     - eauto using deadlocked_preserve_M_locked1 with LTS.
-    - consider (exists ppath, net_deinstr MN0 =[ppath]=> N1) by eauto using transp_sound1.
+    - consider (exists ppath, deinstr MN0 =[ppath]=> N1) by eauto using transp_sound1.
       assert (well_formed N1) by eauto with LTS.
       assert (deadlocked n N1) by eauto 2 with LTS.
       eauto using KIC_invariant_H_locked with LTS.
@@ -1879,7 +1879,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
 
-    unfold lock_set, net_deinstr in *.
+    unfold lock_set, deinstr in *.
     ltac1:(autorewrite with LTS in * ).
 
     destruct (NetMod.get n MN0) as [MQ0 M0 [I0 P0 O0]] eqn:?.
@@ -1957,7 +1957,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     assert (serv_lock [m] (mserv MQ0 M0 S0)).
     {
-      unfold net_deinstr in *.
+      unfold deinstr in *.
       unfold NetGet in *.
       ltac1:(autorewrite with LTS in * ).
       attac.
@@ -1965,7 +1965,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     assert (serv_lock [m] (mserv MQ1 M1 S1)).
     {
-      unfold net_deinstr in *.
+      unfold deinstr in *.
       ltac1:(autorewrite with LTS in * ).
       attac.
     }
@@ -2039,23 +2039,23 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     hsimpl in *.
     assert (List.In m (wait (N1 n))).
     - eapply deadlocked_preserve_M_in_wait1; eauto with LTS.
-    - consider (exists ppath, net_deinstr MN0 =[ppath]=> N1) by eauto using transp_sound1.
+    - consider (exists ppath, deinstr MN0 =[ppath]=> N1) by eauto using transp_sound1.
       assert (well_formed N1) by eauto with LTS.
       assert (deadlocked n N1) by eauto 2 with LTS.
       eauto with LTS.
   Qed.
 
 
-  Lemma net_deinstr_act_or [MN0 MN1 : MNet] [ma] :
+  Lemma deinstr_act_or [MN0 MN1 : MNet] [ma] :
     (MN0 =(ma)=> MN1) ->
-    net_deinstr MN0 = MN1 \/ exists a, net_deinstr MN0 =(a)=> MN1.
+    deinstr MN0 = MN1 \/ exists a, deinstr MN0 =(a)=> MN1.
 
   Proof.
     clear.
     intros.
     destruct (MNAct_to_PNAct ma) eqn:?.
-    - right. exists p. eauto using net_deinstr_act_do.
-    - left. eauto using net_deinstr_act_skip.
+    - right. exists p. eauto using deinstr_act_do.
+    - left. eauto using deinstr_act_skip.
   Qed.
 
 
@@ -2067,8 +2067,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Proof.
     intros.
-    destruct (@net_deinstr_act_or MN0 MN1 a); auto.
-    - rewrite <- `(net_deinstr MN0 = _). auto.
+    destruct (@deinstr_act_or MN0 MN1 a); auto.
+    - rewrite <- `(deinstr MN0 = _). auto.
     - hsimpl in *. eauto using deadlocked_dep_invariant1.
   Qed.
 
@@ -2129,7 +2129,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     assert (serv_lock [m] (mserv MQ0 M0 S0)).
     {
-      unfold net_deinstr in *.
+      unfold deinstr in *.
       ltac1:(autorewrite with LTS in * ).
       rewrite `(NetMod.get n MN0 = _) in H3.
       auto.
@@ -2137,7 +2137,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
     assert (serv_lock [m] (mserv MQ1 M1 S1)).
     {
-      unfold net_deinstr in *.
+      unfold deinstr in *.
       ltac1:(autorewrite with LTS in * ).
       rewrite `(NetMod.get n MN1 = _) in H4.
       auto.
@@ -2305,7 +2305,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
                apply lock_singleton in H3; eauto with LTS.
                unfold lock_set in *.
                clear - H3 H7.
-               unfold net_deinstr in *.
+               unfold deinstr in *.
                ltac1:(autorewrite with LTS in * ).
                attac.
                rewrite `(NetMod.get n MN0 = _ ) in *.
@@ -2327,7 +2327,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
              exfalso.
              kill H1.
              hsimpl in *.
-             unfold lock_set, net_deinstr in *.
+             unfold lock_set, deinstr in *.
              ltac1:(autorewrite with LTS in * ).
              kill H0.
              destruct P.
@@ -2909,7 +2909,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       consider (KIC MN0). (* TODO to lemma... *)
 
     - consider (pq_client n0 (NetMod.get n1 '' MN0)) by eauto with LTS.
-      + unfold net_deinstr in *.
+      + unfold deinstr in *.
         compat_hsimpl in *.
 
         assert ((exists v0, List.In (MqRecv (n0, Q) v0) MQ) \/ ~ (exists v0, List.In (MqRecv (n0, Q) v0) MQ)) as [|].
@@ -2959,26 +2959,26 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         hsimpl in *.
         intros ? ?.
 
-        unfold net_deinstr in *.
+        unfold deinstr in *.
         compat_hsimpl in *.
         destruct S1 as [I1 P1 O1].
 
         enough (~ List.In (n0, Q, v) &I).
         {
           eattac. eapply H6.
-          unfold deinstr in *.
+          unfold serv_deinstr in *.
           eattac.
         }
 
         assert (proc_client n0 P).
         {
-          unfold deinstr in *.
+          unfold serv_deinstr in *.
           eattac.
         }
         assert (NetMod.get n1 '' MN0 = serv &I P &O).
         {
           rewrite <- `(_ = serv &I P &O).
-          unfold net_deinstr, deinstr; hsimpl in *; hsimpl in *; attac.
+          unfold deinstr, serv_deinstr; hsimpl in *; hsimpl in *; attac.
         }
         eauto with LTS.
 
@@ -2999,26 +2999,26 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         hsimpl in *.
         intros ? ?.
 
-        unfold net_deinstr in *.
+        unfold deinstr in *.
         compat_hsimpl in *.
         destruct S1 as [I1 P1 O1].
 
         enough (~ List.In (n0, Q, v0) &I).
         {
           eattac. eapply H6.
-          unfold deinstr in *.
+          unfold serv_deinstr in *.
           eattac.
         }
 
         assert (List.In (n0, R, v) &O).
         {
-          unfold deinstr in *.
+          unfold serv_deinstr in *.
           eattac.
         }
         assert (NetMod.get n1 '' MN0 = serv &I P &O).
         {
           rewrite <- `(_ = serv &I P &O).
-          unfold net_deinstr, deinstr; hsimpl in *; hsimpl in *; attac.
+          unfold deinstr, serv_deinstr; hsimpl in *; hsimpl in *; attac.
         }
         eauto with LTS.
   Qed.
@@ -3095,7 +3095,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     unfold NetGet in *.
     compat_hsimpl in *.
     eapply sends_probe_prop_skip; eauto with LTS; subst.
-    unfold net_deinstr in *.
+    unfold deinstr in *.
     compat_hsimpl in H17.
     destruct S0.
     hsimpl in H17.
@@ -3318,13 +3318,13 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
              destruct P0 as [I0 P0 O0].
              apply lock_singleton in H9; eauto with LTS.
              apply lock_singleton in H12; eauto with LTS.
-             unfold lock_set, net_deinstr in *.
+             unfold lock_set, deinstr in *.
              attac.
              destruct P1 as [I1 P1 O1].
              kill H12.
              kill H9.
              hsimpl in *.
-             unfold deinstr in *.
+             unfold serv_deinstr in *.
              attac.
              kill H18; attac.
              kill H9.
@@ -3577,12 +3577,12 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
                  /\ (n <> m -> M' = M)
                  /\ MQ_Clear MQ').
 
-    consider (exists MQnet_deinstr Mnet_deinstr,
-                 NetMod.get m MN2 = mserv ((MQ ++ MQ') ++ MQnet_deinstr) Mnet_deinstr &S
-                 /\ (n <> m -> Mnet_deinstr = M')
-                 /\ MQ_Clear MQnet_deinstr).
+    consider (exists MQdeinstr Mdeinstr,
+                 NetMod.get m MN2 = mserv ((MQ ++ MQ') ++ MQdeinstr) Mdeinstr &S
+                 /\ (n <> m -> Mdeinstr = M')
+                 /\ MQ_Clear MQdeinstr).
 
-    exists (MQ' ++ MQnet_deinstr), Mnet_deinstr.
+    exists (MQ' ++ MQdeinstr), Mdeinstr.
     smash_eq m n; hsimpl.
     - rewrite app_assoc; attac.
     - rewrite app_assoc; eattac.
@@ -4271,7 +4271,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
             destruct (NetMod.get m '' MN0) as [I0 P0 O0] eqn:?.
             assert (exists I00 I01, I0 = I00 ++ I01 /\ List.In (n, Q, v) I00 /\ List.In (n, Q, v0) I01).
             {
-              unfold net_deinstr, deinstr in *.
+              unfold deinstr, serv_deinstr in *.
               compat_hsimpl in *.
               destruct S.
               hsimpl in *.
@@ -5043,12 +5043,12 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     intros.
     consider (well_formed '' MN).
     enough (pq_client m (NetMod.get n '' MN)); attac.
-    unfold net_deinstr, NetGet in *.
+    unfold deinstr, NetGet in *.
     destruct (NetMod.get n MN) as [MQ M S] eqn:?.
     hsimpl in |- *.
-    destruct ((deinstr (NetMod.get n MN))) eqn:?.
+    destruct ((serv_deinstr (NetMod.get n MN))) eqn:?.
     econstructor 1; attac.
-    eapply deinstr_In_recv. eauto.
+    eapply serv_deinstr_In_recv. eauto.
     rewrite Heqm0 in *.
     eauto.
   Qed.
@@ -5196,13 +5196,13 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma locked_deinstr :
+  Lemma locked_serv_deinstr :
     forall (MN0 MN1 : MNet) a n,
       SRPC_net MN0 ->
       deadlocked n MN0 ->
       Flushing_NAct n a ->
       (MN0 =(a)=> MN1) ->
-      net_deinstr MN0 = net_deinstr MN1.
+      deinstr MN0 = deinstr MN1.
 
   Proof.
     intros.
@@ -5213,29 +5213,29 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     destruct a; consider (Flushing_NAct _ _).
     - destruct m; doubt.
       + destruct p; doubt.
-        unfold net_deinstr in *.
+        unfold deinstr in *.
         apply NetMod.extensionality.
         intros.
         repeat (rewrite NetMod.get_map in * ).
         consider (_ =(_)=> _).
         hsimpl in *.
         smash_eq n n1; attac.
-        unfold deinstr.
+        unfold serv_deinstr.
         attac.
         compat_hsimpl in *; attac.
         repeat (rewrite <- app_assoc). attac.
       + destruct p; doubt.
       + destruct a; doubt.
-        unfold net_deinstr in *.
+        unfold deinstr in *.
         apply NetMod.extensionality.
         intros.
         repeat (rewrite NetMod.get_map in * ).
         consider (_ =(_)=> _).
         hsimpl in *.
         smash_eq n n0; attac.
-        unfold deinstr.
+        unfold serv_deinstr.
         attac.
-    - apply net_deinstr_act in H2.
+    - apply deinstr_act in H2.
       hsimpl in *.
       destruct p; doubt; attac.
       enough (n <> n) by bs.
@@ -5243,23 +5243,23 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Qed.
 
 
-  Lemma locked_deinstrs :
+  Lemma locked_serv_deinstrs :
     forall MN0 MN1 mpath DS,
       well_formed '' MN0 ->
       dead_set DS '' MN0 ->
       Forall (fun a => exists n, In n DS /\ Flushing_NAct n a) mpath ->
       (MN0 =[mpath]=> MN1) ->
-      net_deinstr MN0 = net_deinstr MN1.
+      deinstr MN0 = deinstr MN1.
 
   Proof.
     intros.
     generalize dependent MN0.
     induction mpath; attac.
     rename N1 into MN0'.
-    transitivity '(net_deinstr MN0').
-    - eapply locked_deinstr; eauto with LTS.
+    transitivity '(deinstr MN0').
+    - eapply locked_serv_deinstr; eauto with LTS.
       exists DS; eattac.
-    - apply net_deinstr_act in H2.
+    - apply deinstr_act in H2.
       destruct (MNAct_to_PNAct a); eattac.
       hrewrite ('' MN0) in *.
       eapply IHmpath; eauto with LTS.
@@ -5289,17 +5289,17 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
         * consider (_ =(_)=> _); hsimpl in *.
           destruct m; attac.
           -- destruct p; doubt.
-             unfold net_deinstr, deinstr, ready_in, ready, apply_instr, instr_for, NetGet in *.
+             unfold deinstr, serv_deinstr, ready_in, ready, apply_instr, instr_for, NetGet in *.
              compat_hsimpl in *; attac.
           -- destruct a; doubt.
-             unfold net_deinstr, deinstr, ready_in, ready, apply_instr, instr_for, NetGet in *.
+             unfold deinstr, serv_deinstr, ready_in, ready, apply_instr, instr_for, NetGet in *.
              compat_hsimpl in *; attac.
         * assert (NetMod.get n0 MN0 = NetMod.get n0 MN1) by eattac.
           unfold ready_in, ready, apply_instr, instr_for, NetGet in *.
           attac.
       + smash_eq n0 n.
         * consider (_ =(_)=> _); hsimpl in *.
-          unfold net_deinstr, deinstr, ready_in, ready, apply_instr, instr_for, NetGet in *.
+          unfold deinstr, serv_deinstr, ready_in, ready, apply_instr, instr_for, NetGet in *.
           destruct p; compat_hsimpl in *; doubt.
           smash_eq n0 n2; blast_cases; attac.
         * smash_eq n0 n2.
@@ -5333,7 +5333,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
     assert (flushed N1); eauto using locked_flushed with LTS.
     - eapply locked_flushed; eauto with LTS.
       exists DS; eattac.
-    - apply net_deinstr_act in H2.
+    - apply deinstr_act in H2.
       destruct (MNAct_to_PNAct a); eattac.
       hrewrite ('' MN0) in *.
       eapply IHmpath; eauto with LTS.
@@ -5456,8 +5456,8 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
       eauto using to_instr.
     }
 
-    replace (net_deinstr MN0) with (net_deinstr MN1)
-      by (symmetry; eapply locked_deinstrs; eauto with LTS).
+    replace (deinstr MN0) with (deinstr MN1)
+      by (symmetry; eapply locked_serv_deinstrs; eauto with LTS).
 
     exists (mpath0 ++ mpath1), i1.
 

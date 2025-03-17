@@ -1160,13 +1160,13 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
 
   (** Deinstrumentation. Strips off monitoring and disassembles monitor's queue. *)
-  Coercion deinstr (MS0 : MServ) : Serv :=
+  Coercion serv_deinstr (MS0 : MServ) : Serv :=
     match MS0 with
     | (mserv MQ0 _ (serv I0 P0 O0)) => (serv (I0 ++ (retract_recv MQ0)) P0 (retract_send MQ0 ++ O0))
     end.
 
   (** Deinstrumentation is inversion of instrumentation *)
-  Theorem service_deinstr_instr : forall (a : mon_assg) S, deinstr (a S) = S.
+  Theorem service_serv_deinstr_instr : forall (a : mon_assg) S, serv_deinstr (a S) = S.
 
   Proof.
     intros.
@@ -1175,13 +1175,13 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
     induction serv_i0; simpl; attac.
   Qed.
 
-  #[export] Hint Rewrite @service_deinstr_instr using assumption : LTS.
-  #[export] Hint Resolve service_deinstr_instr : LTS.
+  #[export] Hint Rewrite @service_serv_deinstr_instr using assumption : LTS.
+  #[export] Hint Resolve service_serv_deinstr_instr : LTS.
 
 
-  Lemma deinstr_In_recv [MQ M S I P O n v] :
+  Lemma serv_deinstr_In_recv [MQ M S I P O n v] :
     List.In (MqRecv n v) MQ ->
-    deinstr (mserv MQ M S) = (serv I P O) ->
+    serv_deinstr (mserv MQ M S) = (serv I P O) ->
     List.In (n, v) I.
 
   Proof.
@@ -1195,9 +1195,9 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   Qed.
 
 
-  Lemma deinstr_In_send [MQ M S I P O n v] :
+  Lemma serv_deinstr_In_send [MQ M S I P O n v] :
     List.In (MqSend n v) MQ ->
-    deinstr (mserv MQ M S) = (serv I P O) ->
+    serv_deinstr (mserv MQ M S) = (serv I P O) ->
     List.In (n, v) O.
 
   Proof.
@@ -1866,7 +1866,7 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
   receives of the process. *)
   Theorem corr_extraction_instr : forall [mpath MS0 MS1],
       (MS0 =[mpath]=> MS1) ->
-      (deinstr MS0 =[mpath]=> deinstr MS1).
+      (serv_deinstr MS0 =[mpath]=> serv_deinstr MS1).
 
   Proof with (attac).
     intros.
@@ -1882,13 +1882,13 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   Theorem Transp_soundness_base : forall [mpath0 : list MAct] [MS0 MS1 : MServ],
       (MS0 =[ mpath0 ]=> MS1) ->
-      (deinstr MS0 =[ mpath0 ++ flush_path MS1 ]=> deinstr (flush_MS MS1)).
+      (serv_deinstr MS0 =[ mpath0 ++ flush_path MS1 ]=> serv_deinstr (flush_MS MS1)).
 
   Proof.
     intros.
 
-    assert (deinstr MS0 =[ mpath0 ]=> deinstr MS1) by eauto using corr_extraction_instr.
-    enough  (deinstr MS1 =[ flush_path MS1 ]=> deinstr (flush_MS MS1)) by attac.
+    assert (serv_deinstr MS0 =[ mpath0 ]=> serv_deinstr MS1) by eauto using corr_extraction_instr.
+    enough  (serv_deinstr MS1 =[ flush_path MS1 ]=> serv_deinstr (flush_MS MS1)) by attac.
     enough (MS1 =[ flush_path MS1 ]=> flush_MS MS1) by eauto using corr_extraction_instr.
     eauto using flush_go_MS.
   Qed.
