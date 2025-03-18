@@ -15,7 +15,7 @@ make
 ## Glossary and submission paper references
 
 In [`Presentation`](theories/Presentation.v) (also available as
-[HTML](Presentation.html)) you will find a `Check`-list of references to all
+[HTML](html/Presentation.html)) you will find a `Check`-list of references to all
 theorems, lemmas, definitions and notations referred in the paper. Note that
 some of them have been edited in the submission for readability; the less
 obvious simplifications have been proven equivalent in the
