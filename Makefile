@@ -1,5 +1,6 @@
 all: Makefile.coq
 	@+$(MAKE) -f Makefile.coq all
+	@printf "`tput bold; tput setaf 2`*** `tput blink`SUCCESS`tput sgr0;tput bold;tput setaf 2` ***`tput sgr0`\n"
 
 clean: Makefile.coq
 	@+$(MAKE) -f Makefile.coq cleanall
