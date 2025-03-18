@@ -46,6 +46,34 @@ this mechanisation.
 The project uses [Ltac2] as the proof language. [DlStalk.Tactics] contains
 definitions of custom tactics. *)
 
+(** ** Axioms and other things that may appear "assumed"
+
+A couple of objects are declared as "Axioms", "Parameters", "Variables". Most of
+them are abstracting away definitions that are not relevant for the modules they
+are declared in, and are specialised later when their implementation matters ---
+for example, [MState] is irrelevant in [Transp], but is defined in [Compl]. An
+exception to this is [Val] which is never instantiated, to make sure the
+algorithm does not rely on the type of message payloads. The only thing straight
+assumed about [Val] is that it is non-empty (otherwise the model makes little
+sense), which is done via the [some_val : Val] parameter. Same holds for
+[some_name : Name].
+
+In the module [DlStalk.Network] there is a module type [NET_MOD] which we use to
+model networks as "updatable functions". The interface, akin to a typical hash
+map, declares a constructor type [t], a couple of methods, and a few "axioms"
+such as [get_put_eq] saying that accessing a freshly updated service indeed
+returns that service. We left unimplemented, partially because Coq does not
+support extensionality for its built-in map data structures, which is especially
+hard to achieve without assuming the key to be an ordered type (something we did
+not want for our [Name]). However, if functional extensionality is assumed, the
+module should be easily instantiated.
+
+On top of that, we extensively use module types following the pattern proposed
+by Michael Soegtrop in
+https://coq-club.inria.narkive.com/ux8RG4m7/module-best-practices . *)
+
+(** ** Some very generic aliases *)
+
 (** Generic predicate for invariants over transitions. *)
 Print trans_invariant.
 (** Helper to mark unconditional invariants. *)
