@@ -661,7 +661,7 @@ Module GenServerNet.
   Qed.
 
 
-  Lemma gen_net_well_formed : forall conf, (well_formed (gen_net conf)).
+  Lemma gen_well_formed : forall conf, (well_formed (gen_net conf)).
 
   Proof.
     intros.
@@ -749,7 +749,7 @@ Module GenServerNet.
   Lemma gen_KIC : forall conf, (KIC (gen_instr (gen_net conf))).
     intros.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
-    1: rewrite instr_inv; eauto using gen_net_well_formed.
+    1: rewrite instr_inv; eauto using gen_well_formed.
 
     1: destruct (NetMod.get n _) eqn:?.
     2: destruct (NetMod.get n0 _) eqn:?.
@@ -779,7 +779,7 @@ Module GenServerNet.
   Lemma gen_KIS : forall conf, (KIS (gen_instr (gen_net conf))).
     intros.
     constructor; intros; ltac1:(autounfold with LTS_get in * ).
-    1: unfold gen_mnet; rewrite instr_inv; eauto using gen_net_well_formed.
+    1: unfold gen_mnet; rewrite instr_inv; eauto using gen_well_formed.
 
     - destruct (NetMod.get n0 (gen_mnet conf)) eqn:?.
       unfold gen_mnet, gen_instr, apply_instr, serv_instr, gen_net, gen_mon_state in *; try (rewrite NetMod.init_get in * ); simpl in *.

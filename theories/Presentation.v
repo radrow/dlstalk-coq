@@ -516,7 +516,7 @@ Section Correct.
   (** The framework is correct (see [DlStalk.GenFramework]) *)
   Print gen_instr.
 
-  Check gen_net_well_formed : forall conf, well_formed (gen_net conf).
+  Check gen_well_formed : forall conf, well_formed (gen_net conf).
   Check gen_KIS : forall conf : NetConf, KIS (gen_instr (gen_net conf)).
   Check gen_KIC : forall conf : NetConf, KIC (gen_instr (gen_net conf)).
 
