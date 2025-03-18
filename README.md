@@ -18,6 +18,16 @@ Upon success, the `make` should terminate with the `0` return code and print a
 [`Presentation`](theories/Presentation.v) script which iterates through the
 lemmas mentioned in the paper.
 
+### Docker
+
+Alternatively, `docker` can be used for consistent build:
+
+```bash
+docker build -t dlstalk-coq .
+
+docker run --rm dlstalk-coq
+```
+
 ## Glossary and submission paper references
 
 In [`Presentation`](theories/Presentation.v) (also available as
