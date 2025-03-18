@@ -35,8 +35,6 @@ Import ListNotations.
 Import BoolNotations.
 
 
-Set Diffs "on".
-
 Inductive Tag_ : Set := Q | R. (* this must be extracted or else coq bugs *)
 Lemma Tag_neq_QR : Q <> R. attac. Qed.
 Lemma Tag_neq_RQ : R <> Q. attac. Qed.
