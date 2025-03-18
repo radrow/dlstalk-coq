@@ -239,8 +239,7 @@ Check SRPC_eq : forall P srpc, SRPC srpc P <-> Paper.SRPCC srpc P.
 (** ** A Coq Framework for Modelling Erlang/OTP-Style SRPC Networks *)
 
 Section Framework.
-  (** The name "Thomas" does not refer to any of the authors. *)
-  Import Thomas.
+  Import GenServerNet.
   Import Sound.
   Import SrpcDefs.
 
@@ -255,7 +254,7 @@ Section Framework.
 
   (** Example services and network *)
   Print echo.
-  Print service.
+  Print fwd_service.
   Print example_net.
 
   (** Can deadlock *)
@@ -340,7 +339,7 @@ End Alg.
 (** ** Monitor Correctness Criteria *)
 
 Section Correct.
-  Import Thomas.
+  Import GenServerNet.
 
   (** Definition of correctness (see [DlStalk.GenFramework]) *)
   Print detect_sound.
@@ -512,7 +511,7 @@ Check KIC_detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
 (** ** Correct Monitoring for Erlang << gen_server >> -Style Applications *)
 
 Section Correct.
-  Import Thomas. Import Sound.
+  Import GenServerNet. Import Sound.
 
   (** The framework is correct (see [DlStalk.GenFramework]) *)
   Print gen_instr.

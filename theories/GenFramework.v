@@ -90,7 +90,7 @@ Module Name_ <: UsualDecidableSet.
   Qed.
 End Name_.
 
-Module Thomas. (* This name does not refer to any of the authors. You get 1000'000 points for getting the reference. *)
+Module GenServerNet.
   Module DetConf <: Compl.DETECT_CONF.
     Parameter Val : Set.
 
@@ -890,7 +890,7 @@ Module Thomas. (* This name does not refer to any of the authors. You get 1000'0
 
     Definition echo := {| state_t := unit; init := tt; handle_call from msg st := reply msg st |}.
 
-    Definition service (target : string) :=
+    Definition fwd_service (target : string) :=
       {| state_t := _;
         init := tt;
         handle_call (_from : option string) (msg : Val) st :=
@@ -907,8 +907,8 @@ Module Thomas. (* This name does not refer to any of the authors. You get 1000'0
       gen_net
         {| services name :=
             match name with
-            | "C" => service "B" | "D" => service "A"
-            | "A" => service "C" | "B" => service "D"
+            | "C" => fwd_service "B" | "D" => fwd_service "A"
+            | "A" => fwd_service "C" | "B" => fwd_service "D"
             | _ => echo
             end;
           inits name :=
@@ -1154,4 +1154,4 @@ Module Thomas. (* This name does not refer to any of the authors. You get 1000'0
     - bs.
   Qed.
   End Example.
-End Thomas.
+End GenServerNet.
