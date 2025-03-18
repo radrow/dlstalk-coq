@@ -2,9 +2,11 @@
 
 ## Build
 
-Tested on Coq/Rocq, version `8.20.0`. No external libraries are required. The
-provided `Makefile` builds and checks the entire project. Processing the whole
-project might take a while (about 45 minutes --- we are working on it!).
+Tested on Coq/Rocq, version `8.20.0` ([installation
+instructions](https://rocq-prover.org/releases/8.20.0)). No external libraries
+are required. The provided `Makefile` builds and checks the entire project.
+Processing the whole project might take a while (about 45 minutes --- we are
+working on it!).
 
 ```
 make
