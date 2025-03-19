@@ -154,13 +154,13 @@ Module GenServerNet.
       ).
 
 
-  Definition call (to : string) (arg : Val) (cont : Val -> Proc) :=
-    PSend (Worker to, Q) arg (recvr (Worker to) cont).
+  Definition call (to : string) (msg : Val) (cont : Val -> Proc) :=
+    PSend (Worker to, Q) msg (recvr (Worker to) cont).
 
 
   Inductive Handler (state_t : Set) :=
   | h_reply (reply : Val) (next_state : state_t) : Handler state_t
-  | h_call (to : string) (arg : Val) (cont : Val -> Handler state_t) : Handler state_t
+  | h_call (to : string) (msg : Val) (cont : Val -> Handler state_t) : Handler state_t
   .
 
 
@@ -177,14 +177,14 @@ Module GenServerNet.
       match impl with
       | {|gs_state:=GSReady _ gss; gs_handler:=gsh|} =>
           recvq (
-              fun from arg =>
+              fun from msg =>
                 let name := match from with Worker n => Some n | _ => None end in
-                run_gen_server {|gs_state:=GSHandle _ from (gsh name arg gss); gs_handler:=gsh|}
+                run_gen_server {|gs_state:=GSHandle _ from (gsh name msg gss); gs_handler:=gsh|}
             )
       | {|gs_state:=GSHandle _ client (h_reply _ reply next_state); gs_handler:=gsh|} =>
           PSend (client, R) reply (run_gen_server {|gs_state := GSReady _ next_state; gs_handler := gsh|})
-      | {|gs_state:=GSHandle _ client (h_call _ to arg handler_cont); gs_handler:=gsh|} =>
-          call to arg (fun v =>
+      | {|gs_state:=GSHandle _ client (h_call _ to msg handler_cont); gs_handler:=gsh|} =>
+          call to msg (fun v =>
                          run_gen_server {|gs_state:=GSHandle _ client (handler_cont v); gs_handler := gsh|}
             )
       end.
@@ -363,7 +363,7 @@ Module GenServerNet.
     run_gen_server {|gs_state:=GSReady _ init; gs_handler:=handle_call|}.
 
 
-  Arguments h_call {state_t} to arg cont.
+  Arguments h_call {state_t} to msg cont.
   Arguments h_reply {state_t} reply next_state.
 
   Definition Echo := gen_server tt (fun _ v st => h_reply v st).
@@ -382,7 +382,7 @@ Module GenServerNet.
           ; handle_call (from : option string) (msg : Val) (state : state_t) : Handler state_t
       }.
 
-  Record InitConf := iconf { target : string; arg : Val }.
+  Record InitConf := iconf { target : string; msg : Val }.
 
   Record NetConf :=
     { services : string -> ServiceConf
@@ -503,7 +503,7 @@ Module GenServerNet.
       eapply SRPC_Init.
     - destruct (inits conf name).
       exists (Locked (Initiator name (S (S i))) (Initiator name i)).
-      eapply SRPC_Finger with (to:=target0)(arg:=arg0).
+      eapply SRPC_Finger with (to:=target0)(arg:=msg0).
     - destruct (services conf name).
       exists Ready.
       apply SRPC_gen_server.
@@ -525,7 +525,7 @@ Module GenServerNet.
     - destruct (inits conf name).
       exists (Locked (Initiator name (S (S i))) (Initiator name i)).
       constructor; attac.
-      eapply SRPC_Finger with (to:=target0)(arg:=arg0).
+      eapply SRPC_Finger with (to:=target0)(arg:=msg0).
     - destruct (services conf name).
       exists Ready.
       constructor; attac.
@@ -543,9 +543,9 @@ Module GenServerNet.
     unfold gen_net.
     rewrite NetMod.init_get.
     blast_cases.
-    assert (Decisive (Finger name (S i) target0 arg0)).
+    assert (Decisive (Finger name (S i) target0 msg0)).
     {
-      enough (AnySRPC (Finger name (S i) target0 arg0)) by auto using SRPC_Decisive.
+      enough (AnySRPC (Finger name (S i) target0 msg0)) by auto using SRPC_Decisive.
       eexists; eauto using SRPC_Finger.
     }
     constructor; auto.
@@ -600,9 +600,9 @@ Module GenServerNet.
     blast_cases.
     constructor; auto.
     destruct i.
-    - assert (SRPC (Working (Initiator name 1)) (Finger name 0 target0 arg0)) by eauto using SRPC_Init.
+    - assert (SRPC (Working (Initiator name 1)) (Finger name 0 target0 msg0)) by eauto using SRPC_Init.
       attac.
-    - assert (SRPC (Locked (Initiator name (S (S i))) (Initiator name i)) (Finger name (S i) target0 arg0)) by eauto using SRPC_Finger.
+    - assert (SRPC (Locked (Initiator name (S (S i))) (Initiator name i)) (Finger name (S i) target0 msg0)) by eauto using SRPC_Finger.
       attac.
   Qed.
 
@@ -647,11 +647,11 @@ Module GenServerNet.
     rewrite NetMod.init_get in *.
     kill H; blast_cases; doubt; attac.
     - destruct n.
-      + assert (SRPC (Working (Initiator s 1)) (Finger s 0 target0 arg0)) by eauto using SRPC_Init.
+      + assert (SRPC (Working (Initiator s 1)) (Finger s 0 target0 msg0)) by eauto using SRPC_Init.
         kill H0.
         assert (Busy x = Working (Initiator s 1)) by attac.
         attac.
-      + assert (SRPC (Locked (Initiator s (S (S n))) (Initiator s n)) (Finger s (S n) target0 arg0)) by eauto using SRPC_Finger.
+      + assert (SRPC (Locked (Initiator s (S (S n))) (Initiator s n)) (Finger s (S n) target0 msg0)) by eauto using SRPC_Finger.
         kill H0.
         eassert (Busy x = Locked _ (Initiator s _)) by attac.
         attac.
