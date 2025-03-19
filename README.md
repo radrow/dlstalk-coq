@@ -30,12 +30,12 @@ docker run --rm dlstalk-coq
 
 ## Glossary and submission paper references
 
-In [`Presentation`](theories/Presentation.v) (also available as
-[HTML](html/DlStalk.Presentation.html)) you will find a `Check`-list of references to
-all theorems, lemmas, definitions and notations referred in the paper. Note that
-some of them have been edited in the submission for readability; the less
-obvious simplifications have been proven equivalent in the
-[`PresentationCompat`](theories/PresentationCompat.v) module. The file also
-briefly explains selected technicalities.
+In the [`Presentation`](theories/Presentation.v) module (also available as
+[HTML](html/DlStalk.Presentation.html)) you will find a `Check`-list of
+references to all theorems, lemmas, definitions and notations referred in the
+paper. The file also briefly explains selected technicalities. Note that some of
+them have been edited in the submission for readability; the less obvious
+simplifications have been proven equivalent in the
+[`PresentationCompat`](theories/PresentationCompat.v) module.
 
 
