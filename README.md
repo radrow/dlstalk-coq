@@ -1,5 +1,7 @@
 # Artifact for the ITP submission
 
+This is the Coq project referred in the paper.
+
 ## Build
 
 Tested on Coq/Rocq, version `8.20.0` ([installation
