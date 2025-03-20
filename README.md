@@ -13,7 +13,7 @@ our automation!).
 make
 ```
 
-Upon success, the `make` should terminate with the `0` return code and print a
+Upon success, the `make` command should terminate with the `0` return code and print a
 `*** SUCCESS ***` message. The success message follows a log from the
 [`Presentation`](theories/Presentation.v) script which iterates through the
 lemmas mentioned in the paper.
