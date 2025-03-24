@@ -7,4 +7,4 @@ USER coq
 
 COPY --chown=coq:coq . /app
 
-CMD ["make"]
+CMD ["bash", "-c", "make clean && make proofs"]

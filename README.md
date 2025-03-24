@@ -27,7 +27,7 @@ Alternatively, `docker` can be used for consistent build:
 ```bash
 docker build -t dlstalk-coq .
 
-docker run --rm dlstalk-coq
+docker run -it --rm dlstalk-coq
 ```
 
 ## Glossary and submission paper references
