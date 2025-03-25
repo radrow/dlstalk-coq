@@ -1,0 +1,20 @@
+-Q theories DlStalk
+-arg -w -arg -notation-overridden
+
+theories/LTS.v
+theories/Tactics.v
+theories/ModelData.v
+theories/Que.v
+theories/Model.v
+theories/Network.v
+theories/Lemmas.v
+theories/Transp.v
+theories/Locks.v
+theories/NetLocks.v
+theories/SRPC.v
+theories/SRPCNet.v
+theories/Compl.v
+theories/Sound.v
+theories/GenFramework.v
+theories/PresentationCompat.v
+theories/Presentation.v
