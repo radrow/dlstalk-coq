@@ -332,19 +332,6 @@ a network (see <span class="inlinecode"><span class="id" title="library">DlStalk
 <span class="id" title="keyword">Check</span> <a class="idref" href="DlStalk.GenFramework.html#GenServerNet.Sound.SrpcNet.NetLocks.dead_set_invariant"><span class="id" title="lemma">dead_set_invariant</span></a> : <span class="id" title="keyword">∀</span> <a id="DS:24" class="idref" href="#DS:24"><span class="id" title="binder">DS</span></a>, <a class="idref" href="DlStalk.LTS.html#trans_invariant"><span class="id" title="definition">trans_invariant</span></a> (<a class="idref" href="DlStalk.GenFramework.html#GenServerNet.Sound.SrpcNet.NetLocks.dead_set"><span class="id" title="inductive">dead_set</span></a> <a class="idref" href="DlStalk.Presentation.html#DS:24"><span class="id" title="variable">DS</span></a>) <a class="idref" href="DlStalk.LTS.html#always"><span class="id" title="abbreviation">always</span></a>.<br/>
 
 <br/>
-</div>
-
-<div class="doc">
-Compatibility of project and paper definitions (for SRPC services; see
-<span class="inlinecode"><a class="idref" href="DlStalk.SRPCNet.html#SRPC_NET_CONF"><span class="id" title="module">DlStalk.SRPCNet</span></a></span>). Note that <span class="inlinecode"><a class="idref" href="DlStalk.Locks.html#LOCKS_F.proc_lock"><span class="id" title="definition">proc_lock</span></a></span> is more generic and uses lock lists
- for future compatibility with the OR model. In case of SRPC this is always a
-singleton (modulo duplicates). Additionally, <span class="inlinecode"><a class="idref" href="DlStalk.Locks.html#LOCKS_F.serv_lock"><span class="id" title="inductive">serv_lock</span></a></span> relies on an additional
-predicate <span class="inlinecode"><a class="idref" href="DlStalk.Locks.html#LOCKS_F.Decisive"><span class="id" title="inductive">Decisive</span></a></span>, which asserts that the process does not receive queries
-and responses at the same time --- in the submission, this problem is irrelevant
-as it is prevented by the syntax, thus not mentioned there to avoid confusion.
- 
-</div>
-<div class="code">
 <span class="id" title="keyword">Print</span> <span class="id" title="var">Decisive</span>.<br/>
 
 <br/>
@@ -640,10 +627,6 @@ Definition of correctness (see <span class="inlinecode"><span class="id" title="
 
 <a id="lab16"></a><h3 class="section">Well-Formed SRPC Networks</h3>
 
-<div class="paragraph"> </div>
-
- Definition of the client relation and compatibility between the project and
-the paper (see <span class="inlinecode"><span class="id" title="var">DlStalk.PresentationCompat</span></span>) 
 <div class="paragraph"> </div>
 
   Well-formedness at the greatest detail (see <span class="inlinecode"><a class="idref" href="DlStalk.SRPCNet.html#SRPC_NET_CONF"><span class="id" title="module">DlStalk.SRPCNet</span></a></span>) 

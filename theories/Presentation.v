@@ -173,14 +173,6 @@ Print dead_set.
 
 Check dead_set_invariant : forall DS, trans_invariant (dead_set DS) always.
 
-(** Compatibility of project and paper definitions (for SRPC services; see
-[DlStalk.SRPCNet]). Note that [proc_lock] is more generic and uses lock lists
---- for future compatibility with the OR model. In case of SRPC this is always a
-singleton (modulo duplicates). Additionally, [serv_lock] relies on an additional
-predicate [Decisive], which asserts that the process does not receive queries
-and responses at the same time --- in the submission, this problem is irrelevant
-as it is prevented by the syntax, thus not mentioned there to avoid confusion.
- *)
 Print Decisive.
 
 (** Deadset-cycle equivalence (see [DlStalk.NetLocks]) *)
@@ -326,9 +318,6 @@ End Correct.
 (** ** Invariants *)
 
 (** *** Well-Formed SRPC Networks  *)
-
-(** Definition of the client relation and compatibility between the project and
-the paper (see [DlStalk.PresentationCompat]) *)
 
 (**  Well-formedness at the greatest detail (see [DlStalk.SRPCNet]) *)
 Print service_wf.
