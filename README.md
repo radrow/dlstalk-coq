@@ -1,6 +1,6 @@
 # Artifact for OOPSLA submission
 
-This project mechanises the theory described in the paper along with proofs.
+This project mechanises the theory described in the paper along with proofs of theorems marked with a rooster.
 
 ## Build
 
