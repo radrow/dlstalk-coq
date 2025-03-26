@@ -1,6 +1,6 @@
-# Artifact for the ITP submission
+# Artifact for OOPSLA submission
 
-This is the Coq project referred in the paper.
+This project mechanises the theory described in the paper along with proofs.
 
 ## Build
 
@@ -34,10 +34,8 @@ docker run -it --rm dlstalk-coq
 
 In the [`Presentation`](theories/Presentation.v) module (also available as
 [HTML](html/DlStalk.Presentation.html)) you will find a `Check`-list of
-references to all theorems, lemmas, definitions and notations mentioned in the
+references to all theorems, lemmas, definitions and notations relevant to the
 paper. The file also briefly explains selected technicalities of the
-mechanisation. Note that some of them have been edited in the submission for
-readability; the less obvious simplifications have been proven equivalent in the
-[`PresentationCompat`](theories/PresentationCompat.v) module.
+mechanisation. 
 
 

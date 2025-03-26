@@ -23,7 +23,6 @@ Require Import DlStalk.SRPCNet.
 Require Import DlStalk.Transp.
 Require Import DlStalk.Sound.
 Require Import DlStalk.Compl.
-Require Import DlStalk.PresentationCompat.
 Require Import DlStalk.GenFramework.
 
 From Coq Require Import Strings.String.
@@ -32,19 +31,15 @@ From Coq Require Import Structures.Equalities.
 Import ListNotations.
 Open Scope string_scope.
 
-Import Theory.
+Import GenServerNet.
+Import Sound.
 Import SrpcDefs.
 
 (** * Introduction *)
 
 (** This module iterates through the major theorems, lemmas, definitions and
-notations that are used in or relevant to the paper. Some definitions have been
-edited in the paper for readability --- those which were simplified
-significantly have been proven to be equivalent to their counterparts used in
-this mechanisation.
-
-The project uses [Ltac2] as the proof language. [DlStalk.Tactics] contains
-definitions of custom tactics. *)
+notations that are used in or relevant to the paper. The project uses [Ltac2] as
+the proof language. [DlStalk.Tactics] contains definitions of custom tactics. *)
 
 (** ** Axioms and other things that may appear "assumed"
 
@@ -79,7 +74,7 @@ Print trans_invariant.
 (** Helper to mark unconditional invariants. *)
 Print always.
 
-(** * Modelling Networks of RPC Services *)
+(** * Networks of RPC Services *)
 
 (** ** Syntax of Processes, Queues, and Services *)
 
@@ -169,11 +164,6 @@ Print NTrans.
 
 (** ** Locks and Deadlocks *)
 
-(** Paper-compatible definition of a service lock and dead_set (see
-[DlStalk.Locks] and [DlStalk.NetLocks]) *)
-Print Paper.serv_lock.
-Print Paper.dead_set.
-
 (** Definitions used in the project *)
 Print proc_lock.
 Print serv_lock.
@@ -192,12 +182,6 @@ and responses at the same time --- in the submission, this problem is irrelevant
 as it is prevented by the syntax, thus not mentioned there to avoid confusion.
  *)
 Print Decisive.
-Check serv_lock_eq : forall S n,
-    (exists srpc, SRPC_serv srpc S) ->
-    serv_lock [n] S <-> Paper.serv_lock n S.
-Check dead_set_eq : forall (N : Net) (DS : Names),
-    SRPC_net N ->
-    dead_set DS N <-> Paper.dead_set DS N.
 
 (** Deadset-cycle equivalence (see [DlStalk.NetLocks]) *)
 Check dead_set_cycle : forall N : Net,
@@ -224,17 +208,9 @@ Check well_formed_lock_dec :
 
 (** ** Single-Threaded RPC (SRPC) Services *)
 
-(** SRPC Working and SRPC Locked are stored separately from SRPC Ready (see
-[DlStalk.SRPC]) *)
+(** We define SRPC as a co-inductive property of processes (see [DlStalk.SRPC]) *)
 Print SRPC_State.
 Print SRPC_Busy_State.
-
-(** Paper-compatible definitions (see [DlStalk.PresentationCompat]) *)
-Print Paper.SRPCC.
-Print Paper.SRPCI.
-
-(**  Original SRPC property is defined slightly differently *)
-Check SRPC_eq : forall P srpc, SRPC srpc P <-> Paper.SRPCC srpc P.
 
 (** ** A Coq Framework for Modelling Erlang/OTP-Style SRPC Networks *)
 
@@ -322,7 +298,7 @@ Check @transp_complete : forall path (i0 : instr) (N0 N1 : Net),
     N0 =[ path ]=> N1 -> exists mpath (i1 : instr), i0 N0 =[ mpath ]=> i1 N1.
 
 
-(** * A Black-Box Distributed Deadlock Detection Algorithm *)
+(** * Black-Box Distributed Deadlock Detection Algorithm *)
 
 Module Type Alg. (* We need to backdoor it a bit... *)
   Declare Module Conf : DETECT_CONF.
@@ -347,15 +323,12 @@ Section Correct.
   Print detect_correct.
 End Correct.
 
-(** ** Finding and Proving Invariants *)
+(** ** Invariants *)
 
 (** *** Well-Formed SRPC Networks  *)
 
 (** Definition of the client relation and compatibility between the project and
 the paper (see [DlStalk.PresentationCompat]) *)
-Print Paper.client.
-Print serv_client.
-Check client_eq : forall n S, serv_client n S <-> Paper.client n S.
 
 (**  Well-formedness at the greatest detail (see [DlStalk.SRPCNet]) *)
 Print service_wf.
@@ -423,7 +396,7 @@ Check service_wf_c_excl_R_inv : forall [srpc : SRPC_State] [c v I P O],
 Print well_formed.
 Check well_formed_invariant : trans_invariant well_formed always.
 
-(** *** Monitor Knowledge Invariant for Sound Deadlock Detection  *)
+(** *** Sound lock knowledge  *)
 
 (** (see [DlStalk.Sound]) *)
 Print sends_to.
@@ -482,7 +455,7 @@ Check KIS_detection_sound : forall (i0 : instr) N0 MN1 mpath n,
 (** Monitor message (in monitor queue) holding an active probe *)
 Print active_ev_of.
 
-(** *** Monitor Knowledge Invariant for Complete Deadlock Detection  *)
+(** *** Complete lock knowledge  *)
 
 (**  (see [DlStalk.Compl]) *)
 
@@ -508,7 +481,7 @@ Check KIC_detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
     exists mpath1 MN2 n,
       (MN1 =[ mpath1 ]=> MN2) /\ In n DS /\ alarm (MN2 n) = true.
 
-(** ** Correct Monitoring for Erlang << gen_server >> -Style Applications *)
+(** ** Correctness *)
 
 Section Correct.
   Import GenServerNet. Import Sound.
