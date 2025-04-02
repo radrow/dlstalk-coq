@@ -36,21 +36,114 @@ Import Theory.
 Import SrpcDefs.
 
 (** * Introduction *)
+(** This file provides outline of the mechanised theory presented in our
+submission to OOPSLA 2025. The structure this file closely follows sections of
+the submission. Theorems and definitions used in the submissions are pointed out
+in third-level headers. This outline works best if previewed interactively in a
+Coq/Rocq IDE, because it allows previewing of context-dependent outputs. *)
 
-(** Generic definitions (see [DlStalk.LTS]) *)
+(** ** Differences *)
+(** The mechanisation introduces concepts in a slightly different flavour,
+mostly due to quirks of the tool; we provided explanations where the connection
+might be less obvious. The most notable differences are:
+
+- We do not provide direct semantics for generic SRPC processes. Instead, the
+  mechanisation operates on _concrete processes_ implemented directly in Gallina
+  via coinduction. [SRPC] is then a coinductive property that asserts adherence
+  to the protocol described in the submission.
+
+- The mechanisation does not include _casts_, and the [C] tag is non-existent.
+
+- We do not allow "no-client" ($n^{\bot}$) SRPC states. All working and locked
+  processes must handle a query from another member of the network.
+
+The lack of "clientless" SRPC states makes well-formedness much more
+restrictive. This is because each [Working] service [S0] now needs to be paired
+with a service [S1] that is locked on it (recall the equivalence between _lock_
+and _client_ relations). Consequently, [S1] must be [Locked S2 S0] for some [S2]
+--- which in turn must be locked on [S1]. This expands further, requiring the
+space of names to be infinite (otherwise we would "run out of" names for
+services that are neither ready nor locked in cycles). Our theory is compatible
+with that: we only limit [Name] to [Set]s with decidable equality, allowing us
+to model initially [Working] services this way. To this end, we provide an
+Erlang-inspired framework for modelling well-formed initial networks with
+[gen_server]-style services and initiators to engage with them as external
+clients. The framework is also used to show that our invariants are mutually
+sound and hold in a practical class of systems. *)
+
+(** ** Axioms and other things that may appear "assumed"
+
+A couple of objects are declared as "Axioms", "Parameters", "Variables". Most of
+them are abstracting away definitions that are not relevant for the modules they
+are declared in, and are specialised later when their implementation matters.
+The full list is attached below:
+
+- [Val : Set] (in [DlStalk.ModelData] and [DlStalk.GenFramework]) --- The
+  message payload. Never used in the theory, instantiated to [nat] only in
+  examples for our [gen_server]-ish framework.
+
+- [valnat : Val = nat] (in [DlStalk.GenFramework]) --- Used to "forcefully"
+  instantiate [Val] to [nat] in the examples as stated above.
+
+- [some_name : Name] (in [DlStalk.Locks]) --- We assume that [Name] is
+  non-empty, otherwise the theory does not make any sense.
+
+- [some_val : Val] (in [DlStalk.Locks]) --- We assume that [Val] is non-empty.
+
+- [Msg : Set] (in [DlStalk.Model]) --- Uninstantiated probe type. Abstracted
+  where the theory does not need it.
+
+- [MState : Set] (in [DlStalk.Model]) --- Uninstantiated monitor state type.
+  Abstracted where the theory does not need it.
+
+- [mon_handle : EMsg -> MState -> MProc] (in [DlStalk.Model]) --- Uninstantiated
+  monitor algorithm function. Abstracted where the theory does not need it.
+
+- [lock_uniq : lock_uniq_type], [lock_uniq0], [lock_uniq1] (in
+  [DlStalk.NetLocks]) --- section parameter, instantiated in
+  [SRPC_lock_set_uniq].
+
+- [lock_neq_nil : lock_neq_nil_type], [lock_neq_nil0], [lock_neq_nil1] (in
+  [DlStalk.NetLocks]) --- section parameter, instantiated in
+  [SRPC_lock_set_neq_nil].
+
+- [lock_dec : lock_dec_in] (in [DlStalk.NetLocks]) --- section parameter,
+  instantiated in [well_formed_lock_dec].
+
+- [DlStalk.Network.NET_MOD] --- Abstraction of "updatable functions". The
+  interface, akin to a typical hash map, declares a constructor type [t] for the
+  collection, a couple of methods, and a few "axioms" such as [get_put_eq]
+  saying that accessing a freshly updated service indeed returns that service.
+  Note that it is a total mapping, thus for every [Name] there must be a
+  corresponding service [Serv]. We left it unimplemented because Coq standard
+  library does not offer good data structures supporting extensional equality.
+
+On top of that, we extensively use module types following the pattern proposed
+by Michael Soegtrop in
+https://coq-club.inria.narkive.com/ux8RG4m7/module-best-practices . *)
+
+
+(** * Correctness Criteria for Deadlock Detection Monitors in Distributed Systems *)
+
+(** We begin by introducing generic definitions and notations for labelled
+transition systems (see [DlStalk.LTS]). [LTS] is a class instantiated by almost
+all entities featuring operational semantics in the submission. We use [N0
+=(a)=> N1] to say that [N0] transitions to [N1] through some action [a].
+Similarly, [N0 =[path]=> N1] means that [N0] can reach [N1] through a sequence
+of transitions following path (a list of actions) [path]. *)
 Print LTS.
 Print ptrans.
 Locate "_ =( _ )=> _".
 Locate "_ =[ _ ]=> _".
 
 
-(** * Correctness Criteria for Deadlock Detection Monitors in Distributed Systems *)
-
 Module CorrectnessCriteria.
   Import GenServerNet.
   Import SrpcNet.NetLocks.
 
   (** ** Transparency *)
+  (** *** _Criterion 2.1_ *)
+
   Definition transp_completeness (N0 : Net) (i0 : instr) :=
     forall path N1, (N0 =[ path ]=> N1) ->
     exists mpath (i1 : instr), i0 N0 =[ mpath ]=> i1 N1.
@@ -61,6 +154,7 @@ Module CorrectnessCriteria.
       (MN1 =[ mnpath1 ]=> i2 N2) /\ (N0 =[ pnpath ]=> N2).
 
   (** ** Preciseness *)
+  (** *** _Criterion 2.2_ *)
 
   Definition detect_soundness N0 (i0 : instr) :=
     forall path' MN1 n,
@@ -98,7 +192,7 @@ Check R : Tag.
 Check Val : Set.
 Check Name : Set.
 
-(** *** Queues and Services  *)
+(** *** _Definition 3.1_ : Services (and queues) *)
 
 Check ((_ : Que Val) : list (Name * Tag * Val)).
 
@@ -107,9 +201,10 @@ Check serv_i : Serv -> Que Val.
 Check serv_p : Serv -> Proc.
 Check serv_o : Serv -> Que Val.
 
-(** *** Concrete processes *)
-(** The mechanisation operates on concrete processes ([Proc]) programmed
-coinductively in Gallina (see [DlStalk.Model]). *)
+(** *** _Definition 3.2_ : Abstract and concrete SRPC processes, and SRPC services *)
+
+(** The mechanisation operates primarily on concrete processes ([Proc])
+programmed coinductively in Gallina (see [DlStalk.Model]). *)
 Print Proc.
 
 (** [STau], [PSend], [PRecv] are constructors of concrete processes. The first
@@ -123,43 +218,115 @@ Check STau : Proc -> Proc.
 Check PSend : (Name * Tag) -> Val -> Proc -> Proc.
 Check PRecv : ((Name * Tag) -> option (Val -> Proc)) -> Proc.
 
-(** *** SRPC processes (see [DlStalk.SRPC]) *)
-(** The generic SRPC process is captured under the [SRPC_State] type. *)
+(** The generic SRPC process is captured under the [SRPC_State] type (see [DlStalk.SRPC]). *)
 
 Print SRPC_State.
 Print SRPC_Busy_State.
 
-(** We characterise concrete SRPC processes via a coinductive property [SRPCC]
+(** *** _Fig 3_ : We characterise concrete SRPC processes via a coinductive property [SRPCC]
 to describe the simulation relation, and [SRPCI] for inductive features such as
 weak termination of each query. (see [DlStalk.PresentationCompat]) *)
 
 Print Paper.SRPCC.
+
+(** [[
+CoInductive SRPCC : SRPC_State -> Proc -> Prop :=
+    SRPCC_R : forall P0 : Proc,
+              (forall (c : Que.Channel.Name) (v : Que.Channel.Val)
+                 (P1 : Proc),
+               P0 =( Recv (c, Q) v )=> P1 -> SRPCC ((Working) c) P1) ->
+              SRPCI Ready P0 -> SRPCC Ready P0
+  | SRPCC_W : forall (c : Que.Channel.Name) (P0 : Proc),
+              (forall (v : Que.Channel.Val) (P1 : Proc),
+               P0 =( Send (c, R) v )=> P1 -> SRPCC Ready P1) ->
+              (forall P1 : Proc,
+               P0 =( Tau )=> P1 -> SRPCC ((Working) c) P1) ->
+              (forall (s : Que.Channel.Name) (v : Que.Channel.Val)
+                 (P1 : Proc),
+               P0 =( Send (s, Q) v )=> P1 -> SRPCC ((Locked) c s) P1) ->
+              SRPCI ((Working) c) P0 -> SRPCC ((Working) c) P0
+  | SRPCC_L : forall (c : Srpc.Locks.Proc.Que.Channel.Name)
+                (s : Que.Channel.Name) (P0 : Proc),
+              (forall (v : Que.Channel.Val) (P1 : Proc),
+               P0 =( Recv (s, R) v )=> P1 -> SRPCC ((Working) c) P1) ->
+              SRPCI ((Locked) c s) P0 -> SRPCC ((Locked) c s) P0.
+]] *)
+
 Print Paper.SRPCI.
 
+(** [[
+Inductive SRPCI : SRPC_State -> Proc -> Prop :=
+    SRPCI_R : forall
+                h : Srpc.Locks.Proc.Que.Channel.Name * Tag_ ->
+                    option (Que.Channel.Val -> Proc),
+              (forall (c : Srpc.Locks.Proc.Que.Channel.Name) (t : Tag_),
+               h (c, t) <> None -> t = Q) ->
+              (forall (c : Srpc.Locks.Proc.Que.Channel.Name)
+                 (v : Que.Channel.Val),
+               exists cont : Que.Channel.Val -> Proc,
+                 h (c, Q) = Some cont /\ SRPCI ((Working) c) (cont v)) ->
+              SRPCI Ready (PRecv h)
+  | SRPCI_WR : forall (c : Srpc.Locks.Proc.Que.Channel.Name)
+                 (v : Que.Channel.Val) (P : Proc),
+               SRPCI ((Working) c) (PSend (c, R) v P)
+  | SRPCI_WT : forall (c : Srpc.Locks.Proc.Que.Channel.Name) (P : Proc),
+               SRPCI ((Working) c) P ->
+               SRPCI ((Working) c) (STau P)
+  | SRPCI_WQ : forall (c s : Srpc.Locks.Proc.Que.Channel.Name)
+                 (v : Que.Channel.Val) (P : Proc),
+               SRPCI ((Locked) c s) P ->
+               SRPCI ((Working) c) (PSend (s, Q) v P)
+  | SRPCI_L : forall (c s : Srpc.Locks.Proc.Que.Channel.Name)
+                (h : Srpc.Locks.Proc.Que.Channel.Name * Tag_ ->
+                     option (Que.Channel.Val -> Proc))
+                (cont : Que.Channel.Val -> Proc),
+              (forall nc : Srpc.Locks.Proc.Que.Channel.Name * Tag_,
+               h nc <> None -> nc = (s, R)) ->
+              h (s, R) = Some cont ->
+              (forall v : Que.Channel.Val, SRPCI ((Working) c) (cont v)) ->
+              SRPCI ((Locked) c s) (PRecv h).
+]] *)
+
 (** Internally, the mechanisation uses a bit more messy [SRPC] property. We
-prove both equivalent. (see [DlStalk.SRPC] and [DlStalk.PresentationCompat] for
-compatibility lemma) *)
+prove both equivalent. (see [DlStalk.SRPC] and [DlStalk.PresentationCompat]). *)
 
 Print SRPC.
 Print SRPC_Busy.
 
 Check SRPC_eq : forall (P : Proc) (srpc : SRPC_State), SRPC srpc P <-> Paper.SRPCC srpc P.
 
-(** *** Semantics of services *)
+(** *** _Definition 3.4_ : Semantics of services (see [DlStalk.Que] and [DlStalk.Model]). *)
+(** Queue actions *)
 
-(** Actions (see [DlStalk.Que] and [DlStalk.Model]) *)
-Print Act.
 Print QAct.
 
-(** Process, Queue and Service transitions. All are instances of the LTS class.
-*)
+(** [[
+  Inductive QAct (E : Set) : Set :=
+    QEnq : Que.Channel.NameTag -> E -> QAct E
+  | QDeq : Que.Channel.NameTag -> E -> QAct E.
+]] *)
+
+(** Generic actions used by processes, services and monitored services. [Tau] is
+opaque in the mechanisation. *)
+
+Print Act.
+
+(** [[
+Inductive Act (Payload : Set) : Set :=
+    Send : Que.Channel.NameTag -> Payload -> Act
+  | Recv : Que.Channel.NameTag -> Payload -> Act
+  | Tau : Act.
+]] *)
+
+(** *** _Fig 4_ : Process Queue and Service transitions *)
+(** All are instances of the LTS class. *)
 Print ProcTrans.
 Print QTrans.
 Print STrans.
 
 Check trans_Serv : LTS PAct Serv.
 
-(** *** Networks *)
+(** *** _Definition 3.5_ : Networks *)
 (** We abstract implementation of the network to a module type. Contrary to the
 paper, we do not use plain functions to represent networks, because that would
 require quite global extensionality which we do not need in general. (see
@@ -202,29 +369,64 @@ Check NetMod.extensionality :
   forall N0 N1,
     (forall n, NetMod.get n N0 = NetMod.get n N1) -> N0 = N1.
 
-
-(** Network semantics. [NVTrans] is used as a helper to progress nodes within a
-network (see [DlStalk.Network]). *)
+(** *** _Fig 5_ : Network semantics. *)
+(** [NVTrans] is used as a helper to progress nodes within a network (see
+[DlStalk.Network]). *)
 Print NVTrans.
 Print NTrans.
 
-Goal Net = NetMod.t Serv. reflexivity. Qed.
+Goal Net = NetMod.t Serv.
+Proof. reflexivity. Defined.
 
 (** ** Locks and Deadlocks *)
-(** Definition of a service lock and dead_set (see [DlStalk.Locks] and
-[DlStalk.NetLocks]) *)
+(** *** _Definition 3.6_ : Lock (see [DlStalk.PresentationCompat]) *)
+
 Print Paper.serv_lock.
+
+(** [[
+fun (n : Name) (S : Serv) =>
+    (forall (v : Val) (E : Val), ~ Deq (n, R) v (serv_i S) E)
+ /\ (exists c : Name, SRPC (Locked c n) (serv_p S))
+ /\ serv_o S = []
+]] *)
+
+(** *** _Definition 3.7_ : Deadlock (see [DlStalk.PresentationCompat]) *)
+
 Print Paper.dead_set.
 
-(** Definitions used in the mechanisation are slightly different (i.e. more
-general to aim at compatibility with the OR model). *)
+(** [[
+Paper.dead_set =
+  fun (DS : Names) (N : Net) =>
+     DS <> []
+  /\ (forall n0, In n0 DS -> exists n1, lock N n0 n1 /\ In n1 DS)
+]] *)
+
+(** Definitions used in the proofs are slightly different, i.e. more general to
+aim at compatibility with the OR model (see [DlStalk.Locks] and
+[DlStalk.NetLocks]). *)
 Print proc_lock.
 Print serv_lock.
 Print lock_set.
 Print lock.
 Print dead_set.
 
-(** _Lemma 3.8_ *)
+(** Compatibility of project and submission definitions (for SRPC services; see
+[DlStalk.SRPCNet]). Note that [proc_lock] is more generic and uses lock lists
+--- for future compatibility with the OR model. In case of SRPC this is always a
+singleton (modulo duplicates). Additionally, [serv_lock] relies on an additional
+predicate [Decisive], which asserts that the process does not receive queries
+and responses at the same time --- in the submission, this problem is irrelevant
+as it is prevented by the syntax, thus not mentioned there to avoid confusion.
+*)
+Print Decisive.
+Check serv_lock_eq : forall S n,
+    (exists srpc, SRPC_serv srpc S) ->
+    serv_lock [n] S <-> Paper.serv_lock n S.
+Check dead_set_eq : forall (N : Net) (DS : Names),
+    SRPC_net N ->
+    dead_set DS N <-> Paper.dead_set DS N.
+
+(** *** _Lemma 3.8_ *)
 Check dead_set_invariant : forall DS, trans_invariant (dead_set DS) always.
 
 (** Compatibility of definitions between the submission and the mechanisation
@@ -247,59 +449,105 @@ Check dead_set_eq : forall (N : Net) (DS : Names),
 
 (** ** Monitored Services and Networks *)
 
-(** Probes. [MProbe] is an alias for a slightly more generic [MProbe'] (see
-[DlStalk.Compl]) *)
-Locate MProbe.
-Print MProbe'.
-Check origin  : MProbe -> Name.
-Check lock_id : MProbe -> nat.
 
-(** Monitor messages (stored in the monitor queue) (see [DlStalk.Model]) *)
+(** *** _Definition 4.1_ : Monitored services (see [DlStalk.Model]) *)
+(** **** Monitor messages *)
+(** Items stored in the monitor queue. [MqProbe] is an _incoming_ probe.
+Outgoing probes are handled differently, as described below. *)
 Print EMsg.
-Locate MQue.
+(** [[
+Inductive EMsg : Set :=
+    MqSend : (Name * Tag) -> Val -> EMsg
+  | MqRecv : (Name * Tag) -> Val -> EMsg
+  | MqProbe : (Name * Tag) -> MProbe' -> EMsg.
+]] *)
 
-(** Monitor state (see [DlStalk.Compl]) *)
-Locate MState.
-Print MState'.
-Check self       : MState -> Name.
-Check locked     : MState -> option Name.
-Check wait       : MState -> list Name.
-Check lock_count : MState -> nat.
-Check alarm      : MState -> bool.
+Goal MQue = list EMsg.
+Proof. reflexivity. Defined.
 
-(** Monitor process (see [DlStalk.Model]) *)
+(** **** Monitor process *)
+(** In the mechanisation, monitors do not push outgoing
+messages to the front of their queues, but instead they maintain a "monitor
+process" with two possible states: receiving ([MRecv]), when it is ready to pick
+a message from the monitor queue (equivalent to _not_ having an outgoing probe
+at the front of the queue); and sending ([MSend]), where the monitor sends a
+probe to another monitored service (equivalent to having that outgoing message
+at the front of the monitor queue). *)
 Print MProc.
 Check MRecv : MState -> MProc.
 Check MSend : (Name * Tag) -> MProbe -> MProc -> MProc.
 
-(** Monitored service (see [DlStalk.Model]) *)
+(** **** Monitored service *)
 Print MServ.
+(** Monitor queue *)
 Check mserv_q : MServ -> MQue.
+(** Monitor process / monitor state *)
 Check mserv_m : MServ -> MProc.
+(** Supervised service *)
 Check mserv_s : MServ -> Serv.
 
-(** Transition of monitored services (see [DlStalk.Model]) *)
+(** *** _Fig 9_ : Semantics of monitored services (see [DlStalk.Model]) *)
 Print MTrans.
+
+(** *** _Definition 4.3_ : Monitored networks *)
+(** We reuse the same network model, but with monitored services.
+Internal/external actions are abstracted through a the [gen_Act] class, so
+everything connects smoothly (see [DlStalk.Network] and [DlStalk.Transp]). *)
+
+Goal MNet = NetMod.t MServ.
+Proof. reflexivity. Defined.
+
+Check (NetMod.get : Name -> MNet -> MServ).
+Check (NetMod.get : Name -> Net  -> Serv).
 
 (** ** Instrumentation of Services and Transparency *)
 
-(** Instrumentation (see [DlStalk.Model]) *)
+(** *** _Definition 4.4_ : Instrumentation *)
+(** (see [DlStalk.Model] and [DlStalk.Transp]) *)
 Print mon_assg.
 Print instr.
 Check apply_instr : instr -> Net -> MNet.
 
-(** De-instrumentation (see [DlStalk.Model]) *)
+(** *** _Definition 4.5_ : Deinstrumentation *)
+(** [deinstr] is a _Coercion_: that means, we can apply predicates defined for
+unmonitored networks (e.g. [dead_set]) to monitored networks. In such a case,
+[deinstr] would be applied implicitly (see [DlStalk.Model] and
+[DlStalk.Transp]). *)
 Print retract_recv.
 Print retract_send.
 Print serv_deinstr.
 Print deinstr.
 
-(** _Proposition 4.6_ *)
+(** *** _Proposition 4.6_ *)
 Check instr_inv : forall (i : instr) N, deinstr (i N) = N.
 
-(** Networks are generic, thus work for monitored services too (see [DlStalk.Network] and [DlStalk.Transp]) *)
-Check (NetMod.get : Name -> MNet -> MServ).
-Check (NetMod.get : Name -> Net  -> Serv).
+(** *** _Definition 4.7_ : Stripping monitor actions *)
+
+Print MNAct_to_PNAct.
+(** [[
+MNAct_to_PNAct = fun (ma : MNAct) =>
+  match ma with
+  | NComm n m t (MValP v) => Some (@NComm PAct _ n m t v)
+  | NTau n (MActP Tau) => Some (NTau n Tau)
+  | _ => None
+  end  : MNAct -> option PNAct.
+]] *)
+
+Print MNPath_to_PNPath.
+(** [[
+MNPath_to_PNPath
+(mpath : list MNAct) : list PNAct :=
+  match mpath with
+  | [] => []
+  | ma :: mpath' =>
+      match MNAct_to_PNAct ma with
+      | None => MNPath_to_PNPath mpath'
+      | Some a => a :: MNPath_to_PNPath mpath'
+      end
+  end  : list MNAct -> list PNAct.
+]] *)
+
+
 
 (** Transparency (see [DlStalk.Transp]) *)
 Check transp_sound : forall mnpath (MN0 MN1 : MNet),
@@ -321,6 +569,22 @@ Goal forall N0 i0, CorrectnessCriteria.transp_soundness N0 i0.
 Qed.
 
 (** * A Distributed Black-Box Monitoring Algorithm for Deadlock Detection *)
+
+(** Monitor state (see [DlStalk.Compl]) *)
+Locate MState.
+Print MState'.
+Check self       : MState -> Name.
+Check locked     : MState -> option Name.
+Check wait       : MState -> list Name.
+Check lock_count : MState -> nat.
+Check alarm      : MState -> bool.
+
+(** Probes. [MProbe] is an alias for a slightly more generic [MProbe'] (see
+[DlStalk.Compl]) *)
+Locate MProbe.
+Print MProbe'.
+Check origin  : MProbe -> Name.
+Check lock_id : MProbe -> nat.
 
 (** _Proposition 5.1_ : Deadset-cycle equivalence (see [DlStalk.NetLocks]) *)
 Check dead_set_cycle : forall N : Net,
@@ -498,9 +762,15 @@ Check KIS_alarm : forall [MN],
       alarm (MN n) = true ->
       trans_lock '' MN n n.
 
+(** Monitor message (in monitor queue) holding an active probe *)
+Print active_ev_of.
+
 (** _Theorem 6.12_ *)
 Check KIS_invariant : trans_invariant KIS always.
 
+(** ** Deadlock Detection Preciseness Result *)
+
+(** _Theorem 6.13_ *)
 
 Check KIC_detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
     KIC (i0 N0) ->
@@ -514,8 +784,76 @@ Check KIS_detection_sound : forall (i0 : instr) N0 MN1 mpath n,
     alarm (MN1 n) = true ->
     exists DS, dead_set DS '' MN1 /\ In n DS.
 
-(** Monitor message (in monitor queue) holding an active probe *)
-Print active_ev_of.
-
-
 (** * DDMon, a Prototype Monitoring Tool for Distributed Deadlock Detection *)
+(** Proving implementation of actual Erlang code is a daunting task. Instead, we
+prove that the premises of our theory are sound and applicable by we providing a
+Coq framework for modelling networks of SRPC services in the style of
+[gen_server]s. *)
+
+Section Framework.
+  Import GenServerNet.
+  Import Sound.
+  Import SrpcDefs.
+
+  (** Types for generic network configuration (see [DlStalk.GenFramework]) *)
+  Print ServiceConf.
+  Print InitConf.
+  Print NetConf.
+
+  (** The network is SRPC! *)
+  Check gen_net_SRPC : forall conf n,
+    exists srpc, SRPC_serv srpc (NetMod.get n (gen_net conf)).
+
+  (** Example services and a network defined in the framework. *)
+  Section ExampleNetwork.
+
+    (** The framework instantiates [Val] with [nat]. *)
+    Check GenServerNet.valnat : Val = nat.
+
+    (** [echo] is a service that immediately replies with what it received. *)
+    Goal GenServerNet.echo =
+           {|state_t := unit;
+             init := tt;
+             handle_call from msg st :=
+               reply msg st
+           |}.
+    Proof. reflexivity. Defined.
+
+    (** [fwd_service] forwards messages to a specified [target], decrementing
+    their payload on the way (of type [nat]). If the payload is [0], it replies
+    back with the number of messages it has forwarded so far --- it tracks this
+    number in its state [st]. *)
+    Goal GenServerNet.fwd_service = fun (target : string) =>
+      {| state_t := _;
+        init := tt;
+        handle_call (_from : option string) (msg : Val) st :=
+          match valnat_trans msg with
+          | 0 => reply msg st
+          | S msg' =>
+              let? x := target ! msg' in
+              reply x st
+          end
+      |}.
+    Proof. reflexivity. Defined.
+
+    Goal GenServerNet.example_net =
+      gen_net
+        {| services name :=
+            match name with
+            | "C" => fwd_service "B" | "D" => fwd_service "A"
+            | "A" => fwd_service "C" | "B" => fwd_service "D"
+            | _ => GenServerNet.echo
+            end;
+          inits name :=
+            match name with
+            | "iA" => iconf "A" 2 | "iB" => iconf "B" 2
+            | _ => iconf "" 0
+            end
+        |}.
+    Proof. reflexivity. Defined.
+
+    (** Can deadlock *)
+    Check can_deadlock : exists path N,
+        (example_net =[ path ]=> N) /\ dead_set ["A"; "B"; "C"; "D"]%list N.
+  End ExampleNetwork.
+End Framework.
