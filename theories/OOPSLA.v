@@ -30,8 +30,12 @@ From Coq Require Import Lists.List.
 From Coq Require Import Structures.Equalities.
 Import ListNotations.
 
-Import Theory.
+Import GenServerNet.
+Import Sound.
 Import SrpcDefs.
+
+Module Compat := Empty <+ MK_COMPAT_INST(DetConf)(Sound).
+
 
 (** * Introduction *)
 (** This file provides outline of the mechanised theory presented in our
@@ -136,9 +140,6 @@ Locate "_ =[ _ ]=> _".
 
 
 Module CorrectnessCriteria.
-  Import GenServerNet.
-  Import SrpcNet.NetLocks.
-
   (** ** Transparency *)
   (** *** _Criterion 2.1_ *)
   (** [Net] is an _unmonitored network_, [MNet] is _monitored_. [instr] is an
@@ -176,8 +177,8 @@ Module CorrectnessCriteria.
   Definition detect_correct (N : Net) (i : instr) :=
       transp_completeness N i
     /\ transp_soundness N i
-    /\ detect_soundness N i
-    /\ detect_completeness N i.
+    /\ detect_completeness N i
+    /\ detect_soundness N i.
 End CorrectnessCriteria.
 
 (** * A Formal Model of Networks of RPC-Based Services *)
@@ -229,7 +230,7 @@ Print SRPC_Busy_State.
 to describe the simulation relation, and [SRPCI] for inductive features such as
 weak termination of each query. (see [DlStalk.PresentationCompat]) *)
 
-Print Paper.SRPCC.
+Print Compat.Paper.SRPCC.
 
 (** [[
 CoInductive SRPCC : SRPC_State -> Proc -> Prop :=
@@ -252,9 +253,10 @@ CoInductive SRPCC : SRPC_State -> Proc -> Prop :=
               (forall (v : Que.Channel.Val) (P1 : Proc),
                P0 =( Recv (s, R) v )=> P1 -> SRPCC ((Working) c) P1) ->
               SRPCI ((Locked) c s) P0 -> SRPCC ((Locked) c s) P0.
-]] *)
+]]
+ *)
 
-Print Paper.SRPCI.
+Print Compat.Paper.SRPCI.
 
 (** [[
 Inductive SRPCI : SRPC_State -> Proc -> Prop :=
@@ -287,7 +289,8 @@ Inductive SRPCI : SRPC_State -> Proc -> Prop :=
               h (s, R) = Some cont ->
               (forall v : Que.Channel.Val, SRPCI ((Working) c) (cont v)) ->
               SRPCI ((Locked) c s) (PRecv h).
-]] *)
+]]
+ *)
 
 (** Internally, the mechanisation uses a bit more messy [SRPC] property. We
 prove both equivalent. (see [DlStalk.SRPC] and [DlStalk.PresentationCompat]). *)
@@ -295,7 +298,8 @@ prove both equivalent. (see [DlStalk.SRPC] and [DlStalk.PresentationCompat]). *)
 Print SRPC.
 Print SRPC_Busy.
 
-Check SRPC_eq : forall (P : Proc) (srpc : SRPC_State), SRPC srpc P <-> Paper.SRPCC srpc P.
+Check Compat.SRPC_eq : forall (P : Proc) (srpc : SRPC_State),
+    SRPC srpc P <-> Compat.Paper.SRPCC srpc P.
 
 (** *** _Definition 3.4_ : Semantics of services (see [DlStalk.Que] and [DlStalk.Model]). *)
 (** Queue actions *)
@@ -306,7 +310,8 @@ Print QAct.
   Inductive QAct (E : Set) : Set :=
     QEnq : Que.Channel.NameTag -> E -> QAct E
   | QDeq : Que.Channel.NameTag -> E -> QAct E.
-]] *)
+]]
+ *)
 
 (** Generic actions used by processes, services and monitored services. [Tau] is
 opaque in the mechanisation. *)
@@ -318,7 +323,8 @@ Inductive Act (Payload : Set) : Set :=
     Send : Que.Channel.NameTag -> Payload -> Act
   | Recv : Que.Channel.NameTag -> Payload -> Act
   | Tau : Act.
-]] *)
+]]
+ *)
 
 (** *** _Fig 4_ : Process Queue and Service transitions *)
 (** All are instances of the LTS class. *)
@@ -383,25 +389,27 @@ Proof. reflexivity. Defined.
 (** ** Locks and Deadlocks *)
 (** *** _Definition 3.6_ : Lock (see [DlStalk.PresentationCompat]) *)
 
-Print Paper.serv_lock.
+Print Compat.Paper.serv_lock.
 
 (** [[
 fun (n : Name) (S : Serv) =>
     (forall (v : Val) (E : Val), ~ Deq (n, R) v (serv_i S) E)
  /\ (exists c : Name, SRPC (Locked c n) (serv_p S))
  /\ serv_o S = []
-]] *)
+]]
+ *)
 
 (** *** _Definition 3.7_ : Deadlock (see [DlStalk.PresentationCompat]) *)
 
-Print Paper.dead_set.
+Print Compat.Paper.dead_set.
 
 (** [[
 Paper.dead_set =
   fun (DS : Names) (N : Net) =>
      DS <> []
   /\ (forall n0, In n0 DS -> exists n1, lock N n0 n1 /\ In n1 DS)
-]] *)
+]]
+ *)
 
 (** Definitions used in the proofs are slightly different, i.e. more general to
 aim at compatibility with the OR model (see [DlStalk.Locks] and
@@ -421,12 +429,13 @@ and responses at the same time --- in the submission, this problem is irrelevant
 as it is prevented by the syntax, thus not mentioned there to avoid confusion.
 *)
 Print Decisive.
-Check serv_lock_eq : forall S n,
+Check Compat.serv_lock_eq : forall S n,
     (exists srpc, SRPC_serv srpc S) ->
-    serv_lock [n] S <-> Paper.serv_lock n S.
-Check dead_set_eq : forall (N : Net) (DS : Names),
+    serv_lock [n] S <-> Compat.Paper.serv_lock n S.
+
+Check Compat.dead_set_eq : forall (N : Net) (DS : Names),
     SRPC_net N ->
-    dead_set DS N <-> Paper.dead_set DS N.
+    dead_set DS N <-> Compat.Paper.dead_set DS N.
 
 (** *** _Lemma 3.8_ *)
 Check dead_set_invariant : forall DS, trans_invariant (dead_set DS) always.
@@ -440,12 +449,14 @@ process does not receive queries and responses at the same time --- in the
 submission, this problem is irrelevant as it is prevented by the syntax, thus
 not mentioned there to avoid confusion. *)
 Print Decisive.
-Check serv_lock_eq : forall S n,
+
+Check Compat.serv_lock_eq : forall S n,
     (exists srpc, SRPC_serv srpc S) ->
-    serv_lock [n] S <-> Paper.serv_lock n S.
-Check dead_set_eq : forall (N : Net) (DS : Names),
+    serv_lock [n] S <-> Compat.Paper.serv_lock n S.
+
+Check Compat.dead_set_eq : forall (N : Net) (DS : Names),
     SRPC_net N ->
-    dead_set DS N <-> Paper.dead_set DS N.
+    dead_set DS N <-> Compat.Paper.dead_set DS N.
 
 (** * A Model of Generic Distributed Black-Box Outline Monitors *)
 
@@ -462,7 +473,8 @@ Inductive EMsg : Set :=
     MqSend : (Name * Tag) -> Val -> EMsg
   | MqRecv : (Name * Tag) -> Val -> EMsg
   | MqProbe : (Name * Tag) -> MProbe' -> EMsg.
-]] *)
+]]
+ *)
 
 Goal MQue = list EMsg.
 Proof. reflexivity. Defined.
@@ -533,7 +545,8 @@ MNAct_to_PNAct = fun (ma : MNAct) =>
   | NTau n (MActP Tau) => Some (NTau n Tau)
   | _ => None
   end  : MNAct -> option PNAct.
-]] *)
+]]
+ *)
 
 Print MNPath_to_PNPath.
 (** [[
@@ -547,7 +560,8 @@ MNPath_to_PNPath
       | Some a => a :: MNPath_to_PNPath mpath'
       end
   end  : list MNAct -> list PNAct.
-]] *)
+]]
+ *)
 
 (** *** _Lemma 4.9_ *)
 Check @transp_complete : forall path (i0 : instr) (N0 N1 : Net),
@@ -557,7 +571,10 @@ Check @transp_complete : forall path (i0 : instr) (N0 N1 : Net),
       /\ MNPath_to_PNPath mpath = path.
 
 (** *** _Theorem 4.8_ : Transparency --- completeness *)
-Goal forall N0 i0, CorrectnessCriteria.transp_completeness N0 i0.
+Lemma oopsla_transp_completeness : forall N0 i0,
+    CorrectnessCriteria.transp_completeness N0 i0.
+
+Proof.
   unfold CorrectnessCriteria.transp_completeness.
   intros.
   specialize @transp_complete with (I0:=i0)(path:=path)(N0:=N0)(N1:=N1)
@@ -583,7 +600,8 @@ Proof.
     as (mpath1 & ppath & i2 & N2 & ? & ?); auto.
   exists mpath1, i2, N2.
   split; auto.
-  assert (deinstr (i0 N0) =[mpath0 ++ mpath1]=> deinstr (i2 N2)) by eauto using MNPath_do with LTS.
+  assert (deinstr (i0 N0) =[mpath0 ++ mpath1]=> deinstr (i2 N2))
+    by eauto using MNPath_do with LTS.
   repeat (rewrite instr_inv in * ).
   remember (mpath0 ++ mpath1) as mpath; clear Heqmpath.
   clear - H2.
@@ -600,7 +618,10 @@ Qed.
 
 
 (** *** _Theorem 4.11_ : Transparency --- soundness *)
-Goal forall N0 i0, CorrectnessCriteria.transp_soundness N0 i0.
+Lemma oopsla_transp_soundness : forall N0 i0,
+    CorrectnessCriteria.transp_soundness N0 i0.
+
+Proof.
   unfold CorrectnessCriteria.transp_soundness.
   intros.
   eauto using transp_sound_instr.
@@ -658,9 +679,9 @@ End Alg.
 (** *** _Definition 6.2_ : The client relation *)
 (** (see [DlStalk.NetLocks] and [DlStalk.PresentationCompat] for compatibility
 lemmas) *)
-Print Paper.client.
+Print Compat.Paper.client.
 Print serv_client.
-Check client_eq : forall n S, serv_client n S <-> Paper.client n S.
+Check Compat.client_eq : forall n S, serv_client n S <-> Compat.Paper.client n S.
 
 (** *** _Definition 6.3_ : Well-formedness *)
 (** (see [DlStalk.SRPCNet]) *)
@@ -737,8 +758,46 @@ Check well_formed_invariant : trans_invariant well_formed always.
 
 Print sends_probe.
 
-(** *** _Definition 6.8_ TODO compatibility *)
+(** *** _Definition 6.8_ *)
+
+Print Compat.Paper.ac.
+
+(** [[
+Paper.ac =
+fun (n : Name) (MN : MNet) =>
+exists (n1 : Name) (n2 : Que.Channel.Name),
+  trans_lock '' MN n n1 /\
+  lock '' MN n1 n2 /\
+  (forall n' : Que.Channel.Name,
+   n' = n2 \/ trans_lock '' MN n' n2 -> locked (MN n') <> None) /\
+  (alarm (MN n) = true \/
+   (exists n' : DetConf.NAME.t',
+      locked (MN n) = Some n' /\ In (active_ev_of MN n' n) (mserv_q (MN n))) \/
+   sends_to MN n2 n1 (active_probe_of MN n) \/
+   (exists n' : Que.Channel.Name,
+      lock '' MN n2 n' /\
+      In (active_ev_of MN n' n) (mserv_q (MN n2)) /\ In n1 (wait (MN n2))) \/
+   (exists
+      (n' : Que.Channel.Name) (v : Mon.Proc.Que.Channel.Val)
+    (MQ0 MQ1 : MQue),
+      lock '' MN n2 n' /\
+      mserv_q (MN n2) = MQ0 ++ active_ev_of MN n' n :: MQ1 /\
+      In (MqRecv (n1, Q) v) MQ0) \/
+   (exists v : Mon.Proc.Que.Channel.Val,
+      In (MqRecv (n1, Q) v) (mserv_q (MN n))))
+     : Name -> MNet -> Prop
+]]
+ *)
+
+(** The definition used in the mechanisation is slightly different, but we show
+them equivalent for deadlocked processes in [KIC] networks (the only place where
+it is used). *)
+
 Print alarm_condition.
+
+Check Compat.alarm_condition_eq : forall (n : Name) (MN : MNet),
+    KIC MN -> trans_lock '' MN n n ->
+    alarm_condition n MN <-> Compat.Paper.ac n MN.
 
 (** *** _Definition 6.7_ *)
 Print KIC.
@@ -818,6 +877,12 @@ Check KIS_invariant : trans_invariant KIS always.
 
 (** *** _Theorem 6.13_ *)
 
+Check KIS_detection_sound : forall (i0 : instr) N0 MN1 mpath n,
+    KIS (i0 N0) -> (i0 N0 =[ mpath ]=> MN1) ->
+    alarm (MN1 n) = true ->
+    exists DS, dead_set DS '' MN1 /\ In n DS.
+
+
 Check KIC_detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
     KIC (i0 N0) ->
     (i0 N0 =[ mpath0 ]=> MN1) ->
@@ -825,52 +890,115 @@ Check KIC_detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
     exists mpath1 MN2 n,
       (MN1 =[ mpath1 ]=> MN2) /\ In n DS /\ alarm (MN2 n) = true.
 
-Check KIS_detection_sound : forall (i0 : instr) N0 MN1 mpath n,
-    KIS (i0 N0) -> (i0 N0 =[ mpath ]=> MN1) ->
-    alarm (MN1 n) = true ->
-    exists DS, dead_set DS '' MN1 /\ In n DS.
 
-(** * DDMon, a Prototype Monitoring Tool for Distributed Deadlock Detection *)
+Lemma oopsla_detect_soundness : forall (i0 : instr) N0,
+  KIS (i0 N0) -> CorrectnessCriteria.detect_soundness N0 i0.
+
+Proof.
+  unfold CorrectnessCriteria.detect_soundness; intros.
+  specialize KIS_detection_sound
+    with (i0:=i0)(N0:=N0)(MN1:=MN1)(n:=n)(mpath:=path')
+    as (mpath1 & MN2 & n'); attac.
+Qed.
+
+Lemma oopsla_detect_completeness : forall (i0 : instr) N0,
+    KIC (i0 N0) -> CorrectnessCriteria.detect_completeness N0 i0.
+
+Proof.
+  unfold CorrectnessCriteria.detect_completeness; intros.
+  specialize KIC_detection_complete
+    with (i0:=i0)(N0:=N0)(MN1:=MN1)(mpath0:=path0')(DS:=DS)
+    as (mpath1 & MN2 & n'); eauto.
+Qed.
+
+(** Finally, total correctness. *)
+
+Lemma oopsla_correct : forall (i0 : instr) N0,
+    KIC (i0 N0) -> KIS (i0 N0) -> CorrectnessCriteria.detect_correct N0 i0.
+
+Proof.
+  unfold CorrectnessCriteria.detect_correct; intros.
+  repeat split;
+    eauto using
+      oopsla_transp_soundness,
+      oopsla_transp_completeness,
+      oopsla_detect_soundness,
+      oopsla_detect_completeness.
+Qed.
+
+(** Assumptions are described in the introduction. In the final result, only
+[Val], [some_val], [some_name] and [NetMod] are left declared. *)
+Print Assumptions oopsla_correct.
+
+
+(** * Appendix: A Coq Framework for Modelling Erlang/OTP-Style SRPC Networks *)
+
+(** _Contents of this section are not addressed in the submission_ *)
+
 (** Proving implementation of actual Erlang code is a daunting task. Instead, we
 prove that the premises of our theory are sound and applicable by we providing a
 Coq framework for modelling networks of SRPC services in the style of
-[gen_server]s. *)
+[gen_server]s. Networks are assembled by assigning names (as strings) to
+services. All services begin as [Ready] with empty input and output queues. The
+network can start progressing via one or more _initiators_, which act as
+external clients that send queries to the services. *)
 
-Section Framework.
-  Import GenServerNet.
-  Import Sound.
-  Import SrpcDefs.
+Section Framework. 
+  Import String.
+  Open Scope string.
 
-  (** Types for generic network configuration (see [DlStalk.GenFramework]) *)
+  (** Services are implemented through the [ServiceConf] record: the [state_t]
+      field describes the type of internal state of the service (which can
+      differ among services); [init] is the initial state; [handle_call]
+      (following the convention from Erlang) describes how the service reacts to
+      a query [msg] received [from] a certain sender while in a given [state].
+
+      Initiators are anonymous and set [from] to [None]. For a regular service
+      named [n] it is set to [Some n])
+
+      The return type of [handle_call] is an opaque [Handler] which represents
+      SRPC-compliant code of the handling function; to construct it, we provide
+      the programmer with auxiliary syntax (discussed below). *)
+
   Print ServiceConf.
-  Print InitConf.
-  Print NetConf.
 
-  (** The network is SRPC! *)
-  Check gen_net_SRPC : forall conf n,
-    exists srpc, SRPC_serv srpc (NetMod.get n (gen_net conf)).
+  (** [[
+      Record ServiceConf : Type := sconf
+      { state_t : Set;
+        init : state_t;
+        handle_call : option string -> Val -> state_t -> Handler state_t
+      }.
+      ]]
+   *)
 
-  (** Example services and a network defined in the framework. *)
-  Section ExampleNetwork.
+  (** The simplest SRPC service is [echo] defined below, which handles queries
+      by immediately replying with the message it received. In [handle_call],
+      the auxiliary syntax [reply msg state] allows for sending [msg] and using
+      [state] as the next service state (which in case of [echo] is [tt :
+      unit]). *)
 
-    (** The framework instantiates [Val] with [nat]. *)
-    Check GenServerNet.valnat : Val = nat.
+  Goal GenServerNet.echo =
+         {|state_t := unit;
+           init := tt;
+           handle_call from msg st :=
+             reply msg st
+         |}.
+  Proof. reflexivity. Defined.
 
-    (** [echo] is a service that immediately replies with what it received. *)
-    Goal GenServerNet.echo =
-           {|state_t := unit;
-             init := tt;
-             handle_call from msg st :=
-               reply msg st
-           |}.
-    Proof. reflexivity. Defined.
+  (** The more complex service shown below defines [fwd_service], which acts as
+      a proxy by forwarding messages to a [target]. Each message carries a
+      natural number decremented at each forwarding; if [fwd_service] receives
+      0, it instead instantly replies with the number of messages forwarded so
+      far (tracked in the state). The example showcases the auxiliary syntax
+      [let? x := target ! msg' in ]... to perform an RPC call: it sends the
+      query [msg'] to the service [target], awaits a response, and assigns the
+      response payload to the variable [x]. *)
 
-    (** [fwd_service] forwards messages to a specified [target], decrementing
-    their payload on the way (of type [nat]). If the payload is [0], it replies
-    back with the number of messages it has forwarded so far --- it tracks this
-    number in its state [st]. *)
-    Goal GenServerNet.fwd_service = fun (target : string) =>
-      {| state_t := _;
+  (** Note that the framework instantiates [Val] with [nat] *)
+  Check valnat : Val = nat.
+
+  Goal GenServerNet.fwd_service = fun (target : string) =>
+      {|state_t := _;
         init := tt;
         handle_call (_from : option string) (msg : Val) st :=
           match valnat_trans msg with
@@ -880,9 +1008,65 @@ Section Framework.
               reply x st
           end
       |}.
-    Proof. reflexivity. Defined.
+  Proof. reflexivity. Defined.
 
-    Goal GenServerNet.example_net =
+
+  (** Initiators are specified by the [InitConf] record with two fields:
+      [target] which names the service to be called; and [msg] for the message
+      to be sent. Networks are assembled by the [gen_net] function based on the
+      provided configuration ([NetConf]) which maps names to initiators and
+      services. Note that initiator names are unrelated to service names, even
+      if they share the same string value: internally, the framework represents
+      them differently and makes it impossible to query an initiator. Because
+      the mapping has to be exhaustive, we use [echo] as a default service and
+      set superfluous initiators to call an unused name. *)
+
+  Print InitConf.
+
+  (** [[
+      Record InitConf : Set := iconf
+      { target : string;
+        msg : Srpc.Locks.Proc.Que.Channel.Val
+      }.
+      ]]
+   *)
+
+  (** Network configuration: *)
+
+  Check gen_net : NetConf -> Net.
+  Print NetConf.
+
+  (** [[
+      Record NetConf :=
+      { services : string -> ServiceConf;
+        inits : string -> InitConf
+      }.
+      ]]
+   *)
+
+  (** All networks generated by [gen_net] contain only SRPC services. *)
+  Check gen_net_SRPC : forall conf n,
+    exists srpc, SrpcDefs.SRPC_serv srpc (NetMod.get n (gen_net conf)).
+
+  (** Moreover, they are [well_formed] *)
+  Check gen_well_formed : forall conf, well_formed (gen_net conf).
+
+  (** We provide an instrumentation [gen_instr] which fulfills our [KIS] and
+  [KIC] invariants. *)
+
+  Check gen_instr : instr.
+  Check gen_KIS : forall conf, KIS (gen_instr (gen_net conf)).
+  Check gen_KIC : forall conf, KIC (gen_instr (gen_net conf)).
+
+  (** Therefore, networks implemented in this framework can be correctly
+  monitored. *)
+
+  Lemma gen_net_correct : forall conf,
+      CorrectnessCriteria.detect_correct (gen_net conf) gen_instr.
+  Proof. eauto using oopsla_correct, gen_KIS, gen_KIC. Qed.
+
+  (** ** Example network defined in the framework. *)
+  Goal GenServerNet.example_net =
       gen_net
         {| services name :=
             match name with
@@ -896,10 +1080,9 @@ Section Framework.
             | _ => iconf "" 0
             end
         |}.
-    Proof. reflexivity. Defined.
+  Proof. reflexivity. Defined.
 
-    (** Can deadlock *)
-    Check can_deadlock : exists path N,
-        (example_net =[ path ]=> N) /\ dead_set ["A"; "B"; "C"; "D"]%list N.
-  End ExampleNetwork.
+  (** It may deadlock! *)
+  Check can_deadlock : exists path N,
+      (example_net =[ path ]=> N) /\ dead_set ["A"; "B"; "C"; "D"]%list N.
 End Framework.

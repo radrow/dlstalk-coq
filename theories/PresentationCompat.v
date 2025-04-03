@@ -28,22 +28,11 @@ From Coq Require Import Strings.String.
 From Coq Require Import Lists.List.
 From Coq Require Import Structures.Equalities.
 Import ListNotations.
-Open Scope string_scope.
 
-Module DetConf <: Compl.DETECT_CONF.
-  Parameter Val : Set.
-
-  Declare Module NAME : UsualDecidableSet.
-  Module TAG := Locks.Tag_.
-
-  Declare Module NetMod : Network.NET_MOD(NAME).
-
-  Definition Msg := @Compl.MProbe' NAME.t'.
-  Definition MState := @Compl.MState' NAME.t'.
-End DetConf.
-
-Module Import Theory := ModelData.Empty <+ Sound.SOUND(DetConf).
-Import SrpcDefs.
+Module Type COMPAT.
+  Declare Module DetConf : Compl.DETECT_CONF.
+  Declare Module Import Theory : Sound.SOUND(DetConf).
+  Import SrpcDefs.
 
 (** Exact definitions as in the paper *)
 Module Paper.
@@ -82,6 +71,25 @@ Module Paper.
     (exists v, In (n, Q, v) (serv_i S)  \/ In (n, R, v) (serv_o S))
     \/ SRPCC (Working n) (serv_p S)  \/  (exists s, SRPCC (Locked n s) (serv_p S)).
 
+
+  Definition ac (n : Name) (MN : MNet) :=
+    exists n1 n2,
+      trans_lock MN n n1
+      /\ lock MN n1 n2
+      /\ (forall n', (n' = n2 \/ trans_lock MN n' n2) -> locked (MN n') <> None)
+      /\ ( alarm (MN n) = true
+          \/ (exists n', locked (MN n) = Some n'
+                   /\ In (active_ev_of MN n' n) (mserv_q (MN n)))
+          \/ (sends_to MN n2 n1 (active_probe_of MN n))
+          \/ (exists n', lock MN n2 n'
+                   /\ In (active_ev_of MN n' n) (mserv_q (MN n2))
+                   /\ In n1 (wait (MN n2)))
+          \/ (exists n' v MQ0 MQ1,
+                lock MN n2 n'
+                /\ mserv_q (MN n2) = MQ0 ++ (active_ev_of MN n' n) :: MQ1
+                /\ In (MqRecv (n1, Q) v) MQ0)
+          \/ (exists v, In (MqRecv (n1, Q) v) (mserv_q (MN n)))
+        ).
 End Paper.
 
 
@@ -278,3 +286,323 @@ Proof.
     + destruct `(_ \/ _); eattac.
     + destruct `(_ \/ _); eattac; rewrite <- SRPC_eq in *; eattac.
 Qed.
+
+
+Lemma KIC_lock_locked : forall n n' MN, KIC MN -> trans_lock MN n n' -> locked (MN n) <> None.
+Proof. intros. consider (trans_lock _ _ _); attac. Qed.
+Hint Resolve KIC_lock_locked : LTS.
+
+Lemma KIC_lock_locked_loop : forall n n' MN, KIC MN -> trans_lock MN n n -> trans_lock MN n n' -> locked (MN n') <> None.
+Proof. intros. assert (trans_lock MN n' n). eapply dep_loop; eauto with LTS. eapply SRPC_lock_set_uniq; eauto with LTS. eauto with LTS. Qed.
+Hint Resolve KIC_lock_locked_loop : LTS.
+
+Lemma alarm_condition_eq : forall n MN,
+    KIC MN -> trans_lock '' MN n n ->
+    alarm_condition n MN <-> Paper.ac n MN.
+Proof.
+  split; intros.
+  - consider (alarm_condition _ _).
+    + consider (exists n', lock MN n n') by (consider (trans_lock MN n n); eauto with LTS).
+      exists n, n'.
+      repeat split; intros; eauto with LTS.
+      destruct `(_ = _ \/ _); subst; eauto with LTS.
+    + assert (n = m \/ (n <> m /\ trans_lock MN n m)) as [|]
+          by (smash_eq n m; destruct `(_ = _ \/ _); attac); clear H2; subst.
+      * assert (m' = self (MN m')) by attac.
+        assert (m = self (MN m)) by attac.
+        assert (locked (MN m) = Some m') by attac.
+        consider (exists m'', lock MN m' m'').
+        {
+          consider (trans_lock MN m' m). eapply dep_loop; eauto with LTS. eapply SRPC_lock_set_uniq; attac.
+          all: eauto with LTS.
+        }
+        assert (locked (MN m') = Some m'') by attac.
+        exists m, m'.
+        repeat split; intros; eauto.
+        1: { destruct `(_ = _ \/ _); subst; eauto with LTS. }
+
+        unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+        destruct (NetMod.get m' MN) as [MQ' M' S'] eqn:HMN'.
+        destruct (NetMod.get m MN) as [MQ M S] eqn:HMN.
+        assert (m = m' -> M = M' /\ MQ = MQ' /\ m' = m'') by attac.
+        clear HMN HMN'.
+        hsimpl in *; simpl in *.
+        generalize dependent M.
+        induction M'; intros.
+        -- destruct state; hsimpl in *; simpl in *.
+           consider (sends_probe _ _ _).
+           ++ right; right; right; right. eattac.
+           ++ destruct `(In _ _ \/ _).
+              ** right; right; left. exists n'. eattac.
+              ** right; right; right; left. eattac.
+        -- consider (sends_probe _ _ _); attac.
+           destruct (NAME.eq_dec (self M) (self M')); attac.
+           ++ rewrite <- e in *. clear e.
+              attac.
+              specialize IHM' with (M := M').
+              destruct IHM' as [|[|[|[|]]]]; attac.
+              right; right; left.
+              destruct `(_ \/ _); constructor; attac.
+           ++ specialize IHM' with (M := M).
+              destruct IHM' as [|[|[|[|]]]]; attac.
+              right; right; left.
+              destruct `(_ \/ _); constructor; attac.
+      * assert (m' = self (MN m')) by attac.
+        assert (m = self (MN m)) by attac.
+        assert (n = self (MN n)) by attac.
+        assert (locked (MN m) = Some m') by attac.
+        consider (exists m'', lock MN m' m'').
+        {
+          consider (trans_lock MN m' n). eapply dep_loop; eauto with LTS. eapply SRPC_lock_set_uniq; attac.
+          all: eattac.
+        }
+        assert (locked (MN m') = Some m'') by attac.
+        hsimpl in *.
+        exists m, m'.
+        repeat split; intros; eauto.
+        1: { destruct `(_ = _ \/ _); subst; eauto with LTS. }
+
+        unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+        destruct (NetMod.get n MN) as [MQ0 M0 S0] eqn:HMN0.
+        destruct (NetMod.get m' MN) as [MQ' M' S'] eqn:HMN'.
+        destruct (NetMod.get m MN) as [MQ M S] eqn:HMN.
+        assert (n = m' -> M0 = M' /\ MQ0 = MQ') by attac.
+        clear HMN HMN' HMN0.
+        hsimpl in *; simpl in *.
+        generalize dependent M0.
+        induction M'; intros.
+        -- destruct state; hsimpl in *; simpl in *.
+           consider (sends_probe _ _ _).
+           ++ right; right; right; right. eattac.
+           ++ destruct `(In _ _ \/ _).
+              ** right; right; left. exists n'. eattac.
+              ** right; right; right; left. eattac.
+        -- consider (sends_probe _ _ _); attac.
+           destruct (NAME.eq_dec (self M0) (self M')); attac.
+           ++ rewrite <- e in *. clear e.
+              attac.
+              specialize IHM' with (M0 := M').
+              destruct IHM' as [|[|[|[|]]]]; attac.
+              right; right; left.
+              destruct `(_ \/ _); constructor; attac.
+           ++ specialize IHM' with (M0 := M0).
+              destruct IHM' as [|[|[|[|]]]]; attac.
+              right; right; left.
+              destruct `(_ \/ _); constructor; attac.
+    + exists n, n'.
+      repeat split; intros; eauto with LTS.
+      destruct `(_ \/ _); subst; eauto with LTS.
+  - unfold Paper.ac in *.
+    hsimpl in *.
+    consider (exists n', lock MN n n') by (consider (trans_lock MN n n); eauto with LTS).
+    destruct `(_ \/ _) as [|[|[|[|[|]]]]]; hsimpl in *; eauto with LTS.
+    + econstructor 3 with (n':=n'); eauto.
+      enough (locked (MN n) = Some n'); attac.
+    + econstructor 2 with (m:=n1)(m':=n2); eauto.
+      unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+      destruct (NetMod.get n2 MN).
+      induction mserv_m0; attac.
+      consider (sends_to_mon _ _ _); attac.
+      specialize (IHmserv_m0 ltac:(auto)).
+      econstructor 4; eattac.
+      destruct `(_ \/ _); eauto.
+    + smash_eq n n2.
+      {
+        consider (n'0 = n') by (eapply SRPC_lock_set_uniq; eattac).
+        constructor 3 with (n':=n'); eattac.
+      }
+
+      econstructor 2 with (m:=n1)(m':=n2); eauto with LTS.
+
+      assert (NoRecvR_from n'0 (mserv_q (MN n2))).
+      {
+        unfold NoRecvR_from, NetGet, lock, lock_set in *. attac.
+        destruct (NetMod.get n2 MN) as [MQ0 M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n2 _)). attac.
+        intros ?.
+        apply H13 with (v:=v) in H4.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+      }
+
+      assert (NoSends_MQ (mserv_q (MN n2))).
+      {
+        unfold NetGet, lock, lock_set in *. attac.
+        destruct (NetMod.get n2 MN) as [MQ0 M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n2 _)). attac.
+        apply Forall_forall. intros. destruct x; attac.
+        apply H14 with (v:=v) in H4.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+        apply in_split in H10; attac.
+        clear - H15.
+        induction l1; attac.
+        destruct a; attac.
+      }
+
+      assert (locked (MN n2) = Some n'0) by attac.
+      assert (self (MN n2) = n2) by attac.
+
+      unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+      hsimpl in *. simpl in *.
+      destruct (NetMod.get n2 MN) as [MQ0 M0 S0].
+      hsimpl in *; simpl in *.
+      induction M0.
+      * apply in_split in H6 as (MQ0l & MQ0r & ?); subst.
+        econstructor 2; attac.
+        intros ? ?.
+        eapply H8; eattac.
+      * hsimpl in *. simpl in *.
+        unfold Name in *; attac.
+        destruct (NameTag_eq_dec to (n1, R)),
+          (MProbe_eq_dec msg {| origin := n; lock_id := lock_count (Transp.Net.NetMod.get n MN) |}).
+        2,3,4: constructor 4; eattac.
+        subst.
+        constructor 3.
+    + smash_eq n n2.
+      {
+        consider (n'0 = n') by (eapply SRPC_lock_set_uniq; eattac).
+        constructor 3 with (n':=n'); eattac.
+        rewrite `(mserv_q _ = _). attac.
+      }
+
+      econstructor 2 with (m:=n1)(m':=n2); eauto with LTS.
+
+      assert (NoRecvR_from n'0 (mserv_q (MN n2))).
+      {
+        clear - H4 H6.
+        unfold active_ev_of, active_probe_of, NoRecvR_from, NetGet, lock, lock_set in *; attac.
+        destruct (NetMod.get n2 MN) as [MQ0' M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n2 _)).
+        attac.
+        intros ?.
+        apply H1 with (v:=v) in H4.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+        intros ?.
+        attac.
+        apply H1 with (v:=v) in H4.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+      }
+
+      assert (NoSends_MQ (mserv_q (MN n2))).
+      {
+        unfold NetGet, lock, lock_set in *. attac.
+        destruct (NetMod.get n2 MN) as [MQ0' M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n2 _)).
+        apply Forall_forall. intros. destruct x; attac.
+        apply H14 with (v:=v) in H4.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+        clear - H10 H15.
+        destruct `(_ \/ _).
+        - apply in_split in H; hsimpl in *.
+          induction l1; attac. destruct a; attac.
+        - apply in_split in H; hsimpl in *.
+          induction MQ0; attac.
+          + induction l1; eattac. destruct a; attac.
+          + destruct a; attac.
+      }
+
+      assert (locked (MN n2) = Some n'0) by attac.
+      assert (self (MN n2) = n2) by attac.
+
+      unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+      hsimpl in *. simpl in *.
+      destruct (NetMod.get n2 MN) as [MQ0' M0 S0].
+      hsimpl in *; simpl in *.
+      induction M0.
+      * apply in_split in H7 as (MQ0l & MQ0r & ?); subst.
+        econstructor 2; attac.
+        intros ? ?.
+        eapply H8; eattac.
+      * hsimpl in *. simpl in *.
+        unfold Name in *; attac.
+        destruct (NameTag_eq_dec to (n1, R)),
+          (MProbe_eq_dec msg {| origin := n; lock_id := lock_count (Transp.Net.NetMod.get n MN) |}).
+        2,3,4: constructor 4; eattac.
+        subst.
+        constructor 3.
+    + econstructor 2 with (m:=n1)(m':=n); eauto.
+      1: {
+        enough (serv_client n1 (NetMod.get n '' MN)). assert (well_formed MN). attac. kill H7.
+        eapply H_lock_complete. eattac.
+        unfold deinstr, serv_deinstr in *.
+        attac.
+        unfold NetGet in *.
+        destruct (NetMod.get n MN) eqn:?.
+        attac.
+      }
+
+      assert (NoRecvR_from n' (mserv_q (MN n))).
+      {
+        unfold NoRecvR_from, NetGet, lock, lock_set in *. attac.
+        destruct (NetMod.get n MN) as [MQ0 M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n _)). attac.
+        intros ?.
+        apply H10 with (v:=v0) in H5.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+      }
+
+      assert (NoSends_MQ (mserv_q (MN n))).
+      {
+        unfold NetGet, lock, lock_set in *. attac.
+        destruct (NetMod.get n MN) as [MQ0 M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n _)). attac.
+        apply Forall_forall. intros. destruct x; attac.
+        apply H11 with (v:=v0) in H5.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+        apply in_split in H7; attac.
+        clear - H12.
+        induction l1; attac.
+        destruct a; attac.
+      }
+
+      assert (locked (MN n) = Some n') by attac.
+      assert (self (MN n) = n) by attac.
+
+      unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+      hsimpl in *. simpl in *.
+      destruct (NetMod.get n MN) as [MQ0 M0 S0].
+      simpl in *.
+      induction M0.
+      * apply in_split in H4; attac.
+        econstructor 1; attac.
+        unfold NoRecvR_from in *; attac.
+        specialize (H6 v0).
+        attac.
+      * hsimpl in *. simpl in *.
+        unfold Name in *; attac.
+        destruct (NameTag_eq_dec to (n1, R)),
+          (MProbe_eq_dec msg {| origin := self M0; lock_id := lock_count M0 |}).
+        2,3,4: constructor 4; eattac.
+        subst.
+        constructor 3.
+Qed.
+End COMPAT.
+
+Module Type MK_COMPAT_INST(DetConf : Compl.DETECT_CONF)(Theory : Sound.SOUND(DetConf)) :=
+  COMPAT with Module DetConf := DetConf with Module Theory := Theory.
+
+
+Module GeneralDetConf <: Compl.DETECT_CONF.
+  Parameter Val : Set.
+
+  Declare Module NAME : UsualDecidableSet.
+  Module TAG := Locks.Tag_.
+
+  Declare Module NetMod : Network.NET_MOD(NAME).
+
+  Definition Msg := @Compl.MProbe' NAME.t'.
+  Definition MState := @Compl.MState' NAME.t'.
+End GeneralDetConf.
