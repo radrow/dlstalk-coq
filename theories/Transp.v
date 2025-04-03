@@ -419,6 +419,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
           /\ (forall m, no_sends_in n MN0 -> flushed_in m MN0 -> flushed_in m MN1)
           /\ (forall m, not (ready_in n MN0) -> [a] >:~ [] -> ready_in m MN0 -> ready_in m MN1)
           /\ (flushed MN0 -> deinstr MN0 = deinstr MN1)
+          /\ (MNPath_to_PNPath [na] = MNPath_to_PNPath (lift_path n [a]))
       ).
 
   Proof using Type with (eauto with LTS).
@@ -443,24 +444,24 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         specialize (H n).
         hsimpl in *.
         bs (MQ_Clear (MqRecv n0 v :: MQ)) by attac.
+      + blast_cases; attac.
 
     - destruct p; attac.
-      + destruct n0 as [n0 t0].
-        smash_eq n n0.
-        1: specialize (HNoself t0 (MValP v)); bs.
+      smash_eq n n1.
+        1: specialize (HNoself t (MValP v)); bs.
 
-        remember (mserv MQ (mon_handle (MqSend (n0, t0) v) s) P) as S.
+        remember (mserv MQ (mon_handle (MqSend (n1, t) v) s) P) as S.
 
-        assert (exists N0', NetMod.get n N0' = &S /\ NVTrans n (send (n0, t0) (MValP v)) MN0 N0')
+        assert (exists N0', NetMod.get n N0' = &S /\ NVTrans n (send (n1, t) (MValP v)) MN0 N0')
           as (N0' & HeqN0 & NT0)
             by (exists (NetMod.put n &S MN0); eattac).
 
-        destruct (recv_available n0 n t0 (MValP v) N0') as (N0'' & NT0').
-        exists (NComm n n0 t0 # v), N0''; attac.
+        destruct (recv_available n1 n t (MValP v) N0') as (N0'' & NT0').
+        exists (NComm n n1 t # v), N0''; attac.
 
         all: unfold no_sends_in, NoMqSend, flushed_in, flushed, Flushed, deinstr, ready_in in *.
         * hsimpl in *.
-          smash_eq n n0 m; attac.
+          smash_eq n n1 m; attac.
 
         * hsimpl in *. attac.
         * hsimpl in *. hsimpl in *.
@@ -468,12 +469,10 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
           unfold flushed_in, Flushed in *.
           hsimpl in *. bs.
     - destruct a; attac.
-      + destruct n0 as [n0 t0].
+      + smash_eq n n1.
+        1: now (specialize (HNoself t (MValM v)); bs).
 
-        smash_eq n n0.
-        1: now (specialize (HNoself t0 (MValM v)); bs).
-
-        assert (exists N1 : MNet, MN0 =( NComm n n0 t0 ^ v)=> N1) as [N1 na]
+        assert (exists N1 : MNet, MN0 =( NComm n n1 t ^ v)=> N1) as [N1 na]
           by (eapply send_comm_available; rewrite `(NetMod.get n MN0 = _); eattac).
         eexists _, _.
         split. 1: eauto.
@@ -485,13 +484,13 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
         all: hsimpl in *; attac.
 
-        1,2,3: smash_eq n n0 m; hsimpl in *; attac.
+        1,2,3: smash_eq n n1 m; hsimpl in *; attac.
 
         apply NetMod.extensionality.
         intros.
         hsimpl in |- *.
         unfold serv_deinstr.
-        smash_eq n n0 n1; attac.
+        smash_eq n n1 n0; attac.
 
       + exists (NTau n (MActM Tau)).
         exists (NetMod.put n (mserv MQ (mon_handle (MqProbe n0 msg) s) P) MN0).
@@ -527,6 +526,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
                            | _ => True
                            end
               ) MQ'
+          /\ (MNPath_to_PNPath [na] = MNPath_to_PNPath (lift_path n [send (n, t0) v]))
       ).
 
   Proof.
@@ -670,11 +670,10 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       attac.
 
       destruct H0; eattac.
-
-    - strip_exists @H; subst.
+    - hsimpl in H; subst.
       destruct N1 as [MQ0' M0' S0'].
       eapply flush_act_available_self in TM
-          as (na & MN0' & MQ' & TN0 & HEq & HPreserveNS0 & HPreserveF0 & _ & _ & HNS1); auto.
+          as (na & MN0' & MQ' & TN0 & HEq & HPreserveNS0 & HPreserveF0 & _ & _ & HNS1 & HND); auto.
       assert (NoMqSend (mserv (MQ1 ++ MQ') (MRecv M1) S1)) as HNS1'.
       {
         apply Forall_app; split; auto.
@@ -693,6 +692,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
       destruct H; eattac.
   Qed.
+
 
   Ltac guess v H :=
     repeat match type of H with
@@ -719,7 +719,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       exists nmpath MN1,
         (MN0 =[ nmpath ]=> MN1)
         /\ (forall m, (n = m \/ flushed_in m MN0) -> flushed_in m MN1)
-        /\ no_sends MN1.
+        /\ no_sends MN1
+        /\ MNPath_to_PNPath nmpath = [].
   Proof.
     intros *. intros HNS0.
 
@@ -765,7 +766,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         in TM0; auto.
 
       apply flush_act_available in TM0
-          as (na & MN0' & TN0 & HEq & HPreserveNS0 & HPreserveF0 & _); auto.
+          as (na & MN0' & TN0 & HEq & HPreserveNS0 & HPreserveF0 & HR0 & HF0 & HND0); auto.
 
       assert (no_sends MN0') as HNS0'.
       unfold no_sends. intros. apply HPreserveNS0. apply HNS0.
@@ -791,12 +792,30 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         apply HPreserveF0.
         apply HNS0.
         assumption.
-
+      + attac.
+      + replace (na :: nmpath) with ([na] ++ nmpath) by auto.
+        rewrite MNPath_to_PNPath_app.
+        rewrite HND0.
+        attac.
+        rewrite HNS2.
+        destruct_ma a; attac.
+        destruct na.
+        * destruct_ma m; attac.
+        * destruct p; attac.
+          specialize (H t (# v)).
+          simpl in *.
+          smash_eq n n0.
+          kill TN0.
+          attac.
+          compat_hsimpl in *.
+          unfold no_sends, no_sends_in, NoMqSend in *.
+          specialize HNS0 with (n:=n).
+          attac.
     - destruct H as [t0 [v Hn]].
       kill Hn.
 
       eapply flush_act_available_self in TM0
-          as (na & MN0' & MQ' & TN0 & HEq & HPreserveNS0 & HPreserveF0 & _ & _ & HNS0''); auto.
+          as (na & MN0' & MQ' & TN0 & HEq & HPreserveNS0 & HPreserveF0 & HR0 & HF0 & HNS0'' & HND0); auto.
 
 
       apply (Flushing_cont MQ') in TM1; auto.
@@ -812,7 +831,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       }
 
       ltac1:(guess MN0' IHmpath).
-      destruct IHmpath as (nmpath & MN1 & TN1 & HPreserve1 & HNS1); auto.
+      destruct IHmpath as (nmpath & MN1 & TN1 & HPreserve1 & HNS1 & HND1); auto.
 
       exists (na :: nmpath).
       exists MN1.
@@ -822,6 +841,22 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
       intros.
       kill H; auto.
+
+      replace (na :: nmpath) with ([na] ++ nmpath) by auto.
+      rewrite MNPath_to_PNPath_app.
+      rewrite HND0.
+      rewrite HND1.
+      attac.
+      destruct v; attac.
+      destruct na.
+      * destruct_ma m; attac.
+      * destruct p; attac.
+        kill TN0.
+        attac.
+        compat_hsimpl in *.
+        unfold no_sends, no_sends_in, NoMqSend in *.
+        specialize HNS0 with (n:=n).
+        attac.
   Qed.
 
 
@@ -910,7 +945,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       exists nmpath MN1,
         (MN0 =[ nmpath ]=> MN1)
         /\ (forall m, (n = m \/ ready_in m MN0) -> ready_in m MN1)
-        /\ (deinstr MNm1 = deinstr MN1 /\ flushed MN1).
+        /\ (deinstr MNm1 = deinstr MN1 /\ flushed MN1)
+        /\ MNPath_to_PNPath nmpath = [].
 
   Proof with (auto with LTS).
     intros.
@@ -955,19 +991,19 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
 
     destruct H.
     - apply flush_act_available in TM0
-          as (na & MN0' & TN0 & HEq & HPreserveNS0 & HPreserveF0 & HPreserveR0 & HND0'); auto.
+          as (na & MN0' & TN0 & HEq & HPreserveNS0 & HPreserveF0 & HPreserveR0 & HF0 & HND0'); auto.
 
-      specialize (HND0' HFN0).
-
-      specialize (HFN0 n) as HF0.
+      specialize (HF0 ltac:(auto)).
 
       assert (no_sends_in n MN0) as HNS0.
-      unfold no_sends_in.  unfold flushed_in in HF0. unfold Flushed in HF0.
-      destruct (NetMod.get n MN0).
-      unshelve eapply (Forall_impl _ _ HF0).
-      intros. simpl in *. destruct a0; auto.
+      {
+        specialize (HFN0 n).
+        clear - HFN0.
+        unfold no_sends_in, flushed_in, flushed, Flushed in *.
+        blast_cases; attac.
+      }
 
-      specialize (HPreserveF0 n ltac:(attac) HF0) as HF0'.
+      specialize (HPreserveF0 n ltac:(attac) (HFN0 n)) as HF0'.
 
       assert (flushed MN0') as HFN0'.
       unfold flushed. intros. apply HPreserveF0...
@@ -976,19 +1012,20 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       exists [na], MN0'. repeat split; eauto with LTS.
       intros. destruct H1; subst...
       rewrite HND0. assumption.
+      destruct_ma a; attac.
+
       rename H0 into HR0'_not.
 
       rewrite <- HEq in TM1.
 
-      specialize (IHmpath HF_mpath HC_mpath _ _ HND0' HFN0' HR0'_not _ TM1 HR)
-        as (nmpath & MN1 & TN1 & HPreserveR1 & HND1 & HF1).
+      specialize IHmpath with (MNm1:=MN0)(MN0:=MN0')(MS1:=MS1)
+        as (nmpath & MN1 & TN1 & HPreserveR1 & HND1 & HF1); eauto.
 
       exists (na :: nmpath), MN1.
-      repeat split; eauto with LTS.
-      intros.
-      kill H0; subst...
-      rewrite HND0...
-
+      repeat split; attac.
+      + destruct `(_ \/ _); attac.
+      + destruct ( MNAct_to_PNAct na ); attac.
+        destruct_ma a; attac.
     - destruct H as [t0 [v Hn]].
       kill Hn.
 
@@ -1025,15 +1062,18 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       rename H into HR0'_not.
 
       rewrite <- HEq in TM1.
+      destruct v; doubt.
 
-      specialize (IHmpath HF_mpath HC_mpath _ _ HND0' HFN0' HR0'_not _ TM1 HR)
-        as (nmpath & MN1 & TN1 & HPreserveR1 & HND1 & HF1).
+      specialize IHmpath with (MNm1:=MN0)(MN0:=MN0')(MS1:={| mserv_q := MQ1 ++ MQ'; mserv_m := M1; mserv_s := S1 |})
+        as (nmpath & MN1 & TN1 & HPreserveR1 & HND1 & HF1); eauto.
+      1: { attac. }
+
 
       exists (na :: nmpath), MN1.
-      repeat split; eauto with LTS.
-      intros.
-      kill H; subst...
-      rewrite HND0...
+      repeat split; attac.
+      + destruct `(_ \/ _); attac.
+      + destruct (MNAct_to_PNAct na); attac.
+        destruct v; attac.
   Qed.
 
 
@@ -1052,17 +1092,65 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Qed.
 
 
+    Lemma net_induction_w_path :
+      forall [NP : MNet -> Prop] [P : MServ -> Prop]  [chans : list Name] ,
+        (forall n N0,
+            NP N0 ->
+            exists npath N1,
+              (N0 =[ npath ]=> N1)
+              /\ (forall m, (n = m \/ P (NetMod.get m N0)) -> P (NetMod.get m N1))
+              /\ NP N1
+              /\ MNPath_to_PNPath npath = []
+        ) ->
+        (forall N0,
+            (forall n, not (In n chans) -> P (NetMod.get n N0)) ->
+            NP N0 ->
+            exists npath N1,
+              (N0 =[ npath ]=> N1)
+              /\ (forall n, P (NetMod.get n N1))
+              /\ NP N1
+              /\ MNPath_to_PNPath npath = []
+        ).
+
+      intros NP P chans HLoc0.
+      induction chans; intros N0 HStay0 HGlob0.
+      exists []. exists N0. repeat split; auto. constructor.
+
+      rename a into n.
+      specialize (HLoc0 n N0 HGlob0) as (npath0 & N0' & TN0 & HLoc0' & HGlob0' & HPath).
+
+      assert (forall n : Name, ~ In n chans -> P (NetMod.get n N0')) as Ind_in.
+      intros.
+
+      destruct (NAME.eq_dec n0 n); subst.
+      apply HLoc0'. left; auto.
+
+      apply HLoc0'. right.
+
+      apply HStay0.
+      unfold not.
+      intros.
+      kill H0.
+
+      specialize (IHchans N0' Ind_in HGlob0') as (npath1 & N1 & TN1 & HLoc1 & HG1 & HPath1).
+
+      exists (npath0 ++ npath1), N1.
+      attac.
+      rewrite HPath1. rewrite HPath. auto.
+    Qed.
+
   Lemma flush_nosend' : forall [chans] MN0,
       (forall n, not (In n chans) -> flushed_in n MN0) ->
       no_sends MN0 ->
       exists nmpath MN1,
         (MN0 =[nmpath]=> MN1)
         /\ flushed MN1
-        /\ no_sends MN1.
+        /\ no_sends MN1
+        /\ MNPath_to_PNPath nmpath = [].
 
   Proof.
     intros chans.
-    apply net_induction.
+    apply net_induction_w_path.
     apply flush_nosend_one.
   Qed.
 
@@ -1083,6 +1171,38 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     intros chans.
     intros MN0.
     specialize (net_induction) with (P := fun (M : MServ) => ready M).
+    intros.
+
+    enough (forall MNm1 n MN0,
+               (deinstr MNm1 = deinstr MN0 /\ flushed MN0) ->
+               exists nmpath MN1,
+                 (MN0 =[ nmpath ]=> MN1)
+                 /\ (forall m, (n = m \/ ready_in m MN0) -> ready_in m MN1)
+                 /\ (deinstr MNm1 = deinstr MN1 /\ flushed MN1)) by eauto.
+
+    intros.
+    specialize flushed_ready_one with (MNm1:=MNm1)(n:=n)(MN0:=MN1) as (mnpath & MN2 & ?).
+    1: attac.
+    exists mnpath, MN2.
+    attac.
+  Qed.
+
+
+
+  Lemma flushed_ready' : forall [chans] MN0,
+      (forall n, not (In n chans) -> ready_in n MN0) ->
+      (deinstr MN0 = deinstr MN0 /\ flushed MN0) ->
+      exists nmpath MN1,
+        (MN0 =[nmpath]=> MN1)
+        /\ ready_net MN1
+        /\ (deinstr MN0 = deinstr MN1 /\ flushed MN1)
+        /\ MNPath_to_PNPath nmpath = [].
+
+  Proof.
+    intros chans.
+    intros MN0.
+    specialize (net_induction_w_path) with (P := fun (M : MServ) => ready M).
+    intros.
     eauto using flushed_ready_one.
   Qed.
 
@@ -1728,7 +1848,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
          =[nmpath]=>
            NetMod.put n (mserv (MQ1 ++ MQ') M1 S1) (apply_instr I1 N0)
         )
-        /\ MQ_Clear MQ'.
+        /\ MQ_Clear MQ'
+        /\ MNPath_to_PNPath nmpath = MNPath_to_PNPath (lift_path n [ma]).
 
   Proof.
     intros *. intros HC HF TM.
@@ -1803,7 +1924,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         exists I1, [].
 
         rewrite app_nil_r.
-        split; try constructor.
+        split; try constructor; eauto with LTS.
 
         apply path_seq0.
         replace (MActM _) with (send (n0, t0) (MValM msg)) in NT_send; auto.
@@ -1850,7 +1971,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       exists I0, [].
 
       rewrite app_nil_r.
-      split; try constructor.
+      split; try constructor; eauto 10 with LTS.
 
       apply path_seq0.
       constructor.
@@ -1871,7 +1992,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       exists I0, [].
 
       rewrite app_nil_r.
-      split; try constructor.
+      split; try constructor; eauto with LTS.
 
       apply path_seq0.
       constructor.
@@ -1902,7 +2023,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
          =[nmpath]=>
            NetMod.put n (mserv (MQ1 ++ MQ') M1 S1) (apply_instr I1 N0)
         )
-        /\ MQ_Clear MQ'.
+        /\ MQ_Clear MQ'
+        /\ MNPath_to_PNPath nmpath = MNPath_to_PNPath (lift_path n mpath).
 
   Proof with (eauto with LTS).
     induction mpath; intros *; intros HC HF TM.
@@ -1926,6 +2048,17 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     exists (nmpath0 ++ nmpath1), I1, (MQ'0' ++ MQ1').
     rewrite app_assoc.
     attac.
+    blast_cases; attac.
+
+
+    rewrite  `(MNPath_to_PNPath nmpath0 = _) in *.
+    rewrite  `(MNPath_to_PNPath nmpath1 = _) in *. auto.
+
+    rewrite  `(MNPath_to_PNPath nmpath0 = _) in *.
+    rewrite  `(MNPath_to_PNPath nmpath1 = _) in *. auto.
+
+    rewrite  `(MNPath_to_PNPath nmpath0 = _) in *.
+    rewrite  `(MNPath_to_PNPath nmpath1 = _) in *. auto.
   Qed.
 
 
@@ -1943,7 +2076,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         )
         /\ flushed MN1
         /\ deinstr MN0 = deinstr MN1
-        /\ MQ_Clear MQ'.
+        /\ MQ_Clear MQ'
+        /\ MNPath_to_PNPath nmpath = MNPath_to_PNPath (lift_path n [ma]).
 
   Proof with eattac.
     intros *. intros HC HF TM HFN0.
@@ -1955,15 +2089,17 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       smash_eq n n0.
       + exists [MqProbe (n, t0) msg], MN0.
         hsimpl; hsimpl; eattac.
+        eapply path_seq0.
         eapply NTrans_Comm_eq_inv. hsimpl.
-        eexists _, _. eattac; constructor. 
+        eexists _, _. eattac; constructor.
 
       (* + eexists [], _. *)
       (* repeat split. TODO bug report? why does this instantiate evar? *)
       + destruct (NetMod.get n0 MN0) as [MQr0 Mr0 Sr0] eqn:?.
         eexists [], (NetMod.put n0 (mserv (MQr0 ++ [MqProbe (n, t0) msg]) Mr0 Sr0) MN0).
         eattac.
-        * eapply NTrans_Comm_neq_inv; auto.
+        * eapply path_seq0.
+          eapply NTrans_Comm_neq_inv; auto.
           ltac1:(autorewrite with LTS in * ).
           exists (mserv MQ1 M1 S1).
           exists (mserv (MQr0 ++ [MqProbe (n, t0) msg]) Mr0 Sr0).
@@ -1984,6 +2120,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       exists [], MN0.
 
       hsimpl in |- *. attac.
+      eapply path_seq0.
       constructor; attac.
       hsimpl in |- *.
       eapply NVTrans_inv. eattac.
@@ -1994,6 +2131,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       hsimpl in |- *.
       constructor; attac. (* TODO why doesn't this click? *)
       hsimpl in |- *.
+      eapply path_seq0.
       eapply NTrans_Tau_inv; eattac. eexists _. eattac.
       constructor; eattac. (* WTF? *)
   Qed.
@@ -2013,7 +2151,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         )
         /\ flushed MN1
         /\ deinstr MN0 = deinstr MN1
-        /\ MQ_Clear MQ'.
+        /\ MQ_Clear MQ'
+        /\ MNPath_to_PNPath nmpath = MNPath_to_PNPath (lift_path n mpath).
 
   Proof with eattac.
     induction mpath; intros * HC HF TM HFN0.
@@ -2031,8 +2170,16 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     specialize (IHmpath _ _ _ _ _ _ n MN0' HC1 HF1 TM1 HFN0')
       as (nmpath1 & MQ1' & MN1 & TNM1 & HFN1 & HNDI1 & HMQ1).
 
+    hsimpl in *.
+    subst.
+
     exists (nmpath0 ++ nmpath1), (MQ'0' ++ MQ1'), MN1...
     rewrite app_assoc in *. eattac.
+
+    rewrite  `(MNPath_to_PNPath nmpath0 = _) in *.
+    rewrite  `(MNPath_to_PNPath nmpath1 = _) in *. simpl.
+
+    destruct_ma a; simpl in *; auto.
   Qed.
 
 
@@ -2058,7 +2205,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         (apply_instr I0 N0 =[mnpath]=> MN1)
         /\ NVTrans n (send n' (MValP v)) MN1 (NetMod.put n (mserv MQ1 M1 S1) (apply_instr I1 N0))
         /\ N0 = deinstr MN1
-        /\ MQ_Clear MQ1.
+        /\ MQ_Clear MQ1
+        /\ MNPath_to_PNPath mnpath = [].
 
   Proof.
     intros *. intros T.
@@ -2107,6 +2255,12 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         hsimpl in |- *.
         destruct (instr_for I1 n0).
         hsimpl; attac.
+    - rewrite HMQ'0.
+      clear - HF0 HC0 M0.
+      induction mpath_flush; auto.
+      attac.
+      destruct_ma a; attac.
+      Unshelve. auto.
   Qed.
 
   Lemma Transp_completeness_recv_old : forall [n v] [S0 S1] MQ0 M0,
@@ -2138,7 +2292,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         /\ ((NetMod.put n MS0 MN0) =[mnpath]=> (NetMod.put n (mserv MQ1 M1 S1) MN1))
         /\ deinstr MN0 = deinstr MN1
         /\ MQ_Clear MQ1
-        /\ flushed MN1.
+        /\ flushed MN1
+        /\ (MQ_Clear (mserv_q (NetMod.get n MN0)) -> MNPath_to_PNPath mnpath = []).
 
   Proof.
     intros *. intros T0 HFN0.
@@ -2215,6 +2370,15 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       apply NT_Vis in TM2.
       rewrite NetMod.put_put_eq in TM2.
       attac.
+    - attac.
+    - attac.
+      rewrite HMQ3. clear HMQ3.
+      rewrite app_nil_r.
+      clear - HF2 HC1 M0.
+
+      induction mpath; attac.
+      destruct_ma a; attac.
+      Unshelve. auto.
   Qed.
 
 
@@ -2258,7 +2422,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Lemma transp_complete1 : forall I0 {na} {N0 N1 : Net},
       (N0 =(na)=> N1) ->
       exists nmpath I1,
-        (apply_instr I0 N0 =[nmpath]=> apply_instr I1 N1).
+        (apply_instr I0 N0 =[nmpath]=> apply_instr I1 N1)
+        /\ MNPath_to_PNPath nmpath = [na].
 
   Proof with (eauto with LTS).
     intros * TN.
@@ -2266,6 +2431,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     - kill H.
       apply (Net_Vis_Transp_completeness_tau I0) in H0.
       exists [NTau n (MActP Tau)], I0.
+      split; auto.
       apply path_seq0.
       attac.
     - kill H. kill H0.
@@ -2276,7 +2442,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       rename S0 into Sm.
 
       destruct (prepare_send I0 T_send)
-        as (mnpath0 & I1 & MQ_n & M_n & MN1 & TN0 & TN_send & HND1 & HMQ_n).
+        as (mnpath0 & I1 & MQ_n & M_n & MN1 & TN0 & TN_send & HND1 & HMQ_n & HMP).
 
       remember (NetMod.put n (mserv MQ_n M_n Sn) (apply_instr I1 N0)) as MN1'.
 
@@ -2309,7 +2475,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       rewrite <- HND1 in HRC0.
 
       destruct (prepare_recv T_recv HFN1')
-        as (mnpath1 & MS_m0 & MQ_m & M_m & MN3' & TN_recv & TN2 & HND2 & HMQ_m & HFN3').
+        as (mnpath1 & MS_m0 & MQ_m & M_m & MN3' & TN_recv & TN2 & HND2 & HMQ_m & HFN3' & HMP2).
 
       remember (NetMod.put m MS_m0 MN1') as MN2.
       remember (NetMod.put m (mserv MQ_m M_m Sm) MN3') as MN3.
@@ -2362,8 +2528,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         apply HFN3'.
       }
 
-      destruct (flushed_ready MN3 HRd3)
-        as (mnpath2 & MN4 & TN3 & HRd4 & HND4 & HFN4); auto.
+      destruct (flushed_ready' MN3 HRd3)
+        as (mnpath2 & MN4 & TN3 & HRd4 & (HEq & HFN4) & HND4); auto.
 
       destruct (flushed_ready_instr HFN4 HRd4)
         as (I & Eq).
@@ -2371,42 +2537,41 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
       unshelve eexists (mnpath0 ++ [NComm n m t _] ++ mnpath1 ++ mnpath2). apply (MValP v).
       exists &I.
 
-      apply path_seq with (middle := MN1); auto.
-      apply path_seq with (middle := MN2); auto.
-      apply path_seq with (middle := MN3); auto.
+      split.
+      + apply path_seq with (middle := MN1); auto.
+        apply path_seq with (middle := MN2); auto.
+        apply path_seq with (middle := MN3); auto.
 
-      rewrite <- HND4 in *.
-      rewrite &Eq in TN3.
-      unfold deinstr in TN3.
-      subst.
-      rewrite NetMod.put_map in TN3.
-      unfold deinstr in HND2.
-      rewrite <- HND2 in TN3.
-      rewrite NetMod.put_map in TN3.
+        Set Printing Coercions.
+        enough (MN4 = &I (NetMod.put m Sm (NetMod.put n Sn N0))) by (subst; auto).
+        rewrite <- HEq in *.
+        rewrite &Eq in *. clear HEq Eq.
+        f_equal.
 
-      assert (serv_deinstr (mserv MQ_n M_n Sn) = Sn).
-      {
-        unfold serv_deinstr.
-        destruct Sn. clear - HMQ_n. eattac.
-      }
+        rewrite HND1 in *. clear HND1.
+        unfold deinstr in *.
 
-      assert (serv_deinstr (mserv MQ_m M_m Sm) = Sm).
-      {
-        unfold serv_deinstr.
-        destruct Sm. simpl. clear - HMQ_m. eattac.
-      }
+        compat_hsimpl in *.
+        hsimpl in *.
+        f_equal.
+        smash_eq n m.
 
-      rewrite H in *.
-      rewrite H0 in *.
-      subst.
-      specialize instr_inv as HNDI.
-      unfold apply_instr in *.
-      unfold deinstr in *.
-
-      repeat (rewrite NetMod.put_map in * ).
-      repeat (rewrite HNDI in * ).
-
-      apply TN3.
+      + subst.
+        enough (MNPath_to_PNPath mnpath2 = [] /\MNPath_to_PNPath mnpath1 = []).
+        {
+          hsimpl in *.
+          rewrite MNPath_to_PNPath_app.
+          rewrite HMP.
+          simpl.
+          rewrite MNPath_to_PNPath_app.
+          rewrite H0.
+          rewrite HND4.
+          auto.
+        }
+        split.
+        * auto.
+        * apply HMP2.
+          attac.
   Qed.
 
 
@@ -2414,7 +2579,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
   Theorem transp_complete : forall {path} I0 {N0 N1 : Net},
       (N0 =[ path ]=> N1) ->
       exists mpath I1,
-        (apply_instr I0 N0 =[ mpath ]=> apply_instr I1 N1).
+        (apply_instr I0 N0 =[ mpath ]=> apply_instr I1 N1)
+        /\ MNPath_to_PNPath mpath = path.
 
   Proof with attac.
     induction path; intros.
@@ -2425,6 +2591,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
     apply (IHpath I0') in T1 as (mpath1 & I1 & NT1). clear IHpath.
 
     exists (mpath0 ++ mpath1), I1...
+
+    now rewrite `(MNPath_to_PNPath _ = _).
   Qed.
 
 

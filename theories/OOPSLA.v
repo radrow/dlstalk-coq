@@ -26,11 +26,9 @@ Require Import DlStalk.Compl.
 Require Import DlStalk.GenFramework.
 Require Import DlStalk.PresentationCompat.
 
-From Coq Require Import Strings.String.
 From Coq Require Import Lists.List.
 From Coq Require Import Structures.Equalities.
 Import ListNotations.
-Open Scope string_scope.
 
 Import Theory.
 Import SrpcDefs.
@@ -143,15 +141,19 @@ Module CorrectnessCriteria.
 
   (** ** Transparency *)
   (** *** _Criterion 2.1_ *)
+  (** [Net] is an _unmonitored network_, [MNet] is _monitored_. [instr] is an
+  _instrumentation_. Their definitions are discussed later in this document. We
+  use names like [ppath] to describe paths of unmonitored networks, and [mpath]
+  for monitored. *)
 
   Definition transp_completeness (N0 : Net) (i0 : instr) :=
     forall path N1, (N0 =[ path ]=> N1) ->
-    exists mpath (i1 : instr), i0 N0 =[ mpath ]=> i1 N1.
+    exists mpath (i1 : instr), (i0 N0 =[ mpath ]=> i1 N1).
 
   Definition transp_soundness (N0 : Net) (i0 : instr) :=
-    forall mnpath0 (MN1 : MNet), (i0 N0 =[ mnpath0 ]=> MN1) ->
-    exists mnpath1 pnpath (i2 : instr) (N2 : Net),
-      (MN1 =[ mnpath1 ]=> i2 N2) /\ (N0 =[ pnpath ]=> N2).
+    forall mpath0 (MN1 : MNet), (i0 N0 =[ mpath0 ]=> MN1) ->
+    exists mpath1 ppath (i2 : instr) (N2 : Net),
+      (MN1 =[ mpath1 ]=> i2 N2) /\ (N0 =[ ppath ]=> N2).
 
   (** ** Preciseness *)
   (** *** _Criterion 2.2_ *)
@@ -547,46 +549,66 @@ MNPath_to_PNPath
   end  : list MNAct -> list PNAct.
 ]] *)
 
-
-
-(** Transparency (see [DlStalk.Transp]) *)
-Check transp_sound : forall mnpath (MN0 MN1 : MNet),
-    MN0 =[ mnpath ]=> MN1 -> exists pnpath, deinstr MN0 =[ pnpath ]=> deinstr MN1.
-
+(** *** _Lemma 4.9_ *)
 Check @transp_complete : forall path (i0 : instr) (N0 N1 : Net),
-    N0 =[ path ]=> N1 -> exists mpath (i1 : instr), i0 N0 =[ mpath ]=> i1 N1.
+    (N0 =[ path ]=> N1) ->
+    exists (mpath : list MNAct) (I1 : instr),
+      (i0 N0 =[ mpath ]=> I1 N1)
+      /\ MNPath_to_PNPath mpath = path.
 
-(** _Theorem 4.8_ *)
+(** *** _Theorem 4.8_ : Transparency --- completeness *)
 Goal forall N0 i0, CorrectnessCriteria.transp_completeness N0 i0.
   unfold CorrectnessCriteria.transp_completeness.
-  eauto using transp_complete.
+  intros.
+  specialize @transp_complete with (I0:=i0)(path:=path)(N0:=N0)(N1:=N1)
+    as (mpath & i1 & ? & ?); eauto.
 Qed.
 
-(** _Theorem 4.11_ *)
+(** *** _Lemma 4.12_ *)
+(** We first prove that a path of *any* monitored network is replicable after
+deinstrumentation. *)
+Check MNPath_do : forall (mpath : list (NAct (Act:=MAct))) (MN0 MN1 : MNet),
+    MN0 =[ mpath ]=> MN1 -> deinstr MN0 =[ mpath ]=> deinstr MN1.
+
+(** We now show the statement from the submission. *)
+
+Goal forall (N0 : Net) (i0 : instr) mpath0 (MN1 : MNet),
+    (i0 N0 =[ mpath0 ]=> MN1) ->
+    exists mpath1 (i2 : instr) (N2 : Net),
+      (MN1 =[ mpath1 ]=> i2 N2)
+    /\ (N0 =[ MNPath_to_PNPath (mpath0 ++ mpath1) ]=> N2).
+Proof.
+  intros.
+  specialize @transp_sound_instr with (mnpath0:=mpath0)(I0:=i0)(N0:=N0)(MN1:=MN1)
+    as (mpath1 & ppath & i2 & N2 & ? & ?); auto.
+  exists mpath1, i2, N2.
+  split; auto.
+  assert (deinstr (i0 N0) =[mpath0 ++ mpath1]=> deinstr (i2 N2)) by eauto using MNPath_do with LTS.
+  repeat (rewrite instr_inv in * ).
+  remember (mpath0 ++ mpath1) as mpath; clear Heqmpath.
+  clear - H2.
+  generalize dependent N0.
+  induction mpath; attac.
+  apply IHmpath in H3.
+  consider (N0 =(a)=> N1); attac.
+  - destruct_ma a0; eattac.
+    apply path_seq1 with (middle:=(NetMod.put n &S N0)); attac.
+  - destruct v; attac.
+    apply path_seq1 with (middle:=(NetMod.put n' &S (NetMod.put n &S0 N0))); eattac.
+    econstructor; eattac.
+Qed.
+
+
+(** *** _Theorem 4.11_ : Transparency --- soundness *)
 Goal forall N0 i0, CorrectnessCriteria.transp_soundness N0 i0.
   unfold CorrectnessCriteria.transp_soundness.
+  intros.
   eauto using transp_sound_instr.
 Qed.
 
 (** * A Distributed Black-Box Monitoring Algorithm for Deadlock Detection *)
 
-(** Monitor state (see [DlStalk.Compl]) *)
-Locate MState.
-Print MState'.
-Check self       : MState -> Name.
-Check locked     : MState -> option Name.
-Check wait       : MState -> list Name.
-Check lock_count : MState -> nat.
-Check alarm      : MState -> bool.
-
-(** Probes. [MProbe] is an alias for a slightly more generic [MProbe'] (see
-[DlStalk.Compl]) *)
-Locate MProbe.
-Print MProbe'.
-Check origin  : MProbe -> Name.
-Check lock_id : MProbe -> nat.
-
-(** _Proposition 5.1_ : Deadset-cycle equivalence (see [DlStalk.NetLocks]) *)
+(** *** _Proposition 5.1_ : Deadset-cycle equivalence (see [DlStalk.NetLocks]) *)
 Check dead_set_cycle : forall N : Net,
     lock_uniq_type N -> lock_neq_nil_type N -> locks_dec_in N ->
     forall DS, dead_set DS N -> exists n, In n DS /\ trans_lock N n n.
@@ -595,13 +617,36 @@ Check cycle_dead_set : forall N : Net,
     lock_uniq_type N -> lock_neq_nil_type N ->
     forall n, trans_lock N n n -> exists DS, In n DS /\ dead_set DS N.
 
+
+(** *** _Definition 5.2_ Implementation of the algorithm (see [DlStalk.Compl])
+*)
+(** **** Monitor state (see [DlStalk.Compl]). *)
+(** We implement "fresh probes" by storing the name of the originator ([self]
+becomes [origin]) and counting how many times the service has been locked
+([lock_count] becomes [lock_id]). *)
+Locate MState.
+Print MState'.
+Check self       : MState -> Name.
+Check locked     : MState -> option Name.
+Check wait       : MState -> list Name.
+Check lock_count : MState -> nat.
+Check alarm      : MState -> bool.
+
+(** **** Probes *)
+(** [MProbe] is an alias for a slightly more generic [MProbe'] (see
+[DlStalk.Compl]) *)
+Locate MProbe.
+Print MProbe'.
+Check origin  : MProbe -> Name.
+Check lock_id : MProbe -> nat.
+
 Module Type Alg.
   (* It needs to be a bit backdoored to instantiate abstract parameters *)
   Declare Module Conf : DETECT_CONF.
   Declare Module Params : MON_PARAMS(Conf).
   Include Mh(Conf)(Params).
 
-  (** _Definition 5.2_ Implementation of the algorithm (see [DlStalk.Compl]) *)
+  (** **** The algorithm *)
   Check mon_handle : EMsg -> MState -> MProc.
   Print mon_handle.
 End Alg.
@@ -610,12 +655,15 @@ End Alg.
 
 (** ** Invariant Properties of Well-Formed SRPC Networks *)
 
-(** _Definition 6.2_ : The client relation. (see [DlStalk.NetLocks] and [DlStalk.PresentationCompat] for compatibility lemmas) *)
+(** *** _Definition 6.2_ : The client relation *)
+(** (see [DlStalk.NetLocks] and [DlStalk.PresentationCompat] for compatibility
+lemmas) *)
 Print Paper.client.
 Print serv_client.
 Check client_eq : forall n S, serv_client n S <-> Paper.client n S.
 
-(** _Definition 6.3_ : Well-formedness at the greatest detail (see [DlStalk.SRPCNet]) *)
+(** *** _Definition 6.3_ : Well-formedness *)
+(** (see [DlStalk.SRPCNet]) *)
 Print service_wf.
 
 Check service_wf_SRPC_inv : forall [srpc : SRPC_State] [S],
@@ -678,25 +726,24 @@ Check service_wf_c_excl_R_inv : forall [srpc : SRPC_State] [c v I P O],
     proc_client c P ->
     ~ In (c, R, v) O.
 
-(** _Definition 6.4_ *)
+(** *** _Definition 6.4_ *)
 Print well_formed.
 
-(** _Theorem 6.5_ *)
+(** *** _Theorem 6.5_ *)
 Check well_formed_invariant : trans_invariant well_formed always.
 
 (** ** Monitor Knowledge Invariant for Complete Deadlock Detection  *)
-
-(**  (see [DlStalk.Compl]) *)
+(** (see [DlStalk.Compl]) *)
 
 Print sends_probe.
 
-(** _Definition 6.8_ TODO compatibility *)
+(** *** _Definition 6.8_ TODO compatibility *)
 Print alarm_condition.
 
-(** _Definition 6.7_ *)
+(** *** _Definition 6.7_ *)
 Print KIC.
 
-(** _Lemma 6.9_ *)
+(** *** _Lemma 6.9_ *)
 Check ac_to_alarm : forall MN0 n,
     KIC MN0 ->
     alarm_condition n MN0 ->
@@ -707,12 +754,11 @@ Check ac_to_alarm : forall MN0 n,
       /\ detect_path DS mpath
       /\ alarm (MN1 n) = true.
 
-(** _Theorem 6.10_ *)
+(** *** _Theorem 6.10_ *)
 Check KIC_invariant : trans_invariant KIC always.
 
 
 (** ** Monitor Knowledge Invariant for Sound Deadlock Detection  *)
-
 (** (see [DlStalk.Sound]) *)
 Print sends_to.
 Print sends_to_mon.
@@ -722,7 +768,7 @@ Check stm_seek : forall n nc' p p' M,
     sends_to_mon M n p ->
     sends_to_mon (MSend nc' p' M) n p.
 
-(** _Definition 6.11_ *)
+(** *** _Definition 6.11_ *)
 Print KIS.
 
 Check KIS_well_formed : forall [MN], KIS MN -> well_formed '' MN.
@@ -765,12 +811,12 @@ Check KIS_alarm : forall [MN],
 (** Monitor message (in monitor queue) holding an active probe *)
 Print active_ev_of.
 
-(** _Theorem 6.12_ *)
+(** *** _Theorem 6.12_ *)
 Check KIS_invariant : trans_invariant KIS always.
 
 (** ** Deadlock Detection Preciseness Result *)
 
-(** _Theorem 6.13_ *)
+(** *** _Theorem 6.13_ *)
 
 Check KIC_detection_complete : forall (i0 : instr) N0 MN1 mpath0 DS,
     KIC (i0 N0) ->
