@@ -539,7 +539,7 @@ Check instr_inv : forall (i : instr) N, deinstr (i N) = N.
 
 Print MNAct_to_PNAct.
 (** [[
-MNAct_to_PNAct = fun (ma : MNAct) =>
+fix MNAct_to_PNAct (ma : MNAct) :=
   match ma with
   | NComm n m t (MValP v) => Some (@NComm PAct _ n m t v)
   | NTau n (MActP Tau) => Some (NTau n Tau)
@@ -550,8 +550,7 @@ MNAct_to_PNAct = fun (ma : MNAct) =>
 
 Print MNPath_to_PNPath.
 (** [[
-MNPath_to_PNPath
-(mpath : list MNAct) : list PNAct :=
+fix MNPath_to_PNPath (mpath : list MNAct) : list PNAct :=
   match mpath with
   | [] => []
   | ma :: mpath' =>
@@ -564,11 +563,30 @@ MNPath_to_PNPath
  *)
 
 (** *** _Lemma 4.9_ *)
+(** We realised that proofs in the [DlStalk.Transp] module do not expose the
+path correspondence for completeness (the part commented out, [MNPath_to_PNPath
+mpath = path]). To fix this, we provide an additional module
+[DlStalk.TranspImproved] which serves as a replacement for [DlStalk.Transp],
+where the full version is addressed. *)
 Check @transp_complete : forall path (i0 : instr) (N0 N1 : Net),
     (N0 =[ path ]=> N1) ->
     exists (mpath : list MNAct) (I1 : instr),
       (i0 N0 =[ mpath ]=> I1 N1)
-      /\ MNPath_to_PNPath mpath = path.
+      (* /\ MNPath_to_PNPath mpath = path *)
+.
+
+Module TranspImprovedSandbox.
+  Require DlStalk.TranspImproved.
+  Module Import TI := Empty <+ DlStalk.TranspImproved.TRANSP(DetConf).
+
+  (** Here it works *)
+  Check @transp_complete : forall path (i0 : instr) (N0 N1 : Net),
+      (N0 =[ path ]=> N1) ->
+      exists (mpath : list MNAct) (I1 : instr),
+        (i0 N0 =[ mpath ]=> I1 N1)
+        /\ MNPath_to_PNPath mpath = path.
+
+End TranspImprovedSandbox.
 
 (** *** _Theorem 4.8_ : Transparency --- completeness *)
 Lemma oopsla_transp_completeness : forall N0 i0,
@@ -578,7 +596,7 @@ Proof.
   unfold CorrectnessCriteria.transp_completeness.
   intros.
   specialize @transp_complete with (I0:=i0)(path:=path)(N0:=N0)(N1:=N1)
-    as (mpath & i1 & ? & ?); eauto.
+    as (mpath & i1 & ?); attac.
 Qed.
 
 (** *** _Lemma 4.12_ *)
