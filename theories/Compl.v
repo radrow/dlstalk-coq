@@ -5499,7 +5499,7 @@ Module Type COMPL_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
 
   Proof.
     intros.
-    consider (exists mpath0 (i1 : instr), (i0 N0 =[ mpath0 ]=> i1 N1) /\ MNPath_to_PNPath mpath0 = path)
+    consider (exists mpath0 (i1 : instr), i0 N0 =[ mpath0 ]=> i1 N1)
       by eauto using transp_complete.
     consider (exists n, In n DS /\ trans_lock N1 n n)
       by (eapply dead_set_cycle; eauto with LTS).
