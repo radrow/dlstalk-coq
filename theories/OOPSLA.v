@@ -571,28 +571,19 @@ fix MNPath_to_PNPath (mpath : list MNAct) : list PNAct :=
 
 (** *** _Lemma 4.9_ *)
 (** We realised that proofs in the [DlStalk.Transp] module do not expose the
-path correspondence for completeness (the part commented out, [MNPath_to_PNPath
-mpath = path]). To fix this, we provide an additional module
-[DlStalk.TranspImproved] which serves as a replacement for [DlStalk.Transp],
-where the full version is addressed. *)
-Check @transp_complete : forall path (i0 : instr) (N0 N1 : Net),
-    (N0 =[ path ]=> N1) ->
-    exists (mpath : list MNAct) (I1 : instr),
-      (i0 N0 =[ mpath ]=> I1 N1)
-      (* /\ MNPath_to_PNPath mpath = path *)
-.
+path correspondence for completeness (the [MNPath_to_PNPath mpath = path] part).
+To fix this, we provide an additional module [DlStalk.TranspImproved] which
+serves as a replacement for [DlStalk.Transp], where the full version is
+addressed. *)
 
 Module TranspImprovedSandbox.
   Require DlStalk.TranspImproved.
   Module Import TI := Empty <+ DlStalk.TranspImproved.TRANSP(DetConf).
-
-  (** Here it works *)
   Check @transp_complete : forall path (i0 : instr) (N0 N1 : Net),
       (N0 =[ path ]=> N1) ->
       exists (mpath : list MNAct) (I1 : instr),
         (i0 N0 =[ mpath ]=> I1 N1)
         /\ MNPath_to_PNPath mpath = path.
-
 End TranspImprovedSandbox.
 
 (** *** _Theorem 4.8_ : Transparency --- completeness *)
