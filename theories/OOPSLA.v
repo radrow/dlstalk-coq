@@ -38,47 +38,51 @@ Module Compat := Empty <+ MK_COMPAT_INST(DetConf)(Sound).
 
 
 (** * Introduction *)
-(** This file provides outline of the mechanised theory presented in our
-submission to OOPSLA 2025. The structure this file closely follows sections of
-the submission. Theorems and definitions used in the submissions are pointed out
-in third-level headers. This outline works best if previewed interactively in a
-Coq/Rocq IDE, because it allows previewing of context-dependent outputs. *)
+(** This file outlines the mechanised theory presented in our submission to
+OOPSLA 2025. The structure of this file closely follows how the submission is
+divided into sections. Theorems and definitions used in the submissions are
+pointed out in third-level headers. This outline works best if viewed
+interactively in a Coq/Rocq IDE, because it allows previewing context-dependent
+outputs. *)
 
 (** ** Differences *)
-(** The mechanisation introduces concepts in a slightly different flavour,
+(** The mechanisation introduces some concepts in a slightly different flavour,
 mostly due to quirks of the tool; we provided explanations where the connection
 might be less obvious. The most notable differences are:
 
-- We do not provide direct semantics for generic SRPC processes. Instead, the
+- We do not provide semantics for generic SRPC processes. Instead, the
   mechanisation operates on _concrete processes_ implemented directly in Gallina
   via coinduction. [SRPC] is then a coinductive property that asserts adherence
-  to the protocol described in the submission.
+  to the SRPC protocol as described in the submission.
 
 - The mechanisation does not include _casts_, and the [C] tag is non-existent.
 
-- We do not allow "no-client" ($n^{\bot}$) SRPC states. All working and locked
+- We do not allow "no-client" (n^\bot) SRPC states. All working and locked
   processes must handle a query from another member of the network.
 
 The lack of "clientless" SRPC states makes well-formedness much more
-restrictive. This is because each [Working] service [S0] now needs to be paired
-with a service [S1] that is locked on it (recall the equivalence between _lock_
-and _client_ relations). Consequently, [S1] must be [Locked S2 S0] for some [S2]
---- which in turn must be locked on [S1]. This expands further, requiring the
-space of names to be infinite (otherwise we would "run out of" names for
-services that are neither ready nor locked in cycles). Our theory is compatible
-with that: we only limit [Name] to [Set]s with decidable equality, allowing us
-to model initially [Working] services this way. To this end, we provide an
-Erlang-inspired framework for modelling well-formed initial networks with
-[gen_server]-style services and initiators to engage with them as external
-clients. The framework is also used to show that our invariants are mutually
-sound and hold in a practical class of systems. *)
+restrictive. This is because each service named [n0] that is [Working n1] needs
+to be paired with an actual service [n1] that is locked on it (recall the
+equivalence between _lock_ and _client_ relations in Definition 6.4, point 2).
+Consequently, [n1] must be [Locked n2 n0] for some [n2] --- which in turn must
+be locked on [n1]. This expands endlessly, requiring the _sort_ of names to be
+infinite (otherwise we would "run out of" names for services that are neither
+ready nor locked in cycles). Our mechanisation is compatible with that
+requirement: the only restriction we put on the [Name] type is that it belongs
+to the [Set] sort and has decidable equality. This lets us model an initially
+[Working] service [n0] via an infinite stream of services transitively locked on
+[n0]. To this end, we provide an Erlang-inspired framework ([GenServerNet]) for
+modelling well-formed initial networks with [gen_server]-style services and
+initiators to engage with them as external clients. The framework is also used
+to show that our invariants are mutually sound and hold in a practical class of
+systems. See the "appendix" of this file for more details and examples. *)
 
 (** ** Axioms and other things that may appear "assumed"
 
 A couple of objects are declared as "Axioms", "Parameters", "Variables". Most of
 them are abstracting away definitions that are not relevant for the modules they
-are declared in, and are specialised later when their implementation matters.
-The full list is attached below:
+are declared in, and are specialised only when their implementation matters. The
+full list is attached below:
 
 - [Val : Set] (in [DlStalk.ModelData] and [DlStalk.GenFramework]) --- The
   message payload. Never used in the theory, instantiated to [nat] only in
@@ -122,7 +126,10 @@ The full list is attached below:
 
 On top of that, we extensively use module types following the pattern proposed
 by Michael Soegtrop in
-https://coq-club.inria.narkive.com/ux8RG4m7/module-best-practices . *)
+https://coq-club.inria.narkive.com/ux8RG4m7/module-best-practices . While useful
+in code organisation, this sometimes obfuscates in-code locations of identifiers
+--- we therefore explicitly point to [.v] files where automatic navigation
+provided by [coqdoc] fails. *)
 
 
 (** * Correctness Criteria for Deadlock Detection Monitors in Distributed Systems *)
