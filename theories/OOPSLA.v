@@ -24,7 +24,6 @@ Require Import DlStalk.Transp.
 Require Import DlStalk.Sound.
 Require Import DlStalk.Compl.
 Require Import DlStalk.GenFramework.
-Require Import DlStalk.PresentationCompat.
 
 From Coq Require Import Lists.List.
 From Coq Require Import Structures.Equalities.
@@ -34,10 +33,568 @@ Import GenServerNet.
 Import Sound.
 Import SrpcDefs.
 
-Module Compat := Empty <+ MK_COMPAT_INST(DetConf)(Sound).
+(* begin hide *)
+(* Things in here would be put in separate files; we paste them here to simplify
+the patch. Please skip to the "Introduction" section. *)
 
+Module PaperCompat.
+  Definition serv_lock (n : Name) (S : Serv) :=
+    (forall v E, ~ Deq (n, R) v (serv_i S) E) /\ (exists c, SRPC (Locked c n) (serv_p S)) /\ (serv_o S = []).
+
+  Definition dead_set (DS : list Name) N :=
+    DS <> []  /\  (forall n0, In n0 DS -> exists n1, lock N n0 n1 /\ In n1 DS).
+
+  Inductive SRPCI : SRPC_State -> Proc -> Prop :=
+  | SRPCI_R h :
+    (forall c t, h (c, t) <> None -> t = Q) ->
+    (forall c v, exists cont, h (c, Q) = Some cont /\ SRPCI (Working c) (cont v)) ->
+    SRPCI Ready (PRecv h)
+  | SRPCI_WR c v P : SRPCI (Working c) (PSend (c, R) v P)
+  | SRPCI_WT c P : SRPCI (Working c) P -> SRPCI (Working c) (STau P)
+  | SRPCI_WQ c s v P : SRPCI (Locked c s) P -> SRPCI (Working c) (PSend (s, Q) v P)
+  | SRPCI_L c s h cont :
+    (forall nc, h nc <> None -> nc = (s, R)) ->
+    (h (s, R) = Some cont) ->
+    (forall v, SRPCI (Working c) (cont v)) ->
+    SRPCI (Locked c s) (PRecv h)
+  .
+
+  CoInductive SRPCC : SRPC_State -> Proc -> Prop :=
+  | SRPCC_R P0 : (forall c v P1, P0 =(Recv (c, Q) v)=> P1 -> SRPCC (Working c) P1) -> SRPCI Ready P0 -> SRPCC Ready P0
+  | SRPCC_W c P0 :
+    (forall v P1, P0 =(Send (c, R) v)=> P1 -> SRPCC Ready P1) ->
+    (forall P1, P0 =(Tau)=> P1 -> SRPCC (Working c) P1) ->
+    (forall s v P1, P0 =(Send (s, Q) v)=> P1 -> SRPCC (Locked c s) P1) ->
+    SRPCI (Working c) P0 -> SRPCC (Working c) P0
+  | SRPCC_L c s P0 : (forall v P1, P0 =(Recv (s, R) v)=> P1 -> SRPCC (Working c) P1) -> SRPCI (Locked c s) P0 -> SRPCC (Locked c s) P0
+  .
+
+  Definition client (n : Name) (S : Serv) :=
+    (exists v, In (n, Q, v) (serv_i S)  \/ In (n, R, v) (serv_o S))
+    \/ SRPCC (Working n) (serv_p S)  \/  (exists s, SRPCC (Locked n s) (serv_p S)).
+
+
+  Definition ac (n : Name) (MN : MNet) :=
+    exists n1 n2,
+      trans_lock MN n n1
+      /\ lock MN n1 n2
+      /\ (forall n', (n' = n2 \/ trans_lock MN n' n2) -> locked (MN n') <> None)
+      /\ ( alarm (MN n) = true
+          \/ (exists n', locked (MN n) = Some n'
+                   /\ In (active_ev_of MN n' n) (mserv_q (MN n)))
+          \/ (sends_to MN n2 n1 (active_probe_of MN n))
+          \/ (exists n', lock MN n2 n'
+                   /\ In (active_ev_of MN n' n) (mserv_q (MN n2))
+                   /\ In n1 (wait (MN n2)))
+          \/ (exists n' v MQ0 MQ1,
+                lock MN n2 n'
+                /\ mserv_q (MN n2) = MQ0 ++ (active_ev_of MN n' n) :: MQ1
+                /\ In (MqRecv (n1, Q) v) MQ0)
+          \/ (exists v, In (MqRecv (n1, Q) v) (mserv_q (MN n)))
+        ).
+End PaperCompat.
+
+
+Fact serv_lock_eq : forall S n, AnySRPC_serv S -> serv_lock [n] S <-> PaperCompat.serv_lock n S.
+Proof.
+  split; intros.
+  - consider (serv_lock _ _).
+    repeat split; repeat (intros ?); simpl in *.
+    + bs (In (n, R, v) &I).
+    + eauto using lock_SRPC_Locked with LTS.
+  - destruct S.
+    consider (PaperCompat.serv_lock _ _).
+    hsimpl in *.
+    repeat split; repeat (intros ?); simpl in *; eauto with LTS.
+    assert (exists v' E, Deq (n0, R) v' serv_i0 E) by eauto using In_Deq.
+    hsimpl in *.
+    bs.
+Qed.
+
+
+Fact dead_set_eq : forall N DS, SRPC_net N -> dead_set DS N <-> PaperCompat.dead_set DS N.
+
+Proof.
+  unfold PaperCompat.dead_set.
+  split; intros; repeat constructor; intros.
+  - attac.
+  - consider (dead_set _ _).
+    consider (exists L, lock_set N L n0 /\ incl L DS).
+    unfold lock_set, lock in *.
+    consider (exists n1, serv_lock [n1] (NetMod.get n0 N)) by eauto with LTS.
+    exists n1.
+    eattac.
+  - attac.
+  - hsimpl in *.
+    consider (exists n1, lock N n n1 /\ _) by eauto.
+    exists [n1].
+    unfold incl, lock in *.
+    attac.
+Qed.
+
+
+Inductive SRPC_measure : Proc -> Prop :=
+| ms_reply n v P : SRPC_measure (PSend (n, R) v P)
+| ms_tau P : SRPC_measure P -> SRPC_measure (STau P)
+| ms_query n v P : SRPC_measure P -> SRPC_measure (PSend (n, Q) v P)
+| ms_recv h : (forall v nc cont, h nc = Some cont -> SRPC_measure (cont v)) -> SRPC_measure (PRecv h)
+.
+
+Lemma SRPCI_measure : forall srpc P, srpc <> Ready -> PaperCompat.SRPCI srpc P -> SRPC_measure P.
+Proof.
+  intros.
+  induction H0; intros; constructor; eattac.
+  specialize (H0 nc ltac:(attac)); attac.
+  rewrite H4 in H1.
+  attac.
+Qed.
+
+Lemma SRPCC_SRPCI : forall srpc P, PaperCompat.SRPCC srpc P -> PaperCompat.SRPCI srpc P.
+  intros. kill H.
+Qed.
+
+Lemma SRPCC_measure : forall srpc P, srpc <> Ready -> PaperCompat.SRPCC srpc P -> SRPC_measure P.
+  intros.
+  eauto using SRPCC_SRPCI, SRPCI_measure.
+Qed.
+
+Lemma SRPCB_measure : forall c (srpc : SRPC_Busy_State c) P, SRPC_Busy srpc P -> SRPC_measure P.
+  intros.
+  induction H; intros.
+  - destruct P0; eattac.
+    + destruct n as [n [|]].
+      * constructor; attac.
+      * constructor; attac.
+    + constructor.
+      attac.
+  - specialize (HReplyAll some_val) as [? ?]; attac.
+    constructor.
+    attac.
+Qed.
+
+
+Fact SRPCB_eq : forall P c (srpc : SRPC_Busy_State c), SRPC_Busy srpc P <-> PaperCompat.SRPCI (Busy srpc) P.
+
+Proof.
+  split; intros.
+  - induction H.
+    + destruct P0.
+      * bs.
+      * destruct n as [n [|]].
+        -- constructor.
+           eauto with LTS.
+        -- consider (c = n) by eauto with LTS.
+           constructor.
+      * bs.
+      * constructor.
+        eauto with LTS.
+    + destruct P0.
+      * specialize (HReplyAll some_val) as [? ?]; bs.
+      * specialize (HReplyAll some_val) as [? ?]; bs.
+      * specialize (HReplyAll some_val) as [? ?]; attac.
+        econstructor; eattac.
+        destruct nc.
+        destruct (handle (n, t)) eqn:?; doubt.
+        specialize (HReplyOnly (Recv (n, t) some_val) (p some_val)) as [? ?]; eattac.
+      * specialize (HReplyAll some_val) as [? ?]; bs.
+  - assert (SRPC_measure P) by (apply SRPCI_measure with (srpc:=Busy srpc); attac).
+    generalize dependent srpc.
+    induction H0; intros; consider (PaperCompat.SRPCI _ _); attac.
+    + constructor; attac.
+    + constructor; attac.
+    + constructor; attac.
+    + constructor; eattac.
+      * consider (n = (s, R)); attac.
+      * kill H1.
+        consider (n = (s, R)); attac.
+Qed.
+
+Fact SRPC_eq : forall P srpc, SRPC srpc P <-> PaperCompat.SRPCC srpc P.
+
+Proof.
+  split; intros.
+  - generalize dependent srpc P.
+    ltac1:(cofix C).
+    intros P srpc Hsrpc.
+    destruct P > [| destruct n as [n [|]] | | ]; kill Hsrpc > [|kill HBusy].
+    all: try (solve [clear C; specialize (HQueryAll some_name some_val); kill HQueryAll; bs]).
+    all: try (solve [clear C; specialize (HReplyAll some_val); kill HReplyAll; bs]).
+    + apply PaperCompat.SRPCC_W; intros; eauto.
+      econstructor.
+      eapply SRPCB_eq.
+      eapply HQuery0.
+      attac.
+    + eapply PaperCompat.SRPCC_W; intros; eauto.
+      eapply SRPCB_eq.
+      econstructor; attac.
+    + eapply PaperCompat.SRPCC_R; intros.
+      1: { specialize HQueryOnly with (a:=Recv (c, Q) v)(P1 := P1) as [? [? ?]]; eattac. }
+      econstructor; intros.
+      * destruct (handle (c, t)) eqn:?; doubt.
+        specialize HQueryOnly with (a:=Recv (c, t) some_val)(P1 := p some_val) as [? [? ?]]; eattac.
+      * specialize (HQueryAll c v) as [? ?].
+        eattac.
+        exists cont.
+        eattac.
+        specialize HQueryOnly with (a:=Recv (c, Q) v0)(P1 := cont v0) as [? [? ?]]; eattac.
+        eapply SRPCB_eq.
+        kill H1; attac.
+    + constructor; intros; eauto.
+      eapply SRPCB_eq.
+      econstructor; intros; eauto.
+    + eapply PaperCompat.SRPCC_W; intros; eauto.
+      eapply SRPCB_eq.
+      econstructor; intros; eauto.
+  - generalize dependent srpc P.
+    ltac1:(cofix C).
+    intros P srpc Hsrpc.
+    kill Hsrpc; constructor; intros; doubt.
+    + kill H0.
+      specialize (H2 c v); eattac.
+    + kill H0.
+      attac.
+      destruct n.
+      specialize H3 with (c:=n)(v:=v); attac.
+      specialize (H2 n t ltac:(attac)); attac.
+      assert (cont0 = cont). cbv in *. rewrite H3 in H4; attac.
+      subst.
+      assert (PaperCompat.SRPCC (Working n) (cont v)). apply H with (v:=v). exists (n, Q), v, cont. attac.
+      exists n, v.
+      eattac.
+    + apply SRPCB_eq.
+      eauto.
+    + eauto.
+    + eauto.
+    + eauto.
+    + eapply SRPCB_eq.
+      eauto.
+    + apply C.
+      kill H0.
+      consider ((s0, R) = (s, R)). apply H2; attac.
+      apply H in H1.
+      auto.
+Qed.
+
+
+Fact client_eq : forall n S, serv_client n S <-> PaperCompat.client n S.
+Proof.
+  unfold PaperCompat.client.
+  split; intros.
+  - consider (serv_client _ _); unfold proc_client in *; attac.
+    rewrite SRPC_eq in *.
+    destruct srpcb; eattac.
+  - destruct S.
+    destruct `(_ \/ _); hsimpl in *.
+    + destruct `(_ \/ _); eattac.
+    + destruct `(_ \/ _); eattac; rewrite <- SRPC_eq in *; eattac.
+Qed.
+
+
+Lemma KIC_lock_locked : forall n n' MN, KIC MN -> trans_lock MN n n' -> locked (MN n) <> None.
+Proof. intros. consider (trans_lock _ _ _); attac. Qed.
+Hint Resolve KIC_lock_locked : LTS.
+
+Lemma KIC_lock_locked_loop : forall n n' MN, KIC MN -> trans_lock MN n n -> trans_lock MN n n' -> locked (MN n') <> None.
+Proof. intros. assert (trans_lock MN n' n). eapply dep_loop; eauto with LTS. eapply SRPC_lock_set_uniq; eauto with LTS. eauto with LTS. Qed.
+Hint Resolve KIC_lock_locked_loop : LTS.
+
+Lemma alarm_condition_eq : forall n MN,
+    KIC MN -> trans_lock '' MN n n ->
+    alarm_condition n MN <-> PaperCompat.ac n MN.
+Proof.
+  split; intros.
+  - consider (alarm_condition _ _).
+    + consider (exists n', lock MN n n') by (consider (trans_lock MN n n); eauto with LTS).
+      exists n, n'.
+      repeat split; intros; eauto with LTS.
+      destruct `(_ = _ \/ _); subst; eauto with LTS.
+    + assert (n = m \/ (n <> m /\ trans_lock MN n m)) as [|]
+          by (smash_eq n m; destruct `(_ = _ \/ _); attac); clear H2; subst.
+      * assert (m' = self (MN m')) by attac.
+        assert (m = self (MN m)) by attac.
+        assert (locked (MN m) = Some m') by attac.
+        consider (exists m'', lock MN m' m'').
+        {
+          consider (trans_lock MN m' m). eapply dep_loop; eauto with LTS. eapply SRPC_lock_set_uniq; attac.
+          all: eauto with LTS.
+        }
+        assert (locked (MN m') = Some m'') by attac.
+        exists m, m'.
+        repeat split; intros; eauto.
+        1: { destruct `(_ = _ \/ _); subst; eauto with LTS. }
+
+        unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+        destruct (NetMod.get m' MN) as [MQ' M' S'] eqn:HMN'.
+        destruct (NetMod.get m MN) as [MQ M S] eqn:HMN.
+        assert (m = m' -> M = M' /\ MQ = MQ' /\ m' = m'') by attac.
+        clear HMN HMN'.
+        hsimpl in *; simpl in *.
+        generalize dependent M.
+        induction M'; intros.
+        -- destruct state; hsimpl in *; simpl in *.
+           consider (sends_probe _ _ _).
+           ++ right; right; right; right. eattac.
+           ++ destruct `(In _ _ \/ _).
+              ** right; right; left. exists n'. eattac.
+              ** right; right; right; left. eattac.
+        -- consider (sends_probe _ _ _); attac.
+           destruct (NAME.eq_dec (self M) (self M')); attac.
+           ++ rewrite <- e in *. clear e.
+              attac.
+              specialize IHM' with (M := M').
+              destruct IHM' as [|[|[|[|]]]]; attac.
+              right; right; left.
+              destruct `(_ \/ _); constructor; attac.
+           ++ specialize IHM' with (M := M).
+              destruct IHM' as [|[|[|[|]]]]; attac.
+              right; right; left.
+              destruct `(_ \/ _); constructor; attac.
+      * assert (m' = self (MN m')) by attac.
+        assert (m = self (MN m)) by attac.
+        assert (n = self (MN n)) by attac.
+        assert (locked (MN m) = Some m') by attac.
+        consider (exists m'', lock MN m' m'').
+        {
+          consider (trans_lock MN m' n). eapply dep_loop; eauto with LTS. eapply SRPC_lock_set_uniq; attac.
+          all: eattac.
+        }
+        assert (locked (MN m') = Some m'') by attac.
+        hsimpl in *.
+        exists m, m'.
+        repeat split; intros; eauto.
+        1: { destruct `(_ = _ \/ _); subst; eauto with LTS. }
+
+        unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+        destruct (NetMod.get n MN) as [MQ0 M0 S0] eqn:HMN0.
+        destruct (NetMod.get m' MN) as [MQ' M' S'] eqn:HMN'.
+        destruct (NetMod.get m MN) as [MQ M S] eqn:HMN.
+        assert (n = m' -> M0 = M' /\ MQ0 = MQ') by attac.
+        clear HMN HMN' HMN0.
+        hsimpl in *; simpl in *.
+        generalize dependent M0.
+        induction M'; intros.
+        -- destruct state; hsimpl in *; simpl in *.
+           consider (sends_probe _ _ _).
+           ++ right; right; right; right. eattac.
+           ++ destruct `(In _ _ \/ _).
+              ** right; right; left. exists n'. eattac.
+              ** right; right; right; left. eattac.
+        -- consider (sends_probe _ _ _); attac.
+           destruct (NAME.eq_dec (self M0) (self M')); attac.
+           ++ rewrite <- e in *. clear e.
+              attac.
+              specialize IHM' with (M0 := M').
+              destruct IHM' as [|[|[|[|]]]]; attac.
+              right; right; left.
+              destruct `(_ \/ _); constructor; attac.
+           ++ specialize IHM' with (M0 := M0).
+              destruct IHM' as [|[|[|[|]]]]; attac.
+              right; right; left.
+              destruct `(_ \/ _); constructor; attac.
+    + exists n, n'.
+      repeat split; intros; eauto with LTS.
+      destruct `(_ \/ _); subst; eauto with LTS.
+  - unfold PaperCompat.ac in *.
+    hsimpl in *.
+    consider (exists n', lock MN n n') by (consider (trans_lock MN n n); eauto with LTS).
+    destruct `(_ \/ _) as [|[|[|[|[|]]]]]; hsimpl in *; eauto with LTS.
+    + econstructor 3 with (n':=n'); eauto.
+      enough (locked (MN n) = Some n'); attac.
+    + econstructor 2 with (m:=n1)(m':=n2); eauto.
+      unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+      destruct (NetMod.get n2 MN).
+      induction mserv_m0; attac.
+      consider (sends_to_mon _ _ _); attac.
+      specialize (IHmserv_m0 ltac:(auto)).
+      econstructor 4; eattac.
+      destruct `(_ \/ _); eauto.
+    + smash_eq n n2.
+      {
+        consider (n'0 = n') by (eapply SRPC_lock_set_uniq; eattac).
+        constructor 3 with (n':=n'); eattac.
+      }
+
+      econstructor 2 with (m:=n1)(m':=n2); eauto with LTS.
+
+      assert (NoRecvR_from n'0 (mserv_q (MN n2))).
+      {
+        unfold NoRecvR_from, NetGet, lock, lock_set in *. attac.
+        destruct (NetMod.get n2 MN) as [MQ0 M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n2 _)). attac.
+        intros ?.
+        apply H13 with (v:=v) in H4.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+      }
+
+      assert (NoSends_MQ (mserv_q (MN n2))).
+      {
+        unfold NetGet, lock, lock_set in *. attac.
+        destruct (NetMod.get n2 MN) as [MQ0 M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n2 _)). attac.
+        apply Forall_forall. intros. destruct x; attac.
+        apply H14 with (v:=v) in H4.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+        apply in_split in H10; attac.
+        clear - H15.
+        induction l1; attac.
+        destruct a; attac.
+      }
+
+      assert (locked (MN n2) = Some n'0) by attac.
+      assert (self (MN n2) = n2) by attac.
+
+      unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+      hsimpl in *. simpl in *.
+      destruct (NetMod.get n2 MN) as [MQ0 M0 S0].
+      hsimpl in *; simpl in *.
+      induction M0.
+      * apply in_split in H6 as (MQ0l & MQ0r & ?); subst.
+        econstructor 2; attac.
+        intros ? ?.
+        eapply H8; eattac.
+      * hsimpl in *. simpl in *.
+        unfold Name in *; attac.
+        destruct (NameTag_eq_dec to (n1, R)),
+          (MProbe_eq_dec msg0 {| origin := n; lock_id := lock_count (Transp.Net.NetMod.get n MN) |}).
+        2,3,4: constructor 4; eattac.
+        subst.
+        constructor 3.
+    + smash_eq n n2.
+      {
+        consider (n'0 = n') by (eapply SRPC_lock_set_uniq; eattac).
+        constructor 3 with (n':=n'); eattac.
+        rewrite `(mserv_q _ = _). attac.
+      }
+
+      econstructor 2 with (m:=n1)(m':=n2); eauto with LTS.
+
+      assert (NoRecvR_from n'0 (mserv_q (MN n2))).
+      {
+        clear - H4 H6.
+        unfold active_ev_of, active_probe_of, NoRecvR_from, NetGet, lock, lock_set in *; attac.
+        destruct (NetMod.get n2 MN) as [MQ0' M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n2 _)).
+        attac.
+        intros ?.
+        apply H1 with (v:=v) in H4.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+        intros ?.
+        attac.
+        apply H1 with (v:=v) in H4.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+      }
+
+      assert (NoSends_MQ (mserv_q (MN n2))).
+      {
+        unfold NetGet, lock, lock_set in *. attac.
+        destruct (NetMod.get n2 MN) as [MQ0' M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n2 _)).
+        apply Forall_forall. intros. destruct x; attac.
+        apply H14 with (v:=v) in H4.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+        clear - H10 H15.
+        destruct `(_ \/ _).
+        - apply in_split in H; hsimpl in *.
+          induction l1; attac. destruct a; attac.
+        - apply in_split in H; hsimpl in *.
+          induction MQ0; attac.
+          + induction l1; eattac. destruct a; attac.
+          + destruct a; attac.
+      }
+
+      assert (locked (MN n2) = Some n'0) by attac.
+      assert (self (MN n2) = n2) by attac.
+
+      unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+      hsimpl in *. simpl in *.
+      destruct (NetMod.get n2 MN) as [MQ0' M0 S0].
+      hsimpl in *; simpl in *.
+      induction M0.
+      * apply in_split in H7 as (MQ0l & MQ0r & ?); subst.
+        econstructor 2; attac.
+        intros ? ?.
+        eapply H8; eattac.
+      * hsimpl in *. simpl in *.
+        unfold Name in *; attac.
+        destruct (NameTag_eq_dec to (n1, R)),
+          (MProbe_eq_dec msg0 {| origin := n; lock_id := lock_count (Transp.Net.NetMod.get n MN) |}).
+        2,3,4: constructor 4; eattac.
+        subst.
+        constructor 3.
+    + econstructor 2 with (m:=n1)(m':=n); eauto.
+      1: {
+        enough (serv_client n1 (NetMod.get n '' MN)). assert (well_formed MN). attac. kill H7.
+        eapply H_lock_complete. eattac.
+        unfold deinstr, serv_deinstr in *.
+        attac.
+        unfold NetGet in *.
+        destruct (NetMod.get n MN) eqn:?.
+        attac.
+      }
+
+      assert (NoRecvR_from n' (mserv_q (MN n))).
+      {
+        unfold NoRecvR_from, NetGet, lock, lock_set in *. attac.
+        destruct (NetMod.get n MN) as [MQ0 M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n _)). attac.
+        intros ?.
+        apply H10 with (v:=v0) in H5.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+      }
+
+      assert (NoSends_MQ (mserv_q (MN n))).
+      {
+        unfold NetGet, lock, lock_set in *. attac.
+        destruct (NetMod.get n MN) as [MQ0 M0 S0] eqn:?.
+        consider (serv_lock _ (NetMod.get n _)). attac.
+        apply Forall_forall. intros. destruct x; attac.
+        apply H11 with (v:=v0) in H5.
+        unfold deinstr in *. rewrite NetMod.get_map in *. attac.
+        unfold serv_deinstr in *. attac.
+        destruct S0; attac.
+        apply in_split in H7; attac.
+        clear - H12.
+        induction l1; attac.
+        destruct a; attac.
+      }
+
+      assert (locked (MN n) = Some n') by attac.
+      assert (self (MN n) = n) by attac.
+
+      unfold sends_to, active_ev_of, active_probe_of, NetGet in *.
+      hsimpl in *. simpl in *.
+      destruct (NetMod.get n MN) as [MQ0 M0 S0].
+      simpl in *.
+      induction M0.
+      * apply in_split in H4; attac.
+        econstructor 1; attac.
+        unfold NoRecvR_from in *; attac.
+        specialize (H6 v0).
+        attac.
+      * hsimpl in *. simpl in *.
+        unfold Name in *; attac.
+        destruct (NameTag_eq_dec to (n1, R)),
+          (MProbe_eq_dec msg0 {| origin := self M0; lock_id := lock_count M0 |}).
+        2,3,4: constructor 4; eattac.
+        subst.
+        constructor 3.
+Qed.
+(* end hide *)
 
 (** * Introduction *)
+
 (** This file outlines the mechanised theory presented in our submission to
 OOPSLA 2025. The structure of this file closely follows how the submission is
 divided into sections. Theorems and definitions used in the submissions are
@@ -237,7 +794,7 @@ Print SRPC_Busy_State.
 to describe the simulation relation, and [SRPCI] for inductive features such as
 weak termination of each query. (see [DlStalk.PresentationCompat]) *)
 
-Print Compat.Paper.SRPCC.
+Print PaperCompat.SRPCC.
 
 (** [[
 CoInductive SRPCC : SRPC_State -> Proc -> Prop :=
@@ -263,7 +820,7 @@ CoInductive SRPCC : SRPC_State -> Proc -> Prop :=
 ]]
  *)
 
-Print Compat.Paper.SRPCI.
+Print PaperCompat.SRPCI.
 
 (** [[
 Inductive SRPCI : SRPC_State -> Proc -> Prop :=
@@ -305,8 +862,8 @@ prove both equivalent. (see [DlStalk.SRPC] and [DlStalk.PresentationCompat]). *)
 Print SRPC.
 Print SRPC_Busy.
 
-Check Compat.SRPC_eq : forall (P : Proc) (srpc : SRPC_State),
-    SRPC srpc P <-> Compat.Paper.SRPCC srpc P.
+Check SRPC_eq : forall (P : Proc) (srpc : SRPC_State),
+    SRPC srpc P <-> PaperCompat.SRPCC srpc P.
 
 (** *** _Definition 3.4_ : Semantics of services (see [DlStalk.Que] and [DlStalk.Model]). *)
 (** Queue actions *)
@@ -396,7 +953,7 @@ Proof. reflexivity. Defined.
 (** ** Locks and Deadlocks *)
 (** *** _Definition 3.6_ : Lock (see [DlStalk.PresentationCompat]) *)
 
-Print Compat.Paper.serv_lock.
+Print PaperCompat.serv_lock.
 
 (** [[
 fun (n : Name) (S : Serv) =>
@@ -408,10 +965,10 @@ fun (n : Name) (S : Serv) =>
 
 (** *** _Definition 3.7_ : Deadlock (see [DlStalk.PresentationCompat]) *)
 
-Print Compat.Paper.dead_set.
+Print PaperCompat.dead_set.
 
 (** [[
-Paper.dead_set =
+PaperCompat.dead_set =
   fun (DS : Names) (N : Net) =>
      DS <> []
   /\ (forall n0, In n0 DS -> exists n1, lock N n0 n1 /\ In n1 DS)
@@ -436,13 +993,13 @@ and responses at the same time --- in the submission, this problem is irrelevant
 as it is prevented by the syntax, thus not mentioned there to avoid confusion.
 *)
 Print Decisive.
-Check Compat.serv_lock_eq : forall S n,
+Check serv_lock_eq : forall S n,
     (exists srpc, SRPC_serv srpc S) ->
-    serv_lock [n] S <-> Compat.Paper.serv_lock n S.
+    serv_lock [n] S <-> PaperCompat.serv_lock n S.
 
-Check Compat.dead_set_eq : forall (N : Net) (DS : Names),
+Check dead_set_eq : forall (N : Net) (DS : Names),
     SRPC_net N ->
-    dead_set DS N <-> Compat.Paper.dead_set DS N.
+    dead_set DS N <-> PaperCompat.dead_set DS N.
 
 (** *** _Lemma 3.8_ *)
 Check dead_set_invariant : forall DS, trans_invariant (dead_set DS) always.
@@ -457,13 +1014,13 @@ submission, this problem is irrelevant as it is prevented by the syntax, thus
 not mentioned there to avoid confusion. *)
 Print Decisive.
 
-Check Compat.serv_lock_eq : forall S n,
+Check serv_lock_eq : forall S n,
     (exists srpc, SRPC_serv srpc S) ->
-    serv_lock [n] S <-> Compat.Paper.serv_lock n S.
+    serv_lock [n] S <-> PaperCompat.serv_lock n S.
 
-Check Compat.dead_set_eq : forall (N : Net) (DS : Names),
+Check dead_set_eq : forall (N : Net) (DS : Names),
     SRPC_net N ->
-    dead_set DS N <-> Compat.Paper.dead_set DS N.
+    dead_set DS N <-> PaperCompat.dead_set DS N.
 
 (** * A Model of Generic Distributed Black-Box Outline Monitors *)
 
@@ -695,9 +1252,9 @@ End Alg.
 (** *** _Definition 6.2_ : The client relation *)
 (** (see [DlStalk.NetLocks] and [DlStalk.PresentationCompat] for compatibility
 lemmas) *)
-Print Compat.Paper.client.
+Print PaperCompat.client.
 Print serv_client.
-Check Compat.client_eq : forall n S, serv_client n S <-> Compat.Paper.client n S.
+Check client_eq : forall n S, serv_client n S <-> PaperCompat.client n S.
 
 (** *** _Definition 6.3_ : Well-formedness *)
 (** (see [DlStalk.SRPCNet]) *)
@@ -776,10 +1333,10 @@ Print sends_probe.
 
 (** *** _Definition 6.8_ *)
 
-Print Compat.Paper.ac.
+Print PaperCompat.ac.
 
 (** [[
-Paper.ac =
+PaperCompat.ac =
 fun (n : Name) (MN : MNet) =>
 exists (n1 : Name) (n2 : Que.Channel.Name),
   trans_lock '' MN n n1 /\
@@ -811,9 +1368,9 @@ it is used). *)
 
 Print alarm_condition.
 
-Check Compat.alarm_condition_eq : forall (n : Name) (MN : MNet),
+Check alarm_condition_eq : forall (n : Name) (MN : MNet),
     KIC MN -> trans_lock '' MN n n ->
-    alarm_condition n MN <-> Compat.Paper.ac n MN.
+    alarm_condition n MN <-> PaperCompat.ac n MN.
 
 (** *** _Definition 6.7_ *)
 Print KIC.
