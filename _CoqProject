@@ -16,5 +16,4 @@ theories/SRPCNet.v
 theories/Compl.v
 theories/Sound.v
 theories/GenFramework.v
-theories/TranspImproved.v
-theories/OOPSLA.v
+theories/Presentation.v

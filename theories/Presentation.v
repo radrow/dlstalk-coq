@@ -34,8 +34,14 @@ Import Sound.
 Import SrpcDefs.
 
 (* begin hide *)
-(* Things in here would be put in separate files; we paste them here to simplify
-the patch. Please skip to the "Introduction" section. TODO elaborate wtf this is and mention that compat.v is redunat *)
+
+(* The module below is an extension of the (now deprecated)
+[PresentationCompat.v] file which re-states definitions and lemmas used in the
+project so they are more readable and look more what has been presented in the
+submission. We would normally put it in a separate file, but having it here
+simplifies the patch. Please skip to the "Introduction" section below this
+module (where the doc-comments begin). Everything in this module is discussed
+later in this file. *)
 
 Module PaperCompat.
   Definition serv_lock (n : Name) (S : Serv) :=
@@ -1128,16 +1134,24 @@ fix MNPath_to_PNPath (mpath : list MNAct) : list PNAct :=
 
 (** *** _Lemma 4.9_ *)
 (** We realised that proofs in the [DlStalk.Transp] module do not expose the
-fact that the path costructed in completeness is a TODO word this better and more explicit (the [MNPath_to_PNPath mpath = path] part).
-TODO mention repo and actualyl create repo  https://anonymous.4open.science/.
+fact that the path constructed in completeness of transparency is correspondent
+to the original path (i.e., that it is the same if monitor actions are
+stripped). Because the construction of the path is hidden under existential
+statements, the fix requires a number of updates in the code, which we
+considered a bit too much for this patch. Nevertheless, below we show what this
+lemma looks like in Coq (note the [MNPath_to_PNPath mpath = path] part), proof
+of which is included in the improved version of this project hosted in TODO
+https://anonymous.4open.science/.
 
-TODO rename this to Presentation.v so _CoqProject is the same [[
-Check @transp_complete : forall path (i0 : instr) (N0 N1 : Net),
-      (N0 =[ path ]=> N1) ->
-      exists (mpath : list MNAct) (I1 : instr),
-        (i0 N0 =[ mpath ]=> I1 N1)
-        /\ MNPath_to_PNPath mpath = path.
-]] *)
+Please note that the main _Theorem 4.8_ ([oopsla_transp_completeness]
+below) is intact. *)
+
+Proposition transp_complete : forall path (i0 : instr) (N0 N1 : Net),
+    (N0 =[ path ]=> N1) ->
+    exists (mpath : list MNAct) (I1 : instr),
+      (i0 N0 =[ mpath ]=> I1 N1) /\
+        MNPath_to_PNPath mpath = path.
+Abort.
 
 (** *** _Theorem 4.8_ : Transparency --- completeness *)
 Lemma oopsla_transp_completeness : forall N0 i0,
@@ -1156,7 +1170,11 @@ deinstrumentation. *)
 Check MNPath_do : forall (mpath : list (NAct (Act:=MAct))) (MN0 MN1 : MNet),
     MN0 =[ mpath ]=> MN1 -> deinstr MN0 =[ mpath ]=> deinstr MN1.
 
-(** We now show the statement from the submission. *)
+
+(** We now show the statement from the submission. The only difference is that
+here we don't show that [mpath1] is a flushing path. Please refer to the updated
+repository at TODO for a variant that does not omit it. Note that the declared
+correctness criteria is unaffected by this oversight. *)
 
 Goal forall (N0 : Net) (i0 : instr) mpath0 (MN1 : MNet),
     (i0 N0 =[ mpath0 ]=> MN1) ->
