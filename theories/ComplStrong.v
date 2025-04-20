@@ -192,7 +192,11 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     unfold measure_ms.
     induction H.
     - blast_cases; attac.
-      generalize dependent n0 n2 n' c p b0.
+
+      destruct c; simpl in *; destruct alarm; doubt.
+      hsimpl in *.
+
+      generalize dependent n0 n2 n' p b0.
       induction MQ; intros; attac.
       + blast_cases; attac.
       + blast_cases; attac.
@@ -207,7 +211,10 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           specialize (H v0).
           attac.
     - blast_cases; attac.
-      generalize dependent n0 n2 n' c p b0.
+      destruct c; simpl in *; destruct alarm; doubt.
+      hsimpl in *.
+
+      generalize dependent n0 n2 n' p b0.
       induction MQ; intros; attac.
       + blast_cases; attac.
         apply PeanoNat.Nat.eqb_neq in Heqb1; bs.
@@ -317,7 +324,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           blast_cases; attac.
         * kill H3; attac.
           -- blast_cases; attac.
-             apply PeanoNat.Nat.eqb_neq in Heqb1.
+             apply PeanoNat.Nat.eqb_neq in Heqb0.
              bs.
           -- eapply IHmserv_q0. eauto.
              rewrite <- Heqp.
