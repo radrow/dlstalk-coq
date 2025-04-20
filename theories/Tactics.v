@@ -1,5 +1,4 @@
-Require Import Coq.Program.Equality.
-
+From Coq Require Import Program.Equality.
 From Coq Require Import Lia.
 From Coq Require Import Lists.List.
 From Coq Require Import Bool.
