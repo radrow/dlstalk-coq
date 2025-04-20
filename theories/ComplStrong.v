@@ -59,7 +59,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       | true => f
       | _ => (c dm0 <=? c dm1)
       end
-    in next c0 (next c1 (next c2 true)).
+    in next c2 (next c1 (next c0 true)).
 
   Definition dm_ltp (dm0 dm1 : DetectMeasure) : bool :=
     let c0 := dm_mon in
@@ -70,7 +70,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       | true => f
       | _ => (c dm0 <? c dm1)
       end
-    in next c0 (next c1 (next c2 false)).
+    in next c2 (next c1 (next c0 false)).
 
   Definition dm_eqb (dm0 dm1 : DetectMeasure) : bool :=
     match
@@ -85,11 +85,12 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     match MQ0 with
     | [] => (0, false)
     | MqProbe _ p' :: MQ0 =>
+        let (m, found) := measure_mq n p MQ0 in
         if NAME.eqb (origin p) (origin p')
            && (lock_id p =? lock_id p')%nat
-        then (1, true)
+        then (S m, true)
         else
-          let (m, found) := measure_mq n p MQ0
+          
           in (S m, found)
     | MqRecv (_, Q) _ :: MQ0 =>
         if NAME.eqb (origin p) n
@@ -104,7 +105,6 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
 
   Fixpoint measure_mon p M0 : (nat * bool) :=
     match M0 with
-    | MRecv {|alarm:=true|} => (0, true)
     | MRecv _ => (0, false)
     | MSend _ p' M0 =>
         if NAME.eqb (origin p) (origin p')
@@ -143,26 +143,10 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
         end
     end.
 
-  (* Definition measure_loop (MN : MNet) (L : list Name) (n : Name) : (DetectMeasure * option Name) := *)
-  (*   measure_lock_chain (active_probe_of MN n) MN (n::L) n. *)
-
-  (* Lemma measure_loop_alarm : forall (MN : MNet) (L : list Name) (n : Name), *)
-  (*     alarm (MN n) = true -> *)
-  (*     measure_loop MN L n = ({|dm_mon := 0; dm_mque := 0; dm_vis := 0|}, Some n). *)
-
-  (* Proof. *)
-  (*   intros. *)
-  (*   unfold measure_loop, NetGet; simpl in *. *)
-  (*   destruct (NetMod.get n MN). *)
-  (* Admitted. *)
-
-
   Definition measure_loop (MN : MNet) (L : list Name) (n : Name) : (DetectMeasure * option Name) :=
-    match (alarm (MN n)) with
-    | true => ({|dm_mon := 0; dm_mque := 0; dm_vis := 0|}, Some n)
-    | false => measure_lock_chain (active_probe_of MN n) MN (n::L) n
-    end.
-
+    if alarm (MN n)
+    then ({|dm_mon := 0; dm_mque := 0; dm_vis := 0|}, Some n)
+    else measure_lock_chain (active_probe_of MN n) MN (n::L) n.
 
   Lemma measure_loop_end : forall MN L n m,
     measure_loop MN L n = ({|dm_mon := 0; dm_mque := 0; dm_vis := 0|}, Some m) ->
@@ -193,8 +177,8 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     induction H.
     - blast_cases; attac.
 
-      destruct c; simpl in *; destruct alarm; doubt.
-      hsimpl in *.
+      (* destruct c; simpl in *; destruct alarm; doubt. *)
+      (* hsimpl in *. *)
 
       generalize dependent n0 n2 n' p b0.
       induction MQ; intros; attac.
@@ -211,8 +195,9 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           specialize (H v0).
           attac.
     - blast_cases; attac.
-      destruct c; simpl in *; destruct alarm; doubt.
-      hsimpl in *.
+
+      (* destruct c; simpl in *; destruct alarm; doubt. *)
+      (* hsimpl in *. *)
 
       generalize dependent n0 n2 n' p b0.
       induction MQ; intros; attac.
@@ -324,8 +309,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           blast_cases; attac.
         * kill H3; attac.
           -- blast_cases; attac.
-             apply PeanoNat.Nat.eqb_neq in Heqb0.
-             bs.
+             bs (&lock_count <> &lock_count) by (eapply PeanoNat.Nat.eqb_neq; eauto).
           -- eapply IHmserv_q0. eauto.
              rewrite <- Heqp.
              blast_cases; attac.
@@ -357,24 +341,211 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       attac.
   Qed.
 
+  Lemma measure_mq_push : forall n p MQ0 e mq0,
+      (mq0, true) = measure_mq n p MQ0 ->
+      (mq0, true) = measure_mq n p (MQ0 ++ [e]).
+
+  Proof.
+    induction MQ0.
+    1: { attac. }
+
+    intros.
+    specialize (IHMQ0 e).
+    hsimpl in *.
+    blast_cases; attac.
+    all: specialize (IHMQ0 _ eq_refl); attac.
+  Qed.
+
+
   Lemma measure_ms_tau_non_incr : forall n p MS0 MS1 a mm0 mm1 mq0 mq1,
       ia a ->
       (MS0 =(a)=> MS1) ->
-      (mm0, mq0, true) = measure_ms n p MS1 ->
-      (mm1, mq1, true) = measure_ms n p MS0 ->
-      if mm0 =? mm1 then mq0 <=? mq1  = true else mm0 <=? mm1 = true.
+      (mm0, mq0, true) = measure_ms n p MS0 ->
+      (mm1, mq1, true) = measure_ms n p MS1 ->
+      locked MS0 <> None ->
+      if mq1 =? mq0 then mm1 <=? mm0 = true else mq1 <=? mq0 = true.
 
   Proof.
     intros.
+    have (a = a).
     destruct_ma a; doubt; consider (_ =(_)=> _).
     - unfold measure_ms in *; compat_hsimpl in *.
 
       generalize dependent mm1 mq1 mm0 mq0.
       induction MQ; attac.
-      + 
+      + generalize dependent mm1 mq1 mm0 mq0.
+        induction M; attac.
+
+        blast_cases.
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: hsimpl in *.
+        all: try lia.
+      + blast_cases.
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: hsimpl in *.
+        all: try lia.
+        all: try (specialize (IHMQ ltac:(auto) _ _ eq_refl _ _ eq_refl)).
+        all: blast_cases; attac.
+        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: lia.
+    - unfold measure_ms in *; compat_hsimpl in *.
+
+      generalize dependent mm1 mq1 mm0 mq0.
+      induction MQ; attac.
+      + blast_cases.
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: hsimpl in *.
+        all: try lia.
+      + destruct (mq1 =? mq0) eqn:?.
+        * blast_cases.
+          all: destruct b3.
+          all: try (specialize (IHMQ ltac:(auto) _ _ eq_refl _ _ eq_refl)).
+          all: blast_cases.
+          all: try (rewrite NAME.eqb_eq in * ).
+          all: try (rewrite NAME_H.eqb_neq_inv in * ).
+          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+          all: try (rewrite PeanoNat.Nat.leb_le in * ).
+          all: subst.
+          all: repeat (Control.enter (fun () =>
+                                        List.iter
+                                          (fun (h, _, _) => try (let _ := split_hyp h in ()))
+                                          (Control.hyps ())
+                 )).
+          all: try lia.
+          all: simpl in *.
+          all: try (specialize (IHMQ ltac:(auto) _ _ eq_refl _ _ eq_refl)).
+          all: blast_cases.
+          all: try (rewrite NAME.eqb_eq in * ).
+          all: try (rewrite NAME_H.eqb_neq_inv in * ).
+          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+          all: try (rewrite PeanoNat.Nat.leb_le in * ).
+          all: hsimpl in *.
+          all: try lia.
+          1: destruct MQ; simpl in *; blast_cases; doubt.
+
+          all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
+          admit.
+          1: destruct MQ; simpl in *; blast_cases; doubt.
+
+        blast_cases.
+        all: destruct b3.
+        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
+        all: blast_cases.
+        all: try (rewrite NAME.eqb_eq in * ).
+        all: try (rewrite NAME_H.eqb_neq_inv in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: subst.
+        all: repeat (Control.enter (fun () =>
+                                      List.iter
+                                        (fun (h, _, _) => try (let _ := split_hyp h in ()))
+                                        (Control.hyps ())
+               )).
+        all: try lia.
+        all: simpl in *.
+        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
+        all: blast_cases.
+        all: try (rewrite NAME.eqb_eq in * ).
+        all: try (rewrite NAME_H.eqb_neq_inv in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: hsimpl in *.
+        all: try lia.
+        1: destruct MQ; simpl in *; blast_cases; doubt.
+
+
+
+        all: simpl in *; try lia.
+        all: repeat (Control.enter (fun () =>
+                                      List.iter
+                                        (fun (h, _, _) => try (let _ := split_hyp h in ()))
+                                        (Control.hyps ())
+               )).
+        all: try lia.
+        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
+        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: try lia.
+
+        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
+        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: try lia.
+        simpl in *.
+        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
+        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: try lia.
+        all: blast_cases; attac.
+        all: blast_cases; attac.
+        all: try (destruct b3; attac).
+        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
+        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: try lia.
+
+        admit.
+        blast_cases; attac.
+        blast_cases; attac.
+        blast_cases; attac.
+        blast_cases; attac.
+        blast_cases; attac.
+        blast_cases; attac.
+        blast_cases; attac.
+        blast_cases; attac.
+        blast_cases; attac.
+        blast_cases; attac.
+    -
+
         generalize dependent mm1 mq1 mm0 mq0.
         induction M; attac.
-        eapply IHM.
+        * blast_cases.
+          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+          all: try (rewrite PeanoNat.Nat.leb_le in * ).
+          all: hsimpl in *.
+          all: try lia.
+          all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
+          all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
+          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+          all: try (rewrite PeanoNat.Nat.leb_le in * ).
+          all: try lia.
+        * blast_cases.
+          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+          all: try (rewrite PeanoNat.Nat.leb_le in * ).
+          all: hsimpl in *.
+          all: try lia.
+          all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
+          all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
+          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+          all: try (rewrite PeanoNat.Nat.leb_le in * ).
+          all: try lia.
+        *
+        blast_cases.
 
       induction M; attac.
       + generalize dependent mm1 mq1 mm0 mq0.
