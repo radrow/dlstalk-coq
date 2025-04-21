@@ -48,6 +48,468 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
   Include COMPL_F(Conf)(Params).
   Module Import NT := NetTactics(Conf)(Params.NetLocks.Net).
 
+  Inductive DetectMeasure := DM {dm_flush : nat; dm_pass : nat}.
+
+  Definition dm_lep (dm0 dm1 : DetectMeasure) : bool :=
+    let c0 := dm_flush in
+    let c1 := dm_pass in
+    let next c f :=
+      match (c dm0 =? c dm1) with
+      | true => f
+      | _ => (c dm0 <=? c dm1)
+      end
+    in next c1 (next c0 true).
+
+  Definition dm_ltp (dm0 dm1 : DetectMeasure) : bool :=
+    let c0 := dm_flush in
+    let c1 := dm_pass in
+    let next c f :=
+      match (c dm0 =? c dm1) with
+      | true => f
+      | _ => (c dm0 <? c dm1)
+      end
+    in next c1 (next c0 false).
+
+  Definition dm_eqb (dm0 dm1 : DetectMeasure) : bool :=
+    (dm_flush dm0 =? dm_pass dm1)%nat && (dm_pass dm0 =? dm_pass dm1)%nat.
+
+  Definition probe_eqb (p0 p1 : MProbe) :=
+    NAME.eqb (origin p0) (origin p1) && (lock_id p0 =? lock_id p1)%nat.
+
+  Lemma probe_eqb_eq : forall p0 p1, probe_eqb p0 p1 = true <-> p0 = p1.
+  Proof.
+    split; intros; destruct p0, p1; unfold probe_eqb, andb in *;
+      simpl in *; blast_cases.
+    all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+    all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+    all: attac.
+  Qed.
+
+  Lemma probe_eqb_neq : forall p0 p1, probe_eqb p0 p1 = false <-> p0 <> p1.
+  Proof.
+    split; intros.
+    - intros HEq.
+      rewrite <- probe_eqb_eq in *. bs.
+    - destruct (probe_eqb p0 p1) eqn:?; auto.
+      rewrite -> probe_eqb_eq in *. bs.
+  Qed.
+
+  Lemma probe_eqb_refl : forall p, probe_eqb p p = true.
+  Proof.
+    intros.
+    rewrite probe_eqb_eq. reflexivity.
+  Qed.
+
+  Definition hot_MS (MS : MServ) := {|origin:=self MS; lock_id:=lock_count MS|}.
+
+  Hint Rewrite -> probe_eqb_eq probe_eqb_neq probe_eqb_refl
+                   PeanoNat.Nat.eqb_eq PeanoNat.Nat.eqb_neq PeanoNat.Nat.eqb_refl
+                   using assumption : LTS LTS_concl.
+
+
+  Fixpoint measure_mon_fin M : (nat * MState) :=
+    match M with
+    | MRecv s => (0, s)
+    | MSend _ _ M =>
+        let (mm, s) := measure_mon_fin M in
+        (S mm, s)
+    end.
+
+  Fixpoint measure_mq_fin (M : MProc) MQ : option nat :=
+    if alarm M
+    then Some 0 (* We don't care for the sends *)
+    else match MQ with
+         | [] => None
+         | e :: MQ =>
+             let (mm, s) := measure_mon_fin M in
+             let M := mon_handle e s in
+             option_map (plus (S mm)) (measure_mq_fin M MQ)
+    end.
+
+  Definition measure_ms_fin (MS : MServ) : option nat :=
+    measure_mq_fin (mserv_m MS) (mserv_q MS).
+
+
+  Fixpoint measure_mon (n_to : Name) p M : (nat * bool) :=
+    match M with
+    | MRecv _ => (0, false)
+    | MSend (n, R) p' M =>
+        if NAME.eqb n n_to && probe_eqb p p'
+        then (1, true)
+        else
+          let (mm, found) := measure_mon n_to p M in
+          (S mm, found)
+    | MSend (_, Q) _ M =>
+        let (mm, found) := measure_mon n_to p M in
+        (S mm, found)
+    end.
+
+
+  Fixpoint measure_mq (n_to : Name) p (M : MProc) MQ : option nat :=
+    let (mm, found_m) := measure_mon n_to p M in
+    if found_m
+    then Some mm
+    else match MQ with
+         | [] => None
+         | e :: MQ =>
+             option_map (plus mm) (measure_mq n_to p (mon_handle e M) MQ)
+         end.
+
+
+  Lemma unfold_measure_mq : forall (n_to : Name) p (M : MProc) MQ mm found_m,
+      measure_mon n_to p M = (mm, found_m) ->
+      measure_mq n_to p M MQ =
+        if found_m
+        then Some mm
+        else match MQ with
+             | [] => None
+             | e :: MQ =>
+                 option_map (plus mm) (measure_mq n_to p (mon_handle e M) MQ)
+             end.
+  Proof. destruct MQ; attac. Qed.
+
+  Hint Rewrite -> unfold_measure_mq using spank : LTS LTS_concl.
+
+  Definition measure_ms (n_to : Name) p (MS : MServ) : option nat :=
+    measure_mq n_to p (mserv_m MS) (mserv_q MS).
+
+
+  Lemma measure_mq_push : forall n_to p M MQ e dm,
+      measure_mq n_to p M MQ = Some dm ->
+      measure_mq n_to p M (MQ ++ [e]) = Some dm.
+  Proof.
+    intros.
+    generalize dependent M dm.
+    induction MQ; attac.
+    - destruct b; attac.
+    - destruct b; attac.
+      unfold option_map in *.
+      destruct (measure_mq n_to p (mon_handle a M) MQ) eqn:?; doubt.
+      rewrite <- H in *.
+      apply IHMQ in Heqo.
+      now rewrite Heqo.
+  Qed.
+
+  Lemma measure_mq_split : forall n_to p M MQ MQ' e dm,
+      measure_mq n_to p M (MQ ++ [e]) = Some dm ->
+      measure_mq n_to p M (MQ ++ e :: MQ') = Some dm.
+  Proof.
+    intros.
+    generalize dependent M dm.
+    induction MQ; attac.
+    - destruct b; attac.
+      blast_cases; attac.
+    - destruct b; attac.
+      unfold option_map in *.
+      destruct (measure_mq n_to p (mon_handle a M) (MQ ++ [e])) eqn:?; doubt.
+      rewrite <- H in *.
+      apply IHMQ in Heqo.
+      now rewrite Heqo.
+  Qed.
+
+  Fixpoint measure_lock_chain (MN : MNet) n0 L n1 p : option (DetectMeasure * Name) :=
+    match L with
+    | [] =>
+        match measure_ms n0 p (MN n1) with
+        | Some mm => Some ({|dm_pass := 1; dm_flush := mm|}, n1)
+        | None => None
+        end
+    | n' :: L =>
+        match measure_ms n0 p (MN n') with
+        | Some mm => Some ({|dm_pass := 1; dm_flush := mm|}, n')
+        | None =>
+            match measure_lock_chain MN n' L n1 p with
+            | None => None
+            | Some ({|dm_pass:=dmp; dm_flush:=dmf|}, who) =>
+                Some ({|dm_pass:=S dmp; dm_flush:=dmf|}, who)
+            end
+        end
+    end.
+
+  Definition measure_loop (MN : MNet) n L : option (DetectMeasure * Name) :=
+    match measure_ms_fin (MN n) with
+    | Some dmf => Some ({|dm_pass := 0; dm_flush := dmf|}, n)
+    | None =>
+        measure_lock_chain MN n L n (active_probe_of MN n)
+    end.
+
+
+  Lemma measure_loop_end : forall MN n L m,
+      measure_loop MN n L = Some ({|dm_pass := 0; dm_flush := 0|}, m) ->
+      alarm (MN n) = true.
+
+  Proof.
+    intros.
+    destruct (alarm (MN n)) eqn:?; auto.
+    exfalso.
+
+    unfold measure_loop, NetGet, measure_ms, active_probe_of in *.
+    blast_cases; attac.
+    - destruct (NetMod.get m MN); attac.
+      induction mserv_q0; attac.
+      + induction mserv_m0; attac.
+        unfold measure_ms_fin in *. simpl in *. attac.
+      + unfold measure_ms_fin in *. simpl in *. attac.
+        induction mserv_m0; attac.
+        unfold option_map in *.
+        blast_cases; attac.
+        unfold option_map in *.
+        blast_cases; attac.
+    - induction L; attac; blast_cases; attac.
+  Qed.
+
+
+  Lemma measure_sp_true : forall (n : Name) p MS,
+      sends_probe (n, R) p MS ->
+      exists dmf, (measure_ms n p MS) = Some dmf.
+
+  Proof.
+    intros.
+    unfold measure_ms.
+    destruct (measure_mon n p MS) as [dmm found] eqn:?.
+
+    remember (n, R) as nc.
+    generalize dependent dmm.
+    induction `(sends_probe _ _ _); intros.
+    - hsimpl in *.
+      enough (exists dmf,
+                 measure_mq n p (MRecv c) (MQ ++ [MqRecv (n, Q) v]) = Some dmf) as [dmf ?]
+          by eauto using measure_mq_split.
+
+      destruct (measure_mon n p (MRecv c)) as [dmm found] eqn:?.
+      hsimpl.
+      consider (exists M, next_state M = c) by (exists (MRecv c); attac).
+      destruct found; attac.
+      generalize dependent M.
+      induction MQ.
+      1: { attac; destruct p; blast_cases; attac. blast_cases; attac. }
+      intros.
+
+      simpl.
+      unfold option_map; attac.
+      destruct (measure_mon n p (mon_handle a M)) as [dmm' found'] eqn:?.
+      hsimpl.
+      destruct found'; attac.
+
+      specialize IHMQ with (M:=mon_handle a M) as [dmf ?]; eattac.
+      {
+        unfold NoRecvR_from in *; attac.
+        intros ?.
+        specialize H with v0.
+        attac.
+      }
+      + destruct a; attac; blast_cases; attac.
+        rewrite next_state_Send_all; attac.
+      + destruct a; attac; blast_cases; attac.
+        rewrite next_state_Send_all; attac.
+      + destruct a; attac; blast_cases; attac.
+        * unfold NoRecvR_from in *.
+          specialize H with v0. bs.
+        * rewrite next_state_Send_all; attac.
+      + exists (add dmm' dmf).
+        destruct (MQ ++ [MqRecv (n, Q) v]); doubt.
+        unfold option_map in *; attac.
+        clear - H5; blast_cases; attac.
+    - hsimpl in *.
+      enough (exists dmf,
+                 measure_mq n p (MRecv c) (MQ ++ [MqProbe (n', R) p]) = Some dmf) as [dmf ?]
+          by eauto using measure_mq_split.
+
+      destruct (measure_mon n p (MRecv c)) as [dmm found] eqn:?.
+      hsimpl.
+      consider (exists M, next_state M = c) by (exists (MRecv c); attac).
+      destruct found; attac.
+      generalize dependent M.
+      induction MQ.
+      1: { attac; destruct p; blast_cases; attac.
+           rewrite <- Heqm in Heqp0.
+           clear - Heqp0 H3. (* measure_mon, In  *)
+           generalize dependent n0.
+           induction wait; doubt.
+           simpl in *.
+           unfold andb in *.
+           blast_cases; attac.
+      }
+
+      intros.
+      simpl.
+
+      unfold option_map; attac.
+      destruct (measure_mon n p (mon_handle a M)) as [dmm' found'] eqn:?.
+      hsimpl.
+      destruct found'; attac.
+
+      specialize IHMQ with (M:=mon_handle a M) as [dmf ?]; eattac.
+      {
+        unfold NoRecvR_from in *; attac.
+        intros ?.
+        specialize H with v.
+        attac.
+      }
+      + destruct a; attac; blast_cases; attac.
+        unfold andb in *;  blast_cases; attac.
+        rewrite next_state_Send_all; attac.
+      + destruct a; attac; blast_cases; attac.
+        unfold andb in *;  blast_cases; attac.
+        rewrite next_state_Send_all; attac.
+      + destruct a; attac; blast_cases; attac.
+        * unfold NoRecvR_from in *.
+          specialize H with v. bs.
+        * rewrite next_state_Send_all; attac.
+      + exists (add dmm' dmf).
+        destruct (MQ ++ [MqProbe (n', R) p]); doubt.
+        unfold option_map in *; attac.
+        clear - H5; blast_cases; attac.
+    - eattac.
+      destruct (measure_mon n p (MSend (n, R) p M)) eqn:?.
+      hsimpl.
+      blast_cases; attac.
+    - hsimpl in *.
+      hsimpl in *.
+      destruct found; attac.
+      destruct nc'; attac.
+      blast_cases; attac.
+      + specialize (IHsends_probe _ eq_refl) as [dmm ?].
+        unfold option_map in *; destruct (measure_mq n p (mon_handle e M) l); doubt.
+        attac.
+      + unfold andb in *.
+        blast_cases; attac.
+        * specialize (IHsends_probe _ eq_refl) as [dmm ?].
+          unfold option_map in *; destruct (measure_mq n p (mon_handle e M) l); doubt.
+          attac.
+        * specialize (IHsends_probe _ eq_refl) as [dmm ?].
+          unfold option_map in *; destruct (measure_mq n p (mon_handle e M) l); doubt.
+          attac.
+  Qed.
+
+
+
+      match! goal with [|- context [mon_handle ?a ?c]] =>
+                         destruct (measure_mon n {| origin := &self; lock_id := &lock_count |} (mon_handle $a $c)) eqn:?
+      end.
+      hsimpl.
+      destruct b; attac.
+      unfold option_map; attac.
+
+      destruct a, e; simpl in *; attac; blast_cases; attac.
+      + blast_cases; attac.
+        all: unfold option_map, andb in *.
+        all: blast_cases; attac.
+        simpl in *.
+
+      erewrite unfold_measure_mq.
+      admit. 
+
+      destruct p; simpl in *; subst.
+      induction MQ; subst; attac; subst; attac.
+      + blast_cases; attac.
+      + destruct found'; attac.
+        unfold NoRecvR_from in *; attac.
+        destruct a; attac; subst; attac.
+        * blast_cases; attac.
+          all: unfold andb in *.
+          all: blast_cases; attac.
+
+        destruct IHMQ as [dmf ?]; eattac.
+        {
+          unfold NoRecvR_from in *; attac.
+          intros ?.
+          specialize H with v0.
+          attac.
+        }
+
+
+      destruct c; attac.
+      induction MQ; intros; attac; subst.
+      + unfold option_map; attac.
+        blast_cases; attac.
+        destruct p.
+        destruct MQ'; attac; blast_cases; attac.
+      + unfold option_map; attac.
+        destruct IHMQ as [dmf ?]; attac.
+        {
+          unfold NoRecvR_from in *; attac.
+          intros ?.
+          specialize H with v0.
+          attac.
+        }
+
+
+        rewrite unfold_measure_mq in H2.
+        unfold measure_mq in *.
+        destruct ((MQ ++ MqRecv (n, Q) v :: MQ')) eqn:?; doubt.
+        destruct p; simpl in *.
+        unfold option_map in *; attac.
+        cbv iota in H2.
+        destruct MQ; attac.
+        * unfold option_map, andb in *; compat_hsimpl in *; attac.
+          destruct l; attac.
+          -- destruct a; attac.
+             ++ blast_cases; attac.
+                all: compat_hsimpl in *; attac.
+                unfold NoRecvR_from in *.
+                specialize H with v0; attac.
+             ++ blast_cases; attac.
+                all: compat_hsimpl in *; attac.
+                unfold NoRecvR_from in *.
+                specialize H with v; attac.
+                compat_hsimpl in *. bs.
+          -- destruct a; attac.
+             ++ blast_cases; attac.
+                all: compat_hsimpl in *; attac.
+                unfold NoRecvR_from in *.
+                specialize H with v0; attac.
+             ++ blast_cases; attac.
+                all: compat_hsimpl in *; attac.
+                unfold NoRecvR_from in *.
+                specialize H with v; attac.
+                compat_hsimpl in *. bs.
+        * 
+
+        blast_cases; attac.
+        blast_cases; attac.
+        destruct ((MQ ++ MqRecv (n, Q) v :: MQ')) eqn:?; doubt.
+        simpl in *.
+        blast_cases; attac.
+        unfold option_map, andb in *; attac.
+        destruct MQ; attac.
+        destruct l; attac.
+        destruct p; attac.
+        compat_hsimpl in *; attac.
+        blast_cases; attac.
+        cbv in Heqo.
+        simpl in *.
+        destruct p; simpl in *.
+        unfold measure_mq in *.
+        destruct MQ; attac.
+        destruct p.
+        destruct MQ'; attac; blast_cases; attac.
+        destruct p.
+        eapply IHMQ.
+
+
+      blast_cases; attac.
+
+
+      (* destruct c; simpl in *; destruct alarm; doubt. *)
+      (* hsimpl in *. *)
+
+      generalize dependent n0 n2 n' p b0.
+      induction MQ; intros; attac.
+      + blast_cases; attac.
+        destruct b0; auto.
+        exfalso.
+        setoid_rewrite <- H2 in Heqb1.
+        setoid_rewrite <- H3 in Heqb1.
+        setoid_rewrite NAME_H.same_eqb_inv in Heqb1.
+        rewrite PeanoNat.Nat.eqb_refl in Heqb1.
+        bs.
+      + blast_cases; attac.
+    -
+
+
+
+  (** ********************** *)
   Inductive DetectMeasure := DM {dm_mon : nat; dm_mque : nat; dm_vis : nat}.
 
   Definition dm_lep (dm0 dm1 : DetectMeasure) : bool :=
@@ -81,26 +543,33 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     | _, _, _ => false
     end.
 
-  Fixpoint measure_mq self locked lock_count p MQ0 : nat * bool :=
+  Fixpoint measure_mq nl p MQ0 : nat * bool :=
     match MQ0 with
     | [] => (0, false)
     | MqProbe (n, R) p' :: MQ0 =>
         if NAME.eqb (origin p) (origin p')
            && (lock_id p =? lock_id p')%nat
-           && match locked with None => false | Some n' => NAME.eqb n' n end
+           && (NAME.eqb n nl)
         then (1, true)
         else
-          let (m, found) := measure_mq self locked lock_count p MQ0 in
+          let (m, found) := measure_mq nl p MQ0 in
           (S m, found)
-    | MqRecv (_, Q) _ :: MQ0 =>
-        if NAME.eqb (origin p) self
-           && (lock_id p =? lock_count)%nat
+    | _ :: MQ0 =>
+        let (m, found) := measure_mq nl p MQ0
+        in (S m, found)
+    end.
+
+  Fixpoint measure_init n_to MQ0 : nat * bool :=
+    match MQ0 with
+    | [] => (0, false)
+    | MqRecv (n_from, Q) _ :: MQ0 =>
+        if NAME.eqb n_from n_to
         then (1, true)
         else
-          let (m, found) := measure_mq self locked lock_count p MQ0
+          let (m, found) := measure_init n_to MQ0
           in (S m, found)
     | _::MQ0 =>
-        let (m, found) := measure_mq self locked lock_count p MQ0
+        let (m, found) := measure_init n_to MQ0
         in (S m, found)
     end.
 
@@ -120,353 +589,54 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     let (mm, found_m) := measure_mon p (mserv_m MS) in
     if found_m then ((mm, 0), true)
     else
-      let (mq, found_q) := measure_mq (self MS) (locked MS) (lock_count MS) p (mserv_q MS) in
+      match locked MS with
+      | None => (0, 0, false)
+      | Some nl =>
+          let (mq, found_q) := measure_mq nl p (mserv_q MS) in
+          ((mm, mq), found_q)
+      end.
+
+  Definition measure_ms_init n_to (MS : MServ) : ((nat * nat) * bool) := (* M MQ *)
+    let (mm, found_m) := measure_mon {|origin:=self MS; lock_id:=lock_count MS|} (mserv_m MS) in
+    if found_m then ((mm, 0), true)
+    else
+      let (mq, found_q) := measure_init n_to (mserv_q MS) in
       ((mm, mq), found_q).
 
 
-  Lemma measure_ms_tau_non_incr : forall p MS0 MS1 a mm0 mm1 mq0 mq1,
-      ia a ->
-      Flushing_act a ->
-      (MS0 =(a)=> MS1) ->
-      (mm0, mq0, true) = measure_ms p MS0 ->
-      (mm1, mq1, true) = measure_ms p MS1 ->
-      locked MS0 <> None ->
-      if mq1 =? mq0 then mm1 <=? mm0 = true else mq1 <=? mq0 = true.
-
-  Proof.
-    intros.
-    have (a = a).
-    destruct_ma a; doubt; consider (_ =(_)=> _).
-
-
-
-    - unfold measure_ms in *; compat_hsimpl in *.
-
-      generalize dependent mm1 mq1 mm0 mq0.
-      induction MQ; attac.
-      + generalize dependent mm1 mq1 mm0 mq0.
-        induction M; attac.
-
-        blast_cases.
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: hsimpl in *.
-        all: try lia.
-      + blast_cases.
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: hsimpl in *.
-        all: try lia.
-        all: try (specialize (IHMQ ltac:(attac) _ _ eq_refl _ _ eq_refl)).
-        all: blast_cases; attac.
-        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: lia.
-    - unfold measure_ms in *; compat_hsimpl in *.
-      destruct (mq1 =? mq0) eqn:?, (mm1 <=? mm0) eqn:?, (mq1 <=? mq0) eqn:?.
-      all: try reflexivity.
-      all: exfalso.
-      all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-      all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-      all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-      all: try (rewrite PeanoNat.Nat.leb_le in * ).
-      all: try (rewrite PeanoNat.Nat.leb_nle in * ).
-      all: try lia.
-
-      all: blast_cases; simpl in *.
-      all: hsimpl in *.
-      all: try lia.
-
-      generalize dependent n3 mq1.
-      induction MQ; attac.
-      blast_cases; eattac.
-      all: try (specialize (IHMQ _ eq_refl _ eq_refl)).
-      all: try lia.
-      unfold andb in *.
-      blast_cases; hsimpl in *.
-
-      all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-      all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-      all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-      all: try (rewrite PeanoNat.Nat.leb_le in * ).
-      all: try (rewrite PeanoNat.Nat.leb_nle in * ).
-      all: try lia.
-
-      destruct b.
-      all: try (specialize (IHMQ _ eq_refl _ eq_refl)).
-      all: try lia.
-
-
-    - unfold measure_ms in *; compat_hsimpl in *.
-      destruct (mq1 =? mq0) eqn:?, (mm1 <=? mm0) eqn:?, (mq1 <=? mq0) eqn:?.
-      all: try reflexivity.
-      all: exfalso.
-      all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-      all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-      all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-      all: try (rewrite PeanoNat.Nat.leb_le in * ).
-      all: try (rewrite PeanoNat.Nat.leb_nle in * ).
-      all: try lia.
-
-      all: blast_cases; simpl in *.
-      all: hsimpl in *.
-      all: try lia.
-    - simpl in *.
-      unfold measure_ms in *; compat_hsimpl in *.
-
-      destruct n.
-      destruct t.
-      + admit. (* Q-PROBE! *)
-      + destruct s; simpl in *.
-        destruct locked; doubt.
-        destruct (NAME.eqb (origin p) (origin msg)) eqn:?,
-          (lock_id p =? lock_id msg) eqn:?; simpl in *.
-        * all: hsimpl in *.
-          all: destruct p, msg; simpl in *.
-          all: blast_cases; subst; simpl in *.
-          all: hsimpl in *.
-          all: try lia.
-          all: try (rewrite next_state_Send_all in * ); simpl in *.
-          all: try lia.
-          all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-          all: try (rewrite PeanoNat.Nat.leb_le in * ).
-          all: try (rewrite PeanoNat.Nat.leb_nle in * ).
-          all: try lia.
-
-        destruct (NAME.eqb (origin p) (origin msg) && (lock_id p =? lock_id msg)%nat) eqn:?.
-        * hsimpl in *.
-      + 
-
-      generalize dependent mm1 mq1 mm0 mq0.
-      induction MQ; attac.
-      + blast_cases; subst; simpl in *.
-        all: hsimpl in *.
-        all: try lia.
-      + 
-
-        blast_cases; subst; simpl in *.
-        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: try (rewrite PeanoNat.Nat.leb_nle in * ).
-        all: try lia.
-        all: repeat (Control.enter (fun () =>
-                                      List.iter
-                                        (fun (h, _, _) => try (let _ := split_hyp h in ()))
-                                        (Control.hyps ())
-               )).
-        all: try lia.
-        all: try (rewrite next_state_Send_all in * ).
-        all: simpl in *.
-        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
-        all: blast_cases; simpl in *.
-        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: try (rewrite PeanoNat.Nat.leb_nle in * ).
-        all: subst.
-        all: try lia.
-        admit.
-
-      destruct n.
-      destruct t.
-      + simpl in *.
-        unfold measure_ms in *; simpl in *.
-        destruct (NAME.eqb (origin p) (origin msg) && (lock_id p =? lock_id msg)%nat) eqn:?.
-        * hsimpl in *.
-
-
-      unfold measure_ms in *; compat_hsimpl in *.
-      (* destruct (mq1 =? mq0) eqn:?, (mm1 <=? mm0) eqn:?, (mq1 <=? mq0) eqn:?. *)
-      (* all: try reflexivity. *)
-      (* all: try (rewrite PeanoNat.Nat.eqb_refl in * ). *)
-      (* all: try (rewrite PeanoNat.Nat.eqb_eq in * ). *)
-      (* all: try (rewrite PeanoNat.Nat.eqb_neq in * ). *)
-      (* all: try (rewrite PeanoNat.Nat.leb_le in * ). *)
-      (* all: try (rewrite PeanoNat.Nat.leb_nle in * ). *)
-      (* all: try lia. *)
-
-      all: blast_cases; simpl in *.
-      all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-      all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-      all: try (rewrite PeanoNat.Nat.leb_le in * ).
-      all: hsimpl in *.
-      all: try lia.
-      all: simpl in *.
-      all: repeat (rewrite next_state_Send_all in * ).
-      all: simpl in *.
-      admit.
-      admit.
-
-      all: blast_cases; simpl in *.
-      all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-      all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-      all: try (rewrite PeanoNat.Nat.leb_le in * ).
-      all: hsimpl in *.
-      all: try lia.
-      destruct MQ; simpl in *; blast_cases; doubt.
-      all: hsimpl in *.
-      destruct MQ; simpl in *; blast_cases; attac.
-
-      generalize dependent mm1 mq1 mm0 mq0.
-      induction MQ; attac.
-      + blast_cases.
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: hsimpl in *.
-        all: try lia.
-      + simpl in *.
-        blast_cases.
-        all: destruct b5.
-        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
-        all: simpl in *.
-        all: blast_cases.
-        all: repeat (Control.enter (fun () =>
-                                      List.iter
-                                        (fun (h, _, _) => try (let _ := split_hyp h in ()))
-                                        (Control.hyps ())
-               )).
-        all: try (rewrite NAME.eqb_eq in * ).
-        all: try (rewrite NAME_H.eqb_neq_inv in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: simpl in *.
-        all: try lia.
-        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
-        all: blast_cases.
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: hsimpl in *.
-
-        destruct MQ; simpl in *; blast_cases; doubt.
-        all: hsimpl in *.
-        destruct MQ; simpl in *; blast_cases; doubt.
-        destruct MQ; simpl in *; blast_cases; doubt.
-
-        all: simpl in *; try lia.
-        all: repeat (Control.enter (fun () =>
-                                      List.iter
-                                        (fun (h, _, _) => try (let _ := split_hyp h in ()))
-                                        (Control.hyps ())
-               )).
-        all: try lia.
-        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
-        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: try lia.
-
-        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
-        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: try lia.
-        simpl in *.
-        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
-        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: try lia.
-        all: blast_cases; attac.
-        all: blast_cases; attac.
-        all: try (destruct b3; attac).
-        all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
-        all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-        all: try (rewrite PeanoNat.Nat.leb_le in * ).
-        all: try lia.
-
-        admit.
-        blast_cases; attac.
-        blast_cases; attac.
-        blast_cases; attac.
-        blast_cases; attac.
-        blast_cases; attac.
-        blast_cases; attac.
-        blast_cases; attac.
-        blast_cases; attac.
-        blast_cases; attac.
-        blast_cases; attac.
-    -
-
-        generalize dependent mm1 mq1 mm0 mq0.
-        induction M; attac.
-        * blast_cases.
-          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-          all: try (rewrite PeanoNat.Nat.leb_le in * ).
-          all: hsimpl in *.
-          all: try lia.
-          all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
-          all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-          all: try (rewrite PeanoNat.Nat.leb_le in * ).
-          all: try lia.
-        * blast_cases.
-          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-          all: try (rewrite PeanoNat.Nat.leb_le in * ).
-          all: hsimpl in *.
-          all: try lia.
-          all: try (specialize (IHMQ _ _ eq_refl _ _ eq_refl)).
-          all: try (rewrite PeanoNat.Nat.eqb_refl in * ).
-          all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-          all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-          all: try (rewrite PeanoNat.Nat.leb_le in * ).
-          all: try lia.
-        *
-        blast_cases.
-
-      induction M; attac.
-      + generalize dependent mm1 mq1 mm0 mq0.
-        induction MQ; attac.
-        destruct a; eattac.
-        * eapply IHMQ; eauto.
-
-
-
-
-  Fixpoint measure_lock_chain (p : MProbe) (MN : MNet) (L : list Name) (n : Name) : (DetectMeasure * option Name) :=
+  Fixpoint measure_lock_chain (p : MProbe) (MN : MNet) (n_prev : Name) (L : list Name) (n : Name) : (DetectMeasure * option Name) :=
     match L with
     | [] =>
-        match measure_ms n p (NetMod.get n MN) with
+        match measure_ms_init n_prev (NetMod.get n MN) with
           ((mm, mq), found) =>
             ({|dm_mon := mm; dm_mque := mq; dm_vis := 1|},
               if found then Some n else None
             )
         end
     | m::L =>
-        match measure_ms n p (NetMod.get m MN) with
+        match measure_ms p (NetMod.get m MN) with
         | ((mm, mq), true) =>
             ({|dm_mon := mm; dm_mque := mq; dm_vis := 1|}, Some m)
         | _ =>
-            let (dm, found_name) := measure_lock_chain p MN L n in
+            let (dm, found_name) := measure_lock_chain p MN m L n in
             ({|dm_mon := dm_mon dm; dm_mque := dm_mque dm; dm_vis := S (dm_vis dm)|},
               found_name
             )
         end
     end.
 
+
+
   Definition measure_loop (MN : MNet) (L : list Name) (n : Name) : (DetectMeasure * option Name) :=
     if alarm (MN n)
     then ({|dm_mon := 0; dm_mque := 0; dm_vis := 0|}, Some n)
-    else measure_lock_chain (active_probe_of MN n) MN (n::L) n.
+    else
+      match measure_mq n (active_probe_of MN n) (mserv_q (MN n)) with
+      | (mq, true) =>
+          ({|dm_mon := ; dm_mque := mq; dm_vis := 0|}, Some n)
+      | _ =>
+          measure_lock_chain (active_probe_of MN n) MN n L n
+      end.
 
   Lemma measure_loop_end : forall MN L n m,
     measure_loop MN L n = ({|dm_mon := 0; dm_mque := 0; dm_vis := 0|}, Some m) ->
@@ -477,10 +647,11 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     destruct (alarm (MN n)) eqn:?; auto.
     exfalso.
 
-    unfold measure_loop in *.
+    unfold measure_loop, NetGet, measure_ms, active_probe_of in *.
     rewrite Heqb in *.
-    unfold measure_lock_chain in *.
-    blast_cases; doubt.
+    blast_cases; attac.
+    destruct (NetMod.get m MN); attac.
+    attac.
   Qed.
 
   Ltac2 Notation "destruct_mna" a(constr) :=
@@ -489,7 +660,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
 
   Lemma measure_sp_true : forall (n : Name) p MS,
       sends_probe (n, R) p MS ->
-      snd (measure_ms (origin p) p MS) = true.
+      snd (measure_ms p MS) = true.
 
   Proof.
     intros.
@@ -503,7 +674,19 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       generalize dependent n0 n2 n' p b0.
       induction MQ; intros; attac.
       + blast_cases; attac.
+        destruct b0; auto.
+        exfalso.
+        setoid_rewrite <- H2 in Heqb1.
+        setoid_rewrite <- H3 in Heqb1.
+        setoid_rewrite NAME_H.same_eqb_inv in Heqb1.
+        rewrite PeanoNat.Nat.eqb_refl in Heqb1.
+        bs.
       + blast_cases; attac.
+        * eapply IHMQ; eauto.
+          unfold NoRecvR_from in *.
+          intros.
+          specialize (H v1).
+          attac.
         * eapply IHMQ; eauto.
           unfold NoRecvR_from in *.
           intros.
@@ -514,21 +697,35 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           intros.
           specialize (H v0).
           attac.
-    - blast_cases; attac.
-
-      (* destruct c; simpl in *; destruct alarm; doubt. *)
-      (* hsimpl in *. *)
-
-      generalize dependent n0 n2 n' p b0.
-      induction MQ; intros; attac.
-      + blast_cases; attac.
-        apply PeanoNat.Nat.eqb_neq in Heqb1; bs.
-      + blast_cases; attac.
         * eapply IHMQ; eauto.
           unfold NoRecvR_from in *.
           intros.
           specialize (H v0).
           attac.
+    - blast_cases; attac.
+
+      destruct c; simpl in *; doubt.
+      hsimpl in *.
+
+      destruct b0; auto.
+      exfalso.
+
+      generalize dependent n0 n2 n' p.
+      induction MQ; intros; attac.
+      + blast_cases; attac.
+        rewrite PeanoNat.Nat.eqb_refl in Heqb0.
+        simpl in *.
+        bs.
+      + unfold NoRecvR_from in *; hsimpl in *.
+        blast_cases; attac.
+        * eapply IHMQ; eauto.
+          intros.
+          specialize (H v0).
+          attac.
+
+          destruct `(_ \/ _). attac.
+          specialize (H v0).
+          eattac.
         * eapply IHMQ; eauto.
           unfold NoRecvR_from in *.
           intros.
