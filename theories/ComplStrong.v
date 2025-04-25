@@ -1364,34 +1364,108 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           eexists _, _, _.
           attac.
   Qed.
-        ()
 
-      blast_cases; attac.
 
-      consider (exists L1' n1', m1 :: L1 = L1' ++ [n1']).
-      {
-        clear.
-        induction L1 using rev_ind; attac.
-        exists []; attac.
-      }
-      rewrite <- `(_ = m1 :: L1) in *.
-      consider (L = L0 ++ m0 :: L1').
-      {
-        clear - H7.
-        kill H7.
-        repeat (rewrite app_comm_cons in * ).
-        repeat (rewrite app_assoc in * ).
-        remember (L0 ++ m0 :: L1') as L'.
-        clear HeqL'.
-        generalize dependent L'.
-        induction L; attac.
-        induction L'; attac.
-        destruct L'; attac.
-        apply IHL in H0.
-        attac.
-      }
-      clear H7.
-      rewrite <- `(_ = m1 :: L1) in *.
+  Lemma measure_loop_decr : forall (MN0 MN1 : MNet) (n m0 m1 : Name) (L : list Name) dm0 a,
+      KIC MN0 ->
+      lock_chain MN0 n L n ->
+      NoDup L ->
+      ~ In n L ->
+      Flushing_NAct m1 a ->
+      (MN0 =(a)=> MN1) ->
+      measure_loop MN0 n L = Some (m0, m1, dm0) ->
+      exists m0' m1' dm1, measure_loop MN1 n L = Some (m0', m1', dm1) /\ alarm (MN0 n) || dm_ltp dm1 dm0 = true.
+
+  Proof.
+    intros.
+    unfold measure_loop in *.
+
+    replace (active_probe_of MN1 n) with (active_probe_of MN0 n).
+    2: {
+      eapply deadlocked_preserve_active_probe_of1; eauto with LTS.
+      eapply dep_self_deadlocked; eauto with LTS.
+    }
+
+    blast_cases; attac.
+    - eexists _, _, _. split. attac.
+
+      destruct (alarm (MN0 m1)) eqn:?; attac.
+
+      unfold NetGet in *.
+      destruct_mna a; consider (Flushing_NAct m1 _); consider (MN0 =(_)=> MN1).
+      all: compat_hsimpl in *; attac.
+      all: unfold measure_ms_fin in *; simpl in *.
+      all: rewrite `(NetMod.get m1 MN0 = _) in *.
+      all: simpl in *; hsimpl in *.
+      all: unfold option_map in *; blast_cases; attac.
+      all: unfold option_map in *; blast_cases; attac.
+      all: unfold dm_ltp, dm_lep; simpl.
+
+      all: try (Control.enter (fun () => match! goal with [|- (if ?x then _ else _) = _] => destruct $x eqn:? end)).
+      all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+      all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+      all: try (rewrite PeanoNat.Nat.leb_le in * ).
+      all: try (rewrite PeanoNat.Nat.ltb_lt in * ).
+      all: try (lia).
+
+      smash_eq n2 m1; attac; unfold option_map in *; blast_cases; attac.
+      ltac1:(rewrite_strat innermost progress fold (n3 + n) in Heqo0).
+      ltac1:(rewrite_strat innermost progress fold (n3 + n4) in Heqo0).
+      simpl in *.
+      assert (n = S n4). clear - Heqo0. induction n3; attac.
+      erewrite measure_mq_fin_push in Heqo; eauto.
+      attac.
+
+      smash_eq n2 m1; attac; unfold option_map in *; blast_cases; attac.
+      ltac1:(rewrite_strat innermost progress fold (_ + _) in Heqb0).
+      ltac1:(rewrite_strat innermost progress fold (n3 + n4) in Heqb0).
+      ltac1:(rewrite_strat innermost progress fold (_ + _)).
+      ltac1:(rewrite_strat innermost progress fold (n3 + n4)).
+      erewrite measure_mq_fin_push in Heqo; eauto.
+      attac.
+
+      smash_eq n2 m1; attac; unfold option_map in *; blast_cases; attac.
+      erewrite measure_mq_fin_push in Heqo; eauto.
+      attac. attac.
+
+      attac.
+      destruct s; attac.
+      setoid_rewrite Heqo2 in Heqo. attac.
+
+      smash_eq n2 m1; attac; unfold option_map in *; blast_cases; attac.
+      erewrite measure_mq_fin_push in Heqo; eauto.
+      attac. attac.
+
+      destruct s; attac.
+      erewrite measure_mq_fin_push in Heqo; eauto.
+      attac.
+
+      erewrite measure_mq_fin_push in Heqo; eauto.
+      attac.
+
+
+      attac.
+      attac.
+      ltac1:(rewrite_strat innermost progress fold (_ + _) in Heqb0).
+      ltac1:(rewrite_strat innermost progress fold (n3 + n4) in Heqb0).
+      ltac1:(rewrite_strat innermost progress fold (_ + _)).
+      ltac1:(rewrite_strat innermost progress fold (n3 + n4)).
+      erewrite measure_mq_fin_push in Heqo; eauto.
+      attac.
+      unfold lt.
+
+
+      ltac1:(rewrite_strat innermost progress fold (n3 + n4) in Heqo0).
+      simpl in *.
+      assert (n = S n4). clear - Heqo0. induction n3; attac.
+      erewrite measure_mq_fin_push in Heqo; eauto.
+      attac.
+
+
+    - consider (exists n', lock MN0 n n') by (consider (lock_chain '' MN0 n L n); attac).
+      eapply measure_lock_chain_decr; eauto.
+      simpl; lia.
+
 
 
   Lemma measure_lock_chain_split : forall MN n0 L n1 m0 m1 p,
