@@ -1215,7 +1215,6 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           induction L0; attac; induction L; attac.
         }
 
-        consider (exists m2, locked (MN0 m1) = Some m2) by attac.
         assert (NoRecvQ_from m0 (mserv_q (MN0 m1)) -> In m0 (wait (MN0 m1))).
         {
           clear - HKIC0 HL0_m01.
@@ -1228,14 +1227,15 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
         unfold no_sends_in, NoMqSend in *. unfold NetGet in *; attac.
         destruct (NetMod.get m1 MN0); attac.
 
-        (* clear - H9 H10 H11 H6 Heqn0 H2. *)
-        destruct (measure_mon m0 (active_probe_of MN0 n0) (MN0 m1)) as [dm0 b0] eqn:?.
-        destruct (measure_mon m0 (active_probe_of MN0 n0) (MN1 m1)) as [dm1 b1] eqn:?.
+        subst.
+        clear - H3 H6 H9 H10 Heqn0 H2 H5 H1.
+        destruct (measure_mon m0 p (MN0 m1)) as [dm0 b0] eqn:?.
+        destruct (measure_mon m0 p (MN1 m1)) as [dm1 b1] eqn:?.
         unfold measure_ms in *; simpl in *.
 
-        unfold active_probe_of, NetGet in *.
+        unfold NetGet in *.
+        subst.
         destruct (NetMod.get m1 MN0) as [MQ0 M0 S0] eqn:?.
-        destruct (NetMod.get n0 MN0) as [MQn0 Mn0 Sn0] eqn:?.
         destruct (NetMod.get m1 MN1) as [MQ1 M1 S1] eqn:?.
         simpl in *.
 
@@ -1252,36 +1252,34 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           consider (_ =(_)=> _); compat_hsimpl in *.
           all: hsimpl in *.
           all: blast_cases; attac.
-          all: blast_cases; attac.
-        - hsimpl in *.
-          consider (_ =(_)=> _).
-          hsimpl in *.
-          destruct p; compat_hsimpl in *; attac.
-          blast_cases; attac.
-          all: try (rewrite PeanoNat.Nat.add_succ_r in * ).
-          all: repeat f_equal.
-          all: smash_eq m1 n1; attac.
+        - smash_eq m1 n.
+          rename n0 into n.
+          destruct p as [n0 nx]; simpl in *.
+          destruct p0; consider (_ =(_)=> _); hsimpl in *.
+          + smash_eq m1 n; hsimpl in *; blast_cases; attac.
+            f_equal; attac.
+            ltac1:(rewrite_strat innermost progress fold (l ++ [MqProbe (m1, Q) m]) in Heqo0).
+            eapply measure_mq_push in Heqo; eauto.
+            rewrite Heqo in Heqo0. attac.
 
-          f_equal; attac.
-          ltac1:(rewrite_strat innermost progress fold (l ++ [MqProbe (m1, Q) m]) in Heqo0).
-          eapply measure_mq_push in Heqo; eauto.
-          rewrite Heqo in Heqo0. attac.
-
-          f_equal; attac.
-          ltac1:(rewrite_strat innermost progress fold (l ++ [MqProbe (m1, R) m]) in Heqo0).
-          eapply measure_mq_push in Heqo; eauto.
-          rewrite Heqo in Heqo0. attac.
+            f_equal; attac.
+            ltac1:(rewrite_strat innermost progress fold (l ++ [MqProbe (m1, R) m]) in Heqo0).
+            eapply measure_mq_push in Heqo; eauto.
+            rewrite Heqo in Heqo0. attac.
+          + compat_hsimpl in *; bs.
       }
 
       simpl in *.
 
-      remember (active_probe_of MN0 n0) as p.
-      clear Heqp.
+      remember (origin p) as n0.
+      clear Heqn0.
 
-      generalize dependent n0 m0 m1 n1 L0 L1 dm_flush0.
+      clear HL HL' HL0_m01 H7.
+
+      generalize dependent m0 m1 n0 n1 L0 L1 dm_flush0.
       induction L; intros; hsimpl in *.
       {
-        clear - H7.
+        clear - H8.
         induction L0; attac.
       }
 
@@ -1291,7 +1289,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       rewrite <- app_comm_cons in *.
       destruct L0.
       + simpl in *.
-        kill H7.
+        kill H8.
         destruct L; simpl in *.
         * kill H9.
           attac.
@@ -1320,7 +1318,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           all: try (rewrite PeanoNat.Nat.ltb_lt in * ).
           all: try (lia).
       + rewrite <- app_comm_cons in *.
-        kill H7.
+        kill H8.
 
         consider (exists L1' n1', m1 :: L1 = L1' ++ [n1']).
         {
@@ -1365,7 +1363,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           hsimpl in *.
           eexists _, _, _.
           attac.
-
+  Qed.
         ()
 
       blast_cases; attac.
