@@ -1323,27 +1323,47 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
         destruct b; attac.
   Qed.
 
-
   Lemma measure_ms_net_recv : forall (MN0 MN1 : MNet) n0 n1 n2 p,
       KIC MN0 ->
       n0 <> n1 ->
+      n1 <> n2 ->
       lock MN0 n0 n1 ->
-      (MN0 =(NComm n1 n0 R ^ (active_probe_of MN0 n0))=> MN1) ->
-      exists dm, measure_ms_fin (MN1 n0) = Some dm.
+      lock MN0 n1 n2 ->
+      origin p <> n1 ->
+      (MN0 =(NComm n2 n1 R ^ p)=> MN1) ->
+      exists dm, measure_ms n0 p (MN1 n1) = Some dm.
 
   Proof.
     intros.
-    eapply measure_ms_fin_recv with (n:=n1)(MS0:=MN0 n0).
-    - unfold NetGet.
-      rewrite <- net_get_deinstr.
-      eapply lock_singleton; eauto with LTS.
-    - eattac.
-    - assert (self (MN0 n0) = n0) by attac.
-      unfold active_probe_of in *.
-      consider (_ =(_)=> _); unfold NetGet in *.
-      compat_hsimpl in *; attac.
+    destruct (NoRecvQ_from_dec n0 (mserv_q (MN0 n1))).
+    - eapply measure_ms_recv_wait with (n1:=n2)(n0:=n0)(MS0:=MN0 n1); eauto with LTS.
+      + unfold NetGet.
+        rewrite <- net_get_deinstr.
+        eapply lock_singleton; eauto with LTS.
+      + assert (self (MN0 n1) = n1); attac.
+      + consider (KIC _); attac.
+      + unfold NetGet, NoRecvQ_from in *.
+        consider (_ =(_)=> _); compat_hsimpl in *.
+        attac.
+    - consider (exists v, In (MqRecv (n0, Q) v) (mserv_q (MN0 n1))).
+      {
+        clear - H6.
+        induction (mserv_q (MN0 n1)); attac.
+        unfold NoRecvQ_from in *; attac.
+        destruct a as [[n [|]] | [n [|]] | [n [|]]]; smash_eq n0 n; attac.
+        all: apply IHl.
+        all: intros ?.
+        all: attac.
+      }
+      eapply measure_ms_recv_MQ with (n1:=n2)(n0:=n0)(MS0:=MN0 n1); eauto with LTS.
+      + unfold NetGet.
+        rewrite <- net_get_deinstr.
+        eapply lock_singleton; eauto with LTS.
+      + assert (self (MN0 n1) = n1); attac.
+      + unfold NetGet, NoRecvQ_from in *.
+        consider (_ =(_)=> _); compat_hsimpl in *.
+        attac.
   Qed.
-
 
 
   Fixpoint measure_lock_chain (MN : MNet) n0 L n1 p : option ((Name * Name) * DetectMeasure) :=
@@ -1409,6 +1429,215 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     - blast_cases; attac.
     - blast_cases; attac.
   Qed.
+
+
+  Lemma measure_lock_chain_split : forall (MN0 : MNet) (n0 n1 m0 m1 : Name) (L : list Name) p dm,
+      measure_lock_chain MN0 n0 L n1 p = Some (m0, m1, dm) ->
+      exists L0 L1, n0 :: L ++ [n1] = L0 ++ m0 :: m1 :: L1
+               /\ measure_ms m0 p (MN0 m1) = Some (dm_flush dm)
+               /\ dm_pass dm = S (length L0).
+
+  Proof.
+    intros.
+    generalize dependent n0 m0 m1 n1 dm.
+    induction L; intros; simpl in *; hsimpl in *.
+    - exists [], [].
+      blast_cases; attac.
+    - blast_cases; attac.
+      + exists [], (L ++ [n1]); attac.
+      + apply IHL in Heqo0.
+        hsimpl in *.
+        exists (n0::L0), L1.
+        attac.
+  Qed.
+
+
+  Lemma measure_lock_chain_in_l : forall (MN0 : MNet) (n0 n1 m0 m1 : Name) (L : list Name) p dm,
+      measure_lock_chain MN0 n0 L n1 p = Some (m0, m1, dm) ->
+      m0 = n0 \/ In m0 L.
+
+  Proof.
+    intros.
+    generalize dependent n0 dm.
+    induction L; attac.
+    blast_cases; attac.
+    blast_cases; attac.
+    eapply IHL in Heqo0 as [|]; attac.
+  Qed.
+
+  Lemma measure_lock_chain_in_r : forall (MN0 : MNet) (n0 n1 m0 m1 : Name) (L : list Name) p dm,
+      measure_lock_chain MN0 n0 L n1 p = Some (m0, m1, dm) ->
+      m1 = n1 \/ In m1 L.
+
+  Proof.
+    intros.
+    generalize dependent n0 dm.
+    induction L; attac.
+    blast_cases; attac.
+    blast_cases; attac.
+    eapply IHL in Heqo0 as [|]; attac.
+  Qed.
+
+
+  Lemma measure_lock_chain_cut : forall (MN0 : MNet) (n0 n1 m0 m1 : Name)
+                                   (L0 L1 : list Name) p dm,
+      measure_lock_chain MN0 n0 (L0 ++ [m0]) m1 p = Some (m0, m1, dm) ->
+      measure_lock_chain MN0 n0 (L0 ++ m0 :: m1 :: L1) n1 p = Some (m0, m1, dm).
+
+  Proof.
+    intros.
+    generalize dependent dm n0.
+    induction L0; attac.
+    - blast_cases; attac.
+    - blast_cases; attac.
+      eapply IHL0 in Heqo0.
+      rewrite Heqo0 in Heqo1.
+      attac.
+  Qed.
+
+  Lemma measure_lock_chain_len : forall (MN0 : MNet) (n0 n1 m0 m1 : Name)
+                                   (L0 L1 : list Name) p dmf,
+      measure_lock_chain MN0 n0 (L0 ++ [m0]) m1 p = None ->
+      measure_ms m0 p (MN0 m1) = Some dmf ->
+      measure_lock_chain MN0 n0 (L0 ++ m0 :: m1 :: L1) n1 p =
+        Some (m0, m1, {|dm_pass := S (length L0); dm_flush := dmf|}).
+
+  Proof.
+    intros.
+    generalize dependent n0.
+    induction L0; attac.
+    - blast_cases; attac.
+    - blast_cases; attac.
+      eapply IHL0 in Heqo0.
+      rewrite Heqo0 in Heqo1.
+      attac.
+  Qed.
+
+
+  Lemma measure_lock_chain_tip : forall (MN0 : MNet) (n0 n1 m0 m1 : Name)
+                                   (L0 L1 : list Name) p dm,
+      n1 <> m1 ->
+      measure_lock_chain MN0 n0 (L0 ++ [m0]) n1 p = Some (m0, m1, dm) ->
+      measure_lock_chain MN0 n0 L0 m0 p = Some (m0, m1, dm).
+
+  Proof.
+    intros.
+    generalize dependent dm n0.
+    induction L0; attac.
+    - blast_cases; attac.
+    - blast_cases; attac.
+      eapply IHL0 in Heqo0.
+      rewrite Heqo0 in Heqo1.
+      attac.
+  Qed.
+
+  Lemma measure_lock_chain_split_nth : forall (MN0 : MNet) (n0 n1 m0 m1 : Name) (L : list Name) p dm,
+      NoDup L ->
+      n0 <> m0 ->
+      n1 <> m1 ->
+      measure_lock_chain MN0 n0 L n1 p = Some (m0, m1, dm) ->
+      exists L0 L1, L = L0 ++ m0 :: m1 :: L1
+               /\ ~ In m0 L0
+               /\ measure_ms m0 p (MN0 m1) = Some (dm_flush dm)
+               /\ measure_lock_chain MN0 n0 L0 m0 p = None
+               /\ dm_pass dm = S (S (length L0)).
+
+  Proof.
+    intros.
+
+    generalize dependent n0 m0 m1 n1 dm.
+    induction L; intros; simpl in *; hsimpl in *.
+    1: { blast_cases; attac. }
+
+    consider (NoDup (_ :: _)).
+
+    destruct (measure_ms n0 p (MN0 a)) eqn:?; attac.
+    destruct (measure_lock_chain MN0 a L n1 p) as [[[m0' m1'] dm'] | ] eqn:?; attac.
+    destruct dm'; attac.
+
+    smash_eq m0 a.
+    - consider (exists L', L = m1 :: L').
+      {
+        smash_eq m0 n1.
+
+        assert (m1 = n1 \/ In m1 L) by eauto using measure_lock_chain_in_r.
+        attac.
+        clear IHL.
+
+        destruct L.
+        1: clear Heqo0; simpl in *; blast_cases; attac.
+
+        consider (NoDup (_ :: _)).
+        smash_eq n m1. eattac.
+        hsimpl in *.
+
+        exfalso.
+        simpl in *.
+        destruct (measure_ms m0 p (MN0 n)) eqn:?; attac.
+        destruct (measure_lock_chain MN0 n L n1 p) as [[[m0' m1'] dm'] | ] eqn:?; attac.
+        destruct dm'; attac.
+
+        assert (m0 = n \/ In m0 L) by eauto using measure_lock_chain_in_l.
+        attac.
+      }
+      exists [], L'.
+      simpl.
+      repeat split; auto.
+      + simpl in *.
+        destruct (measure_ms m0 p (MN0 m1)) eqn:?; attac.
+        destruct (measure_lock_chain MN0 m1 L' n1 p) as [[[m0' m1'] dm'] | ] eqn:?; attac.
+        destruct dm'; attac.
+
+        consider (NoDup (_ :: _)).
+        assert (m1 = n1 \/ In m1 L') by eauto using measure_lock_chain_in_r.
+        attac.
+      + destruct (measure_ms n0 p (MN0 m0)) eqn:?; attac.
+      + simpl in *.
+        destruct (measure_ms m0 p (MN0 m1)) eqn:?; attac.
+        destruct (measure_lock_chain MN0 m1 L' n1 p) as [[[m0' m1'] dm'] | ] eqn:?; attac.
+        destruct dm'; attac.
+
+        consider (NoDup (_ :: _)).
+        assert (m1 = n1 \/ In m1 L') by eauto using measure_lock_chain_in_r.
+        attac.
+    - eapply IHL in Heqo0; eauto.
+      clear IHL.
+      hsimpl in *.
+      exists (a :: L0), L1; attac.
+  Qed.
+
+
+
+  Lemma measure_lock_chain_pass : forall (MN0 MN1 : MNet) (n0 n1 m0 m1 : Name)
+                                   (L : list Name) p dm,
+      KIC MN0 ->
+      n0 <> m0 ->
+      lock_chain MN0 n0 L n1 ->
+      measure_lock_chain MN0 n0 L n1 p = Some (m0, m1, dm) ->
+      (MN0 =(NComm m0 m1 R ^ p)=> MN1) ->
+      origin p <> m0 ->
+      exists m' dmf,
+        measure_lock_chain MN1 n0 L n1 p =
+          Some (m', m0, dm_decr dmf dm).
+
+  Proof.
+    intros.
+    apply measure_lock_chain_split in H2.
+    hsimpl in *.
+
+    destruct L0 using rev_ind; attac.
+    clear IHL0.
+
+    rewrite <- app_assoc in *; simpl in *.
+    exists x.
+
+  Lemma measure_lock_chain_point : forall (MN0 : MNet) (n0 n1 m0 m1 : Name)
+                                     (L0 L1 : list Name) p dmf,
+      measure_ms m0 p (MN0 m1) = Some dmf
+      exists dm m0' m1',
+        measure_lock_chain MN0 n0 (L0 ++ m0 :: m1 :: L1) n1 p = Some (m0', m1', dm)
+        /\ dm_leb dm {|dm_pass := S (length L0); dm_flush :=  |}
+
 
 
   Lemma measure_sp_true : forall (n : Name) p MS,
@@ -1521,145 +1750,6 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       destruct found; attac.
       destruct nc'; attac.
       blast_cases; attac.
-  Qed.
-
-
-  Lemma measure_lock_chain_tip : forall (MN : MNet) n0 L n1 n2 p,
-      measure_ms n1 p (MN n2) <> None ->
-      measure_lock_chain MN n0 (L ++ [n1]) n2 p <> None.
-
-  Proof.
-    intros.
-    generalize dependent n0.
-    induction L; attac.
-    - unfold measure_ms in *.
-      blast_cases; attac.
-    - blast_cases; attac.
-  Qed.
-
-  Lemma measure_lock_chain_mid : forall (MN : MNet) n0 L0 n1 n2 L1 n3 p,
-      measure_ms n1 p (MN n2) <> None ->
-      measure_lock_chain MN n0 (L0 ++ n1::n2::L1) n3 p <> None.
-
-  Proof.
-    intros.
-    generalize dependent L1 n0 n1 n2.
-    induction L0; attac.
-    -  unfold measure_ms in *.
-       blast_cases; attac.
-    - blast_cases; attac.
-  Qed.
-
-  Lemma measure_lock_chain_mids : forall MN n0 L0 L1 n1 n2 p,
-      measure_lock_chain MN n1 L1 n2 p <> None ->
-      measure_lock_chain MN n0 (L0 ++ (n1::L1)) n2 p <> None.
-
-  Proof.
-    intros.
-
-    generalize dependent n1 n2 L1.
-    induction L0 using rev_ind; attac.
-    - unfold measure_ms in *.
-      blast_cases; attac.
-    - rewrite <- app_assoc in *.
-      simpl.
-      specialize IHL0 with (L1:=n1::L1)(n1:=x).
-      eapply IHL0; eattac.
-      blast_cases; attac.
-  Qed.
-
-  Lemma measure_lock_chain_split : forall (MN0 : MNet) (n0 n1 m0 m1 : Name) (L : list Name) p dm,
-      measure_lock_chain MN0 n0 L n1 p = Some (m0, m1, dm) ->
-      exists L0 L1, n0 :: L ++ [n1] = L0 ++ m0 :: m1 :: L1
-               /\ measure_ms m0 p (MN0 m1) = Some (dm_flush dm)
-               /\ dm_pass dm = S (length L0).
-
-  Proof.
-    intros.
-    generalize dependent n0 m0 m1 n1 dm.
-    induction L; intros; simpl in *; hsimpl in *.
-    - exists [], [].
-      blast_cases. 2: attac.
-      attac.
-    - blast_cases; attac.
-      + exists [], (L ++ [n1]); attac.
-      + apply IHL in Heqo0.
-        hsimpl in *.
-        exists (n0::L0), L1.
-        attac.
-  Qed.
-
-
-  Lemma measure_lock_chain_connect : forall (MN0 : MNet) (n0 n1 m0 m1 : Name) (L0 L1 : list Name) p dmm,
-      ~ In n0 L0 ->
-      NoDup L0 ->
-      measure_ms m0 p (MN0 m1) = Some dmm ->
-      exists m0' m1' dm',
-      measure_lock_chain MN0 n0 (L0 ++ m0 :: m1 :: L1) n1 p = Some (m0', m1', dm')
-      /\ dm_leb dm' {|dm_pass := S (S (length L0)); dm_flush := dmm |} = true.
-
-  Proof.
-    intros.
-
-    generalize dependent n0 n1 m0 m1 L1.
-    induction L0; intros.
-    - attac.
-      destruct (measure_ms n0 p (MN0 m0)) eqn:?.
-      + exists n0, m0, {|dm_flush := n; dm_pass := 1|}. attac.
-      + exists m0, m1, {|dm_flush := dmm; dm_pass := 2|}. attac.
-        unfold dm_leb; attac.
-    - hsimpl in *.
-      destruct (measure_ms n0 p (MN0 a)) eqn:?.
-      + eexists _, _, _. attac.
-      + specialize IHL0 with
-          (L1 := L1)
-          (m1 := m1)
-          (m0 := m0)
-          (n0 := a)
-          (n1 := n1).
-
-        kill H0.
-        specialize (IHL0 ltac:(auto)).
-        specialize (IHL0 ltac:(auto)).
-        specialize (IHL0 ltac:(auto)).
-        hsimpl in *.
-        eexists _, _, _. split. attac.
-        attac.
-  Qed.
-
-  Lemma measure_lock_chain_connect_tip : forall (MN0 : MNet) (n0 n1 m0 : Name) (L0 : list Name) p dmm,
-      ~ In n0 L0 ->
-      NoDup L0 ->
-      measure_ms m0 p (MN0 n1) = Some dmm ->
-      exists m0' m1' dm',
-      measure_lock_chain MN0 n0 (L0 ++ [m0]) n1 p = Some (m0', m1', dm')
-      /\ dm_leb dm' {|dm_pass := S (S (length L0)); dm_flush := dmm |} = true.
-
-  Proof.
-    intros.
-
-    generalize dependent n0 n1 m0.
-    induction L0; intros.
-    - attac.
-      destruct (measure_ms n0 p (MN0 m0)) eqn:?.
-      + exists n0, m0, {|dm_flush := n; dm_pass := 1|}. attac.
-      + exists m0, n1, {|dm_flush := dmm; dm_pass := 2|}. attac.
-        unfold dm_leb; attac.
-    - hsimpl in *.
-      destruct (measure_ms n0 p (MN0 a)) eqn:?.
-      + eexists _, _, _. attac.
-      + specialize IHL0 with
-          (m0 := m0)
-          (n0 := a)
-          (n1 := n1).
-
-        kill H0.
-        specialize (IHL0 ltac:(auto)).
-        specialize (IHL0 ltac:(auto)).
-        specialize (IHL0 ltac:(auto)).
-        hsimpl in *.
-        eexists _, _, _. split. attac.
-        attac.
   Qed.
 
 
