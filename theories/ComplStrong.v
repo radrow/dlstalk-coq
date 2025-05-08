@@ -1558,8 +1558,6 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     smash_eq m0 a.
     - consider (exists L', L = m1 :: L').
       {
-        smash_eq m0 n1.
-
         assert (m1 = n1 \/ In m1 L) by eauto using measure_lock_chain_in_r.
         attac.
         clear IHL.
@@ -1606,30 +1604,168 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       exists (a :: L0), L1; attac.
   Qed.
 
-
-
-  Lemma measure_lock_chain_pass : forall (MN0 MN1 : MNet) (n0 n1 m0 m1 : Name)
-                                   (L : list Name) p dm,
-      KIC MN0 ->
-      n0 <> m0 ->
-      lock_chain MN0 n0 L n1 ->
-      measure_lock_chain MN0 n0 L n1 p = Some (m0, m1, dm) ->
-      (MN0 =(NComm m0 m1 R ^ p)=> MN1) ->
-      origin p <> m0 ->
-      exists m' dmf,
-        measure_lock_chain MN1 n0 L n1 p =
-          Some (m', m0, dm_decr dmf dm).
+  Lemma measure_ms_send_zero : forall MS0 MS1 n p,
+      (MS0 =(send (n, R) ^ p)=> MS1) ->
+      measure_ms n p MS0 = Some 1.
 
   Proof.
     intros.
-    apply measure_lock_chain_split in H2.
+    destruct MS0; attac.
+    unfold measure_ms; attac.
+  Qed.
+
+  Lemma measure_ms_net_send_zero : forall (MN0 MN1 : MNet) n0 n1 p,
+      (MN0 =(NComm n1 n0 R ^ p)=> MN1) ->
+      measure_ms n0 p (MN0 n1) = Some 1.
+
+  Proof.
+    intros.
+    consider (MN0 =(_)=> _).
+    kill H0.
+    eauto using measure_ms_send_zero.
+  Qed.
+
+  Lemma dm_ltb_pass : forall dm0 dm1, dm_pass dm0 < dm_pass dm1 ->
+                                 dm_ltb dm0 dm1 = true.
+  Proof.
+    intros.
+    destruct dm0, dm1; simpl in *.
+    unfold dm_ltb in *; simpl.
+    destruct (dm_pass0 =? dm_pass1) eqn:?.
+    attac.
+    now rewrite PeanoNat.Nat.ltb_lt.
+  Qed.
+
+  Hint Resolve dm_ltb_pass : LTS.
+
+
+  Lemma measure_lock_chain_extend : forall (MN0 : MNet) L n0 m0 m1 dmm p,
+      measure_lock_chain MN0 n0 L m0 p = None ->
+      measure_ms m0 p (MN0 m1) = Some dmm ->
+      measure_lock_chain MN0 n0 (L ++ [m0]) m1 p =
+        Some (m0, m1, {|dm_pass := S (S (length L)); dm_flush := dmm|}).
+
+  Proof.
+    intros.
+    generalize dependent n0.
+    induction L; attac.
+    1: blast_cases; attac.
+
+    destruct (measure_ms n0 p (MN0 a)) eqn:?; attac.
+    destruct (measure_lock_chain MN0 a L m0 p) as [[[m0' m1'] dm'] | ] eqn:?; attac.
+    - destruct dm'; attac.
+    - eapply IHL in Heqo0.
+      rewrite Heqo0; attac.
+  Qed.
+
+
+  Lemma measure_lock_chain_pass : forall (MN0 MN1 : MNet) (n0 n1 m0 m1 : Name)
+                                   (L : list Name) p dm0,
+      KIC MN0 ->
+      NoDup L ->
+      n0 <> m0 ->
+      n1 <> m1 ->
+      lock_chain MN0 n0 L n1 ->
+      measure_lock_chain MN0 n0 L n1 p = Some (m0, m1, dm0) ->
+      (MN0 =(NComm m1 m0 R ^ p)=> MN1) ->
+      origin p <> m0 ->
+      exists m' dm1,
+        measure_lock_chain MN1 n0 L n1 p = Some (m', m0, dm1)
+        /\ dm_ltb dm1 dm0 = true.
+
+  Proof.
+    intros.
+    apply measure_lock_chain_split_nth in H4; auto.
+    assert (measure_ms m0 p (MN0 m1) = Some 1) by eauto using measure_ms_net_send_zero.
     hsimpl in *.
 
     destruct L0 using rev_ind; attac.
-    clear IHL0.
+    - consider (NoDup (_ :: _)).
+      consider (NoDup (_ :: _)).
+      eapply measure_ms_net_recv in H5; auto.
+      4: eauto.
+      all: auto.
+      2: attac.
+      hsimpl in *.
+      eexists _, _.
+      split; eauto.
+      eapply dm_ltb_pass.
+      simpl; attac.
+    - clear IHL0.
+      rewrite <- app_assoc in *.
+      simpl in *.
 
-    rewrite <- app_assoc in *; simpl in *.
-    exists x.
+      consider (exists dm : nat, measure_ms x p (MN1 m0) = Some dm).
+      {
+        eapply measure_ms_net_recv in H5; auto.
+        4: eauto.
+        all: auto.
+        consider (NoDup (_ :: _ :: _)) by eauto using NoDup_app_remove_l.
+        consider (NoDup (_ :: _)); consider (NoDup (_ :: _)); attac.
+      }
+
+      assert (measure_lock_chain MN1 n0 L0 x p = None).
+      {
+
+        assert (forall n, In n L0 -> MN1 n = MN0 n).
+        {
+          intros.
+          enough (n <> m0 /\ n <> m1) as [? ?].
+          {
+            unfold NetGet.
+            eauto using NComm_neq_stay, eq_sym.
+          }
+          apply in_split in H17.
+          hsimpl in H17.
+          rewrite <- app_assoc in *.
+          rewrite <- app_comm_cons in *.
+          apply NoDup_app_remove_l in H0.
+          kill H0.
+          clear - H17.
+          attac.
+        }
+        assert (MN1 x = MN0 x).
+        {
+          enough (x <> m1) by (unfold NetGet; eauto using NComm_neq_stay, eq_sym).
+          apply NoDup_app_remove_l in H0.
+          clear - H0; kill H0; attac.
+        }
+        enough (measure_lock_chain MN0 n0 L0 x p = None).
+        {
+          clear - H17 H18 H19.
+          generalize dependent n0.
+          induction L0; intros; simpl in *.
+          - blast_cases; attac.
+          - rewrite H17; eauto.
+            destruct (measure_ms n0 p (MN0 a)) eqn:?; attac.
+            destruct (measure_lock_chain MN0 a L0 x p) as [[[m0' m1'] dm']|] eqn:?; attac.
+            + destruct dm'; attac.
+            + eapply IHL0 in Heqo0.
+              attac.
+              attac.
+        }
+        clear - H10 H0.
+        generalize dependent n0.
+        induction L0; intros; simpl in *.
+        - blast_cases; attac.
+        - blast_cases; attac.
+          specialize IHL0 with (n0 := a).
+          rewrite IHL0 in Heqo1; doubt.
+      }
+
+      eapply measure_lock_chain_extend in H16.
+      2: eauto.
+
+      eapply measure_lock_chain_cut in H16.
+      eexists _, _.
+      split; eauto.
+      destruct dm0; simpl in *.
+      subst.
+      eapply dm_ltb_pass.
+      simpl.
+      lia.
+  Qed.
+
 
   Lemma measure_lock_chain_point : forall (MN0 : MNet) (n0 n1 m0 m1 : Name)
                                      (L0 L1 : list Name) p dmf,
