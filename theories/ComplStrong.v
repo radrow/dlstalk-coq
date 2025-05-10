@@ -1083,22 +1083,54 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
 
   Lemma measure_ms_fin_net_recv : forall (MN0 MN1 : MNet) n0 n1,
       KIC MN0 ->
-      n0 <> n1 ->
       lock MN0 n0 n1 ->
       (MN0 =(NComm n1 n0 R ^ (active_probe_of MN0 n0))=> MN1) ->
       exists dm, measure_ms_fin (MN1 n0) = Some dm.
 
   Proof.
     intros.
-    eapply measure_ms_fin_recv with (n:=n1)(MS0:=MN0 n0).
-    - unfold NetGet.
-      rewrite <- net_get_deinstr.
-      eapply lock_singleton; eauto with LTS.
-    - eattac.
+    smash_eq n0 n1.
     - assert (self (MN0 n0) = n0) by attac.
-      unfold active_probe_of in *.
-      consider (_ =(_)=> _); unfold NetGet in *.
-      compat_hsimpl in *; attac.
+      assert (locked (MN0 n0) = Some n0) by attac.
+      unfold active_probe_of, measure_ms_fin, NetGet in *.
+      kill H1.
+      eapply measure_ms_fin_recv with (n:=n0)(MS0:=N0' n0).
+      + unfold NetGet.
+        rewrite <- net_get_deinstr.
+        assert (serv_lock [n0] (NetMod.get n0 '' MN0)) by attac.
+        clear H5.
+        kill H4.
+        hsimpl.
+        clear H H0 H2 H3.
+        kill H5.
+        unfold deinstr in *.
+        rewrite NetMod.get_map in *.
+        attac.
+        rewrite H3 in *.
+        kill H1.
+        constructor; attac.
+      + compat_hsimpl in *.
+        compat_hsimpl in *.
+        unfold NetGet.
+        compat_hsimpl in *.
+        rewrite H4 in *.
+        attac.
+      + unfold NetGet.
+        compat_hsimpl in *.
+        compat_hsimpl in *.
+        rewrite H4 in *.
+        simpl in *.
+        subst.
+        constructor.
+    - eapply measure_ms_fin_recv with (n:=n1)(MS0:=MN0 n0).
+      + unfold NetGet.
+        rewrite <- net_get_deinstr.
+        eapply lock_singleton; eauto with LTS.
+      + eattac.
+      + assert (self (MN0 n0) = n0) by attac.
+        unfold active_probe_of in *.
+        consider (_ =(_)=> _); unfold NetGet in *.
+        compat_hsimpl in *; attac.
   Qed.
 
   Lemma measure_ms_recv_wait : forall (MS0 MS1 : MServ) n0 n1 p,
@@ -1341,10 +1373,12 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
         rewrite <- net_get_deinstr.
         eapply lock_singleton; eauto with LTS.
       + assert (self (MN0 n1) = n1); attac.
+        (* now rewrite H5. *)
       + consider (KIC _); attac.
       + unfold NetGet, NoRecvQ_from in *.
         consider (_ =(_)=> _); compat_hsimpl in *.
         attac.
+
     - consider (exists v, In (MqRecv (n0, Q) v) (mserv_q (MN0 n1))).
       {
         clear - H6.
@@ -2044,6 +2078,96 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
         eapply dm_ltb_pass.
         attac.
   Qed.
+
+
+  Lemma measure_lock_chain_head : forall (MN0 : MNet) (n0 n1 m1 : Name)
+                                    (L : list Name) dm0 p,
+      measure_lock_chain MN0 n0 L n1 p = Some (n0, m1, dm0) ->
+      measure_ms n0 p (MN0 m1) = Some (dm_flush dm0).
+
+  Proof.
+    intros.
+    apply measure_lock_chain_split in H.
+    hsimpl in *.
+    auto.
+  Qed.
+
+  Lemma measure_lock_chain_finish : forall (MN0 MN1 : MNet) (n0 n1 m1 : Name)
+                                      (L : list Name) dm0 a,
+      KIC MN0 ->
+      NoDup L ->
+      lock_chain MN0 n0 L n1 ->
+      measure_lock_chain MN0 n0 L n1 (active_probe_of MN0 n0) = Some (n0, m1, dm0) ->
+      Flushing_NAct m1 a ->
+      (MN0 =(a)=> MN1) ->
+      (exists dm, measure_ms_fin (MN1 n0) = Some dm) \/
+        exists dm1, measure_lock_chain MN1 n0 L n1 (active_probe_of MN0 n0) = Some (n0, m1, dm1) /\ dm_ltb dm1 dm0 = true.
+
+  Proof.
+    intros.
+
+    assert ((L = [] /\ m1 = n1) \/ exists L', L = m1 :: L').
+    {
+      remember (active_probe_of MN0 n0) as p.
+      destruct L; attac.
+      - left.
+        split; auto.
+        blast_cases; attac.
+      - right.
+        blast_cases; attac.
+        enough (n = m1) by attac.
+        enough (lock MN0 n0 m1) by (eapply SRPC_lock_set_uniq; eattac).
+        clear - Heqo0 H5.
+        generalize dependent n dm_flush0 dm_pass0.
+        induction L; attac.
+        blast_cases; attac.
+        blast_cases; attac.
+    }
+
+    assert (dm_pass dm0 = 1).
+    {
+      assert (measure_ms n0 (active_probe_of MN0 n0) (MN0 m1) = Some (dm_flush dm0))
+        by (apply measure_lock_chain_head in H2; attac).
+      destruct dm0.
+      destruct `(_ \/ _); attac.
+    }
+
+    apply measure_lock_chain_head in H2.
+    destruct dm0; simpl in *.
+    destruct dm_flush0.
+    {
+      clear - H2.
+      exfalso.
+      unfold measure_ms in *.
+      remember (active_probe_of MN0 n0) as p. clear Heqp.
+      remember (MN0 m1) as MS1. clear HeqMS1.
+      destruct (measure_mon n0 p MS1) eqn:?.
+      hsimpl in H2.
+      blast_cases; attac.
+      induction MS1; attac.
+      induction mserv_m0; attac.
+      blast_cases; attac.
+      induction n; attac.
+    }
+
+    destruct dm_flush0.
+    - left.
+      eapply measure_ms_net_send in H2; eauto.
+      subst.
+      destruct `(_ \/ _); hsimpl in *.
+      + eapply measure_ms_fin_net_recv with (n1:=n1); eauto.
+      + eapply measure_ms_fin_net_recv with (n1:=m1); eauto.
+    - right.
+      eapply measure_ms_net_decr in H2; eauto.
+      destruct `(_ \/ _); hsimpl in *.
+      + blast_cases; attac.
+        eexists. split; eauto.
+        unfold dm_ltb; attac.
+      + blast_cases; attac.
+        eexists. split; eauto.
+        unfold dm_ltb; attac.
+  Qed.
+
 
   Lemma measure_lock_chain_point : forall (MN0 : MNet) (n0 n1 m0 m1 : Name)
                                      (L0 L1 : list Name) p dmf,
