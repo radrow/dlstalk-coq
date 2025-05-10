@@ -1678,6 +1678,59 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       exists (a :: L0), L1; attac.
   Qed.
 
+
+  Lemma measure_lock_chain_split_tip : forall (MN0 : MNet) (n0 n1 m0 : Name) (L : list Name) p dm,
+      NoDup L ->
+      n0 <> m0 ->
+      ~ In n1 L ->
+      measure_lock_chain MN0 n0 L n1 p = Some (m0, n1, dm) ->
+      exists L0, L = L0 ++ [m0]
+               /\ ~ In m0 L0
+               /\ measure_ms m0 p (MN0 n1) = Some (dm_flush dm)
+               /\ measure_lock_chain MN0 n0 L0 m0 p = None
+               /\ dm_pass dm = S (S (length L0)).
+
+  Proof.
+    intros.
+
+    generalize dependent n0 m0 n1 dm.
+    induction L; intros; simpl in *; hsimpl in *.
+    1: { blast_cases; attac. }
+
+    consider (NoDup (_ :: _)).
+
+    destruct (measure_ms n0 p (MN0 a)) eqn:?; attac.
+    destruct (measure_lock_chain MN0 a L n1 p) as [[[m0' m1'] dm'] | ] eqn:?; attac.
+    destruct dm'; attac.
+
+    smash_eq m0 a.
+    - destruct L using rev_ind.
+      {
+        simpl in *.
+        destruct (measure_ms m0 p (MN0 n1)) eqn:?; attac.
+        exists [].
+        attac.
+      }
+      clear IHL0.
+      clear IHL.
+      exfalso.
+      simpl in *.
+      eapply measure_lock_chain_split in Heqo0.
+      hsimpl in *.
+      destruct L0; kill Heqo0.
+      + rewrite <- app_assoc in *.
+        destruct L; attac.
+      + rewrite <- app_assoc in *.
+        assert (~ In m0 (L ++ [x] ++ [n1])) by (intros ?; eapply `(~ In m0 L); attac).
+        rewrite <- H2 in H.
+        attac.
+
+    - eapply IHL in Heqo0; eauto.
+      clear IHL.
+      hsimpl in *.
+      exists (a :: L0); attac.
+  Qed.
+
   Lemma measure_ms_send_zero : forall MS0 MS1 n p,
       (MS0 =(send (n, R) ^ p)=> MS1) ->
       measure_ms n p MS0 = Some 1.
