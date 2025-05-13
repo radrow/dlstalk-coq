@@ -2502,12 +2502,272 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
   Qed.
 
 
-  Lemma measure_lock_chain_point : forall (MN0 : MNet) (n0 n1 m0 m1 : Name)
-                                     (L0 L1 : list Name) p dmf,
-      measure_ms m0 p (MN0 m1) = Some dmf
-      exists dm m0' m1',
-        measure_lock_chain MN0 n0 (L0 ++ m0 :: m1 :: L1) n1 p = Some (m0', m1', dm)
-        /\ dm_leb dm {|dm_pass := S (length L0); dm_flush :=  |}
+  (** ** NO INCR  *)
+
+  Lemma Flushing_NAct_dec : forall n a,
+      Flushing_NAct n a \/ ~ Flushing_NAct n a.
+
+  Proof.
+    intros.
+    destruct a; attac; smash_eq n n0; attac.
+    blast_cases; attac.
+    blast_cases; attac.
+    blast_cases; attac.
+    blast_cases; attac.
+  Qed.
+
+
+  Lemma dm_leb_refl : forall dm, dm_leb dm dm = true.
+  Proof. intros. unfold dm_leb. attac. Qed.
+
+
+  Lemma lock_tau_flush : forall MN0 MN1 n0 n1 a,
+        KIC MN0 ->
+        lock MN0 n0 n1 ->
+        (MN0 =(NTau n0 a)=> MN1) ->
+        Flushing_act a.
+
+  Proof.
+    intros.
+    destruct_ma a; attac.
+    - unfold lock, lock_set in *.
+      attac.
+      unfold deinstr in *.
+      rewrite NetMod.get_map in *.
+      destruct (NetMod.get n0 MN0); attac.
+      blast_cases; attac.
+      consider (serv_lock _ _).
+      consider (_ =(_)=> _).
+      consider (_ =(_)=> _).
+      bs.
+    - eapply lock_singleton in H0; attac.
+      unfold lock, lock_set in *.
+      attac.
+      unfold deinstr in *.
+      rewrite NetMod.get_map in *.
+      destruct (NetMod.get n0 MN0); attac.
+      blast_cases; attac.
+      consider (serv_lock _ _).
+      consider (_ =(_)=> _).
+      consider (_ =(_)=> _); attac.
+      consider (_ =(_)=> _); attac.
+      destruct n.
+      destruct &t.
+      + specialize H3 with (n:=n).
+        attac.
+      + specialize H3 with (n:=n).
+        attac.
+        smash_eq n n1; attac.
+        assert (In (n, R, v) (serv_i0 ++ retract_recv mserv_q0)) by attac.
+        attac.
+  Qed.
+
+  Lemma measure_lock_chain_tau_noincr : forall MN0 MN1 n0 n1 n2 n3 L p dm m a,
+        KIC MN0 ->
+        lock_chain MN0 n0 L n3 ->
+        (MN0 =(NTau m a)=> MN1) ->
+        n2 <> m ->
+        measure_lock_chain MN0 n0 L n3 p = Some (n1, n2, dm) ->
+        measure_lock_chain MN1 n0 L n3 p = Some (n1, n2, dm).
+
+  Proof.
+    intros.
+
+    generalize dependent n0 dm.
+    induction L; intros; simpl in *.
+    - hsimpl in *.
+      unfold NetGet in *.
+      smash_eq n3 m; attac.
+      destruct (measure_ms n0 p (Transp.Net.NetMod.get n3 MN0)) eqn:?; attac.
+    - assert (m = a0 -> Flushing_act a).
+      {
+        consider (exists n', lock MN0 a0 n') by (destruct L; attac).
+        intros; subst; eauto using lock_tau_flush.
+      }
+      hsimpl in *.
+      destruct (measure_ms n0 p (MN0 a0)) eqn:?; hsimpl in *.
+      + unfold NetGet in *.
+        smash_eq n2 m; attac.
+      + destruct (measure_lock_chain MN0 a0 L n3 p) as [[[m0' m1'] [? ?]] | ] eqn:?; attac.
+        eapply IHL in Heqo0; auto. clear IHL.
+        rewrite Heqo0.
+
+        unfold NetGet in *.
+        smash_eq a0 m; attac.
+        destruct (measure_ms n0 p &S) eqn:?; auto.
+        exfalso.
+
+        clear - Heqo1 Heqo H1 H6 H2 H4.
+        destruct_ma a; compat_hsimpl in *; attac.
+        all: rewrite `(NetMod.get _ _ = _) in *.
+        all: unfold measure_ms in *; simpl in *.
+        all: blast_cases; attac.
+        destruct (measure_mon n0 p (MSend (n1, &t) v M1)) eqn:?.
+        attac. blast_cases; attac.
+  Qed.
+
+
+  Lemma measure_lock_chain_comm_noincr : forall MN0 MN1 n0 n1 n2 n3 L p tag v dm0 m0 m1,
+      KIC MN0 ->
+      lock_chain MN0 n0 L n3 ->
+      (MN0 =(NComm m1 m0 tag v)=> MN1) ->
+      n2 <> m1 ->
+      ~ In n0 L ->
+      ~ In n3 L ->
+      NoDup L ->
+      measure_lock_chain MN0 n0 L n3 p = Some (n1, n2, dm0) ->
+      exists m0' m1' dm1, measure_lock_chain MN1 n0 L n3 p = Some (m0', m1', dm1) /\ dm_leb dm1 dm0 = true.
+
+  Proof.
+    intros.
+
+    generalize dependent n0 dm0.
+    induction L; intros; simpl in *.
+    - eexists n1, n2, dm0. split; eauto using dm_leb_refl.
+      hsimpl in *.
+      unfold NetGet in *.
+      destruct (measure_ms n0 p (Transp.Net.NetMod.get n3 MN0)) eqn:?; attac.
+      smash_eq n2 m0.
+      2: {
+        replace (NetMod.get n2 MN1) with (NetMod.get n2 MN0) by eauto using NComm_neq_stay.
+        now rewrite Heqo.
+      }
+      hsimpl in *.
+      destruct v; attac.
+      + unfold measure_ms in *; simpl in *; hsimpl in *.
+        eapply measure_mq_push in Heqo. now erewrite Heqo.
+      + unfold measure_ms in *; simpl in *; hsimpl in *.
+        compat_hsimpl in *.
+        rewrite `(NetMod.get n2 _ = _) in *.
+        simpl in *.
+        eapply measure_mq_push in Heqo. now erewrite Heqo.
+    - hsimpl in *.
+      destruct (measure_ms n0 p (MN0 a)) eqn:?; hsimpl in *.
+      + eexists n1, n2, _. split; eauto using dm_leb_refl.
+        unfold NetGet in *.
+        smash_eq n2 m0.
+        2: {
+          replace (NetMod.get n2 MN1) with (NetMod.get n2 MN0) by eauto using NComm_neq_stay.
+          now rewrite Heqo.
+        }
+        destruct (measure_ms n1 p (Transp.Net.NetMod.get n2 MN1)) eqn:?.
+        1: {
+          enough (n = n0) by attac.
+          consider (_ =(_)=> _).
+          destruct v; attac.
+          all: compat_hsimpl in *.
+          all: try (rewrite `(NetMod.get n2 _ = _) in * ).
+          - unfold measure_ms in *.
+            simpl in *.
+            eapply measure_mq_push in Heqo.
+            rewrite Heqo0 in Heqo; attac.
+          - unfold measure_ms in *.
+            simpl in *.
+            eapply measure_mq_push in Heqo.
+            rewrite Heqo0 in Heqo; attac.
+        }
+        exfalso.
+        clear IHL.
+        consider (_ =(_)=> _); destruct v; compat_hsimpl in *.
+        all: try (rewrite `(NetMod.get n2 _ = _) in * ).
+        all: unfold measure_ms in *; simpl in *.
+        all: eapply measure_mq_push in Heqo.
+        all: rewrite Heqo0 in Heqo; attac.
+
+      + consider (NoDup (_ :: _)).
+        unfold NetGet in *.
+
+        destruct (measure_lock_chain MN0 a L n3 p) as [[[m0' m1'] [? ?]] | ] eqn:?; attac.
+
+        destruct dm_pass0.
+        1: {
+          clear - Heqo0. destruct L; attac; blast_cases; attac.
+        }
+        eapply IHL in Heqo0 as ?; auto. clear IHL.
+        hsimpl in *.
+
+        destruct (measure_ms n0 p (NetMod.get a MN1)) eqn:?; attac.
+  Qed.
+
+  Lemma measure_loop_noincr : forall (MN0 MN1 : MNet) (n m0 m1 : Name)
+                                (L : list Name) dm0 a,
+      KIC MN0 ->
+      NoDup L ->
+      ~ In n L ->
+      lock_chain MN0 n L n ->
+      measure_loop MN0 n L = Some (m0, m1, dm0) ->
+      alarm (MN0 n) = false ->
+      (MN0 =(a)=> MN1) ->
+      exists m0' m1' dm1, measure_loop MN1 n L = Some (m0', m1', dm1)
+                     /\ dm_leb dm1 dm0 = true.
+
+  Proof.
+    intros.
+    destruct (Flushing_NAct_dec m1 a) as [|].
+    1: {
+      consider (exists m0' m1' dm1,
+            measure_loop MN1 n L = Some (m0', m1', dm1)
+            /\ dm_ltb dm1 dm0 = true) by eauto using measure_loop_decr.
+      exists m0', m1', dm1.
+      split; eauto.
+      unfold dm_ltb, dm_leb in *.
+      destruct dm0, dm1; attac.
+      destruct (dm_pass1 =? dm_pass0) eqn:?; auto.
+      - destruct (dm_flush1 =? dm_flush0) eqn:?; auto.
+        rewrite PeanoNat.Nat.ltb_lt in *.
+        rewrite PeanoNat.Nat.leb_le in *.
+        lia.
+      - rewrite PeanoNat.Nat.ltb_lt in *.
+        rewrite PeanoNat.Nat.leb_le in *.
+        lia.
+    }
+
+    unfold measure_loop in *.
+    replace (active_probe_of MN1 n) with (active_probe_of MN0 n).
+    2: {
+      eapply deadlocked_preserve_active_probe_of1; attac.
+      eapply dep_self_deadlocked; attac.
+    }
+
+    destruct (measure_ms_fin (MN0 n)) eqn:?.
+    {
+      eapply measure_ms_fin_net_noincr in Heqo; eauto.
+      attac.
+      eexists _, _, _; unfold dm_leb; attac.
+      destruct (dm1 =? n0); auto.
+      now apply PeanoNat.Nat.leb_le.
+    }
+
+    destruct (measure_ms_fin (MN1 n)) eqn:?.
+    {
+      eexists _, _, _; split; eauto.
+      destruct (dm_pass dm0) eqn:?.
+      - exfalso.
+        destruct dm0; attac.
+        destruct L; attac; blast_cases; attac.
+      - unfold dm_leb; attac.
+    }
+
+    destruct a; simpl in *.
+    2: eauto using measure_lock_chain_comm_noincr.
+
+    smash_eq n0 m1.
+    2: eapply measure_lock_chain_tau_noincr in H3; eauto using dm_leb_refl with LTS.
+
+    consider (exists m', lock MN0 n0 m').
+    {
+      eapply measure_lock_chain_in_r in H3 as [|]; attac.
+      - destruct L; attac.
+      - apply in_split in H3; attac.
+        destruct l2; attac.
+    }
+    assert (Flushing_act m) by eauto using lock_tau_flush.
+
+    exfalso.
+
+    eapply H6.
+    attac.
+  Qed.
 
 
 
