@@ -3123,10 +3123,420 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
         blast_cases; attac.
   Qed.
 
+  Lemma measure_ms_fin_get_flush : forall MS0 dmm,
+      measure_ms_fin MS0 = Some dmm ->
+      alarm MS0 = true \/ (exists a MS1, Flushing_act a /\ (MS0 =(a)=> MS1)).
 
-  Check measure_ac.
-  Check measure_loop_noincr.
-  Check measure_loop_decr.
-  Check measure_loop_end.
+  Proof.
+    intros.
+    destruct MS0 as [MQ0 M0 [I0 P0 O0]].
+    destruct dmm.
+    1: {
+      unfold measure_ms_fin in *.
+      simpl in *.
+      generalize dependent M0.
+      induction MQ0; attac; induction M0; attac; unfold option_map in *; blast_cases; attac.
+    }
+
+    right.
+    unfold measure_ms_fin in *; simpl in *.
+    destruct M0; attac; blast_cases; attac.
+    - destruct MQ0; attac; blast_cases; attac.
+      unfold option_map in *; blast_cases; attac.
+      destruct e; attac.
+      + eexists (MActT (Send n v)), _; attac.
+      + eexists (MActP (Recv n v)), _; attac.
+      + eexists (MActM Tau), _; attac.
+    - eexists (MActM (Send to msg)), _; attac.
+  Qed.
+
+  Lemma measure_ms_get_flush : forall n p MS0 dmm,
+      measure_ms n p MS0 = Some dmm ->
+      exists a MS1, Flushing_act a /\ (MS0 =(a)=> MS1).
+
+  Proof.
+    intros.
+    destruct MS0 as [MQ0 M0 [I0 P0 O0]].
+    destruct dmm.
+    1: {
+      unfold measure_ms in *.
+      simpl in *.
+      generalize dependent M0.
+      induction MQ0; attac; induction M0; attac; unfold option_map in *; blast_cases; attac.
+    }
+
+    unfold measure_ms in *; simpl in *.
+    destruct M0; attac; blast_cases; attac.
+    - destruct MQ0; attac; blast_cases; attac.
+      unfold option_map in *; blast_cases; attac.
+      destruct e; attac.
+      + eexists (MActT (Send n0 v)), _; attac.
+      + eexists (MActP (Recv n0 v)), _; attac.
+      + eexists (MActM Tau), _; attac.
+    - eexists (MActM (Send to msg)), _; attac.
+  Qed.
+
+
+  Lemma lift_Flushing_act : forall (MN0 : MNet) n a MS1,
+      (MN0 n =(a)=> MS1) ->
+      Flushing_act a ->
+      exists na MN1,
+        Flushing_NAct n na /\ (MN0 =(na)=> MN1).
+
+  Proof.
+    intros.
+    unfold NetGet in *.
+    destruct (NetMod.get n MN0) as [MQ0 M0 S0] eqn:?.
+    destruct_ma a; consider (_ =(_)=> _); compat_hsimpl in *; attac.
+    - eexists (NTau n _), _.
+      split.
+      2: econstructor.
+      3: econstructor.
+      3: rewrite Heqm. 3: eapply (MTRecvP); attac.
+      all: eattac.
+    - smash_eq n n0.
+      + eexists (NComm n n &t # v), _.
+        attac; econstructor; eattac. rewrite Heqm; eattac. eattac. compat_hsimpl; eattac.
+      + destruct (NetMod.get n0 MN0) eqn:?.
+        eexists (NComm n n0 &t # v), _.
+        attac; econstructor; eattac. rewrite Heqm; eattac. compat_hsimpl; eattac.
+    - smash_eq n n0.
+      + eexists (NComm n n &t ^ v), _.
+        attac; econstructor; eattac. rewrite Heqm; eattac. eattac. compat_hsimpl; eattac.
+      + destruct (NetMod.get n0 MN0) eqn:?.
+        eexists (NComm n n0 &t ^ v), _.
+        attac; econstructor; eattac. rewrite Heqm; eattac. compat_hsimpl; eattac.
+    - eexists (NTau n _), _.
+      split.
+      2: econstructor.
+      3: econstructor.
+      3: rewrite Heqm. 3: eapply (MTPickM); attac.
+      all: eattac.
+  Qed.
+
+  Lemma measure_lock_chain_get_flush : forall n0 L n1 p MN0 dm m0 m1,
+      measure_lock_chain MN0 n0 L n1 p = Some (m0, m1, dm) ->
+      exists a MN1, Flushing_NAct m1 a /\ (MN0 =(a)=> MN1).
+
+  Proof.
+    intros.
+
+    generalize dependent dm n0.
+    induction L; intros; simpl in *.
+    - destruct (measure_ms n0 p (MN0 n1)) eqn:?; attac.
+      eapply measure_ms_get_flush in Heqo; eauto.
+      hsimpl in *.
+      eauto using lift_Flushing_act.
+    - destruct (measure_ms n0 p (MN0 a)) eqn:?; attac.
+      + eapply measure_ms_get_flush in Heqo; eauto.
+        hsimpl in *.
+        eauto using lift_Flushing_act.
+      + destruct (measure_lock_chain MN0 a L n1 p) as [[[m0' m1'] dm'] | ] eqn:?; attac.
+        destruct dm'; attac.
+  Qed.
+
+
+  Lemma measure_loop_get_flush : forall n L MN0 dm m0 m1,
+      measure_loop MN0 n L = Some (m0, m1, dm) ->
+      alarm (MN0 n) = true \/ exists a MN1, Flushing_NAct m1 a /\ (MN0 =(a)=> MN1).
+
+  Proof.
+    intros.
+    destruct (alarm (MN0 n)) eqn:?; eauto.
+    right.
+
+    unfold measure_loop in *; attac.
+    blast_cases.
+    - eapply measure_ms_fin_get_flush in Heqo; eattac.
+      eauto using lift_Flushing_act.
+    - eapply measure_lock_chain_get_flush in H; eattac.
+  Qed.
+
+  Lemma flush_irrefutable : forall MN0 MN1 MN1' (af a : MNAct) n,
+      Flushing_NAct n af ->
+      (MN0 =(af)=> MN1) ->
+      (MN0 =(a)=> MN1') ->
+      a <> af ->
+      exists MN2, MN1' =(af)=> MN2.
+
+  Proof.
+    intros.
+    destruct af; consider (Flushing_NAct _ _).
+    - destruct a.
+      + smash_eq n n0.
+        *
+          destruct m, m0; attac.
+          all: blast_cases; attac.
+          all: consider (MN0 =(_)=> _); consider (MN0 =(_)=> _).
+          all: attac.
+          all: consider (NetMod.get n MN0 =(_)=> _); consider (MN0 =(_)=> _).
+          all: attac.
+          all: rewrite `(NetMod.get n _ = _) in *.
+          all: compat_hsimpl in *; attac.
+          eexists. econstructor. eattac. eattac. compat_hsimpl. econstructor; eattac.
+          destruct S1. eexists. econstructor. eattac. econstructor.
+          compat_hsimpl. econstructor. eattac. econstructor.
+          eexists. econstructor. eattac. eattac. compat_hsimpl. econstructor; eattac.
+          eexists. econstructor. eattac. eattac. compat_hsimpl. econstructor; eattac.
+
+        * assert (NetMod.get n MN0 = NetMod.get n MN1') by eauto using NTau_neq_stay.
+          exists (NetMod.put n (NetMod.get n MN1) MN1').
+          constructor. attac.
+          constructor. eattac.
+          rewrite <- H3.
+          attac.
+          kill H0.
+          attac.
+      + smash_eq n n0.
+        * destruct m; attac.
+          all: blast_cases; attac.
+          all: consider (MN0 =(_)=> _); consider (MN0 =(_)=> _).
+          all: attac.
+          all: consider (NetMod.get n MN0 =(_)=> _); consider (MN0 =(_)=> _).
+          all: attac.
+          all: rewrite `(NetMod.get n _ = _) in *.
+          all: destruct p; attac.
+          smash_eq n n1; attac; compat_hsimpl in *; bs.
+        * destruct m; attac.
+          all: blast_cases; attac.
+          all: consider (MN0 =(_)=> _); compat_hsimpl in *; consider (MN0 =(_)=> _).
+          all: destruct p; compat_hsimpl in *.
+          -- smash_eq n0 n1; compat_hsimpl in *.
+             eexists; econstructor; eattac.
+             smash_eq n n0; compat_hsimpl in *; attac.
+             smash_eq n n1; compat_hsimpl in *; attac.
+             ++ eexists; econstructor; eattac.
+                compat_hsimpl.
+                econstructor; eattac.
+             ++ eexists; constructor; compat_hsimpl; auto.
+                constructor; compat_hsimpl.
+                eapply MTRecvP; attac.
+          -- smash_eq n0 n1; compat_hsimpl in *.
+             eexists; econstructor; eattac.
+             smash_eq n n0; compat_hsimpl in *; attac.
+             smash_eq n n1; compat_hsimpl in *; attac.
+             ++ eexists.
+                econstructor; attac.
+                compat_hsimpl.
+                econstructor; attac.
+             ++ eexists.
+                econstructor; attac.
+                compat_hsimpl.
+                econstructor; attac.
+          -- smash_eq n0 n1; compat_hsimpl in *.
+             eexists; econstructor; eattac.
+             smash_eq n n0; compat_hsimpl in *; attac.
+             smash_eq n n1; compat_hsimpl in *; attac.
+             ++ eexists.
+                econstructor; attac.
+                compat_hsimpl.
+                econstructor; attac.
+             ++ eexists.
+                econstructor; attac.
+                compat_hsimpl.
+                econstructor; attac.
+          -- smash_eq n0 n1; compat_hsimpl in *.
+             eexists; econstructor; eattac.
+             smash_eq n n0; compat_hsimpl in *; attac.
+             smash_eq n n1; compat_hsimpl in *; attac.
+             ++ eexists.
+                econstructor; attac.
+                compat_hsimpl.
+                econstructor; attac.
+             ++ eexists.
+                econstructor; attac.
+                compat_hsimpl.
+                econstructor; attac.
+    - destruct a; compat_hsimpl in *;
+        consider (MN0 =(_)=> _); consider (MN0 =(NComm _ _ _ _)=> _).
+      + compat_hsimpl in *.
+        smash_eq n n1; attac.
+        * all: destruct m.
+          all: try (destruct p).
+          all: try (destruct a).
+          all: smash_eq n n0; compat_hsimpl in *.
+          all: try (rewrite `(NetMod.get n MN0 = _) in * ).
+          all: try (destruct p0).
+          all: compat_hsimpl in *.
+          all: eexists; eapply NComm_eq.
+          all: try (rewrite NetMod.get_put_eq by auto).
+          all: try (rewrite NetMod.get_put_neq by auto).
+          all: try (econstructor; eattac).
+          all: try (rewrite `(NetMod.get n MN0 = _) in * ).
+          all: compat_hsimpl in *.
+          all: eattac.
+        * destruct m; eattac.
+          all: try (destruct p).
+          all: try (destruct a).
+          all: smash_eq n1 n0; compat_hsimpl in *.
+          all: try (smash_eq n n0); compat_hsimpl in *.
+          all: try (destruct p0).
+          all: compat_hsimpl in *.
+          all: eexists; eapply NComm_neq; eauto using eq_sym.
+          all: try (rewrite NetMod.get_put_eq by auto).
+          all: try (rewrite NetMod.get_put_neq by auto using eq_sym).
+          all: try (rewrite `(NetMod.get n MN0 = _) in * ).
+          all: try (rewrite `(NetMod.get n0 MN0 = _) in * ).
+          all: try (rewrite `(NetMod.get n1 MN0 = _) in * ).
+          all: try (econstructor; eattac).
+          all: bs.
+      + smash_eq n n1.
+        * smash_eq n n0; smash_eq n n2; compat_hsimpl in *.
+          all: destruct p, p0; attac.
+          all: compat_hsimpl in *.
+          all: doubt.
+          all: eexists; eapply NComm_eq.
+          all: repeat (rewrite NetMod.get_put_eq by auto).
+          all: repeat (rewrite NetMod.get_put_neq by auto using eq_sym).
+          all: try (rewrite `(NetMod.get n MN0 = _) in * ).
+          all: try (rewrite `(NetMod.get n0 MN0 = _) in * ).
+          all: try (rewrite `(NetMod.get n1 MN0 = _) in * ).
+          all: try (rewrite `(NetMod.get n2 MN0 = _) in * ).
+          all: eattac.
+        * smash_eq n n0 n1 n2; compat_hsimpl in *.
+          all: destruct p, p0; attac.
+          all: compat_hsimpl in *.
+          all: doubt.
+          all: eexists; eapply NComm_neq; eauto using eq_sym.
+          all: repeat (rewrite NetMod.get_put_eq in * by auto).
+          all: repeat (rewrite NetMod.get_put_neq in * by auto using eq_sym).
+          all: try (rewrite `(NetMod.get n MN0 = _) in * ).
+          all: try (rewrite `(NetMod.get n0 MN0 = _) in * ).
+          all: try (rewrite `(NetMod.get n1 MN0 = _) in * ).
+          all: try (rewrite `(NetMod.get n2 MN0 = _) in * ).
+          all: eattac.
+          all: repeat (rewrite NetMod.get_put_eq by auto).
+          all: repeat (rewrite NetMod.get_put_neq by auto using eq_sym).
+          all: eattac.
+          Unshelve. all: doubt. all: attac.
+  Qed.
+
+
+  Inductive Measures (MN : MNet) (n : Name) : DetectMeasure -> Prop :=
+  | Measures_ : forall m0 m1 dm L, lock_chain MN n L n ->
+                           NoDup L -> ~ In n L ->
+                           measure_loop MN n L = Some (m0, m1, dm) ->
+                           Measures MN n dm.
+
+  Lemma measures_deadlock : forall MN DS,
+      KIC MN ->
+      dead_set DS MN ->
+      exists n dm, In n DS /\ Measures MN n dm.
+  Proof.
+    intros.
+
+    consider (exists n0, In n0 DS /\ trans_lock MN n0 n0) by (consider (KIC _); eapply dead_set_cycle; eauto with LTS).
+    consider (exists n, trans_lock '' MN n0 n /\ alarm_condition n MN) by (consider (KIC _)).
+
+    consider (exists L', lock_chain MN n0 L' n /\ ~ In n L') by eauto using dep_lock_chain with LTS.
+    consider (exists L', lock_chain MN n0 L' n0 /\ ~ In n0 L') by eauto using dep_lock_chain with LTS.
+    consider (exists L', lock_chain MN n L' n) by eauto using lock_chain_reloop with LTS.
+    consider (exists L : Names, lock_chain MN n L n /\ NoDup L /\ ~ In n L /\ ~ In n L) by eauto using lock_chain_dedup with LTS.
+
+    consider (exists m0 m1 dm, measure_loop MN n L = Some (m0, m1, dm)) by eauto using measure_ac.
+    exists n, dm.
+    split.
+    - now eauto using dead_set_dep_in.
+    - now constructor 1 with (m0:=m0)(m1:=m1)(L:=L).
+  Qed.
+
+  Lemma measures_end : forall MN n,
+      Measures MN n dm_zero ->
+      alarm (MN n) = true.
+
+  Proof.
+    intros.
+    consider (Measures _ _ _).
+    eauto using measure_loop_end.
+  Qed.
+
+  Lemma measures_noincr : forall MN0 MN1 n a dm0,
+      KIC MN0 ->
+      (MN0 =(a)=> MN1) ->
+      Measures MN0 n dm0 ->
+      exists dm1, Measures MN1 n dm1 /\ dm_leb dm1 dm0 = true.
+
+  Proof.
+    intros.
+    consider (Measures _ _ _).
+
+    assert (lock_chain MN1 n L n).
+    {
+      enough (deadlocked n MN0).
+      {
+        destruct (MNAct_to_PNAct a) eqn:?.
+        - assert ('' MN0 =(p)=> '' MN1) by eauto using deinstr_act_do.
+          eauto using deadlocked_lock_chain_invariant1.
+        - replace (deinstr MN1) with (deinstr MN0); eauto using deinstr_act_skip with LTS.
+      }
+
+      eauto using dep_self_deadlocked with LTS.
+    }
+
+    destruct (alarm (MN0 n)) eqn:?.
+    - assert (alarm (MN1 n) = true) by eauto using net_preserve_alarm.
+      exists dm_zero.
+      split.
+      2: { unfold dm_zero, dm_leb; attac; blast_cases; attac. }
+      econstructor 1 with (m0:=n)(m1:=n); eauto.
+      unfold measure_loop, measure_ms_fin.
+      rewrite unfold_measure_mq_fin_alarm; attac.
+
+    - consider (exists m0' m1' dm1, measure_loop MN1 n L = Some (m0', m1', dm1) /\ dm_leb dm1 dm0 = true) by eauto using measure_loop_noincr.
+      exists dm1.
+
+      split; auto.
+      constructor 1 with (m0:=m0')(m1:=m1')(L:=L); auto.
+  Qed.
+
+
+  Lemma measures_decr : forall MN0 n dm0,
+      KIC MN0 ->
+      Measures MN0 n dm0 ->
+      alarm (MN0 n) = true
+      \/ exists m a MN1 dm1,
+          (MN0 =(a)=> MN1)
+          /\ Flushing_NAct m a
+          /\ Measures MN1 n dm1
+          /\ dm_ltb dm1 dm0 = true.
+
+  Proof.
+    intros.
+    consider (Measures _ _ _).
+
+    assert (measure_loop MN0 n L = Some (m0, m1, dm0)) by assumption.
+    eapply measure_loop_get_flush in H0 as [|]; eauto.
+    hsimpl in *.
+
+    assert (lock_chain MN1 n L n).
+    {
+      enough (deadlocked n MN0).
+      {
+        destruct (MNAct_to_PNAct a) eqn:?.
+        - assert ('' MN0 =(p)=> '' MN1) by eauto using deinstr_act_do.
+          eauto using deadlocked_lock_chain_invariant1.
+        - replace (deinstr MN1) with (deinstr MN0); eauto using deinstr_act_skip with LTS.
+      }
+
+      eauto using dep_self_deadlocked with LTS.
+    }
+
+    destruct (alarm (MN0 n)) eqn:?; eauto.
+    right.
+    exists m1, a, MN1; intros.
+
+    consider (exists m0' m1' dm1, measure_loop MN1 n L = Some (m0', m1', dm1) /\ dm_ltb dm1 dm0 = true) by eauto using measure_loop_decr.
+
+    exists dm1.
+
+    repeat split; auto.
+    constructor 1 with (m0:=m0')(m1:=m1')(L:=L); auto.
+  Qed.
+
+  Check measures_deadlock.
+  Check measures_end.
+  Check measures_noincr.
+  Check measures_decr.
+  Check flush_irrefutable.
 
 End COMPL_STRONG_F.
