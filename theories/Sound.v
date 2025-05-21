@@ -2359,7 +2359,7 @@ Module Type SOUND_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PARAMS(Con
   Proof.
     intros.
 
-    consider (exists mpath1 path (i2 : instr) N2, (MN1 =[ mpath1 ]=> i2 N2) /\ (N0 =[ path ]=> N2)) by eauto using transp_sound_instr.
+    consider (exists mpath1 path (i2 : instr) N2, Forall (fun a => exists n, Flushing_NAct n a) mpath1 /\ (MN1 =[ mpath1 ]=> i2 N2) /\ (N0 =[ path ]=> N2)) by eauto using transp_sound_instr.
     assert ('' (i0 N0) =[mpath0 ++ mpath1]=> '' (i2 N2)) by eauto using MNPath_do with LTS.
 
     hsimpl in *.

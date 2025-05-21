@@ -1041,7 +1041,6 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   #[export] Hint Resolve MQ_Clear_NoSends : LTS.
 
-
   Inductive mon_assg := _mon_assg {assg_mq : MQue; assg_clear : MQ_Clear assg_mq; assg_m : MState}.
   Arguments _mon_assg MQ M S : rename.
 
@@ -1157,6 +1156,10 @@ Module Type MON_F(Import Conf : MON_PROC_CONF)(Import Params : MON_PARAMS(Conf))
 
   #[export] Hint Rewrite -> @retract_recv_app_mrecv @retract_send_app_mrecv @retract_recv_mrecv_app retract_send_mrecv_app using assumption : LTS_R LTS_concl_r.
   #[export] Hint Resolve retract_recv_app_mrecv retract_send_app_mrecv retract_recv_mrecv_app retract_send_mrecv_app : LTS.
+
+  Fact assg_mq_Clear : forall a, MQ_Clear (assg_mq a).
+  Proof. destruct a; attac. Qed.
+  #[export] Hint Resolve assg_mq_Clear : LTS.
 
 
   (** Deinstrumentation. Strips off monitoring and disassembles monitor's queue. *)

@@ -622,12 +622,15 @@ Module Type NET_F(Import Conf : NET_CONF)(Import Params : NET_PARAMS(Conf)).
         --------------------------------------------------------------------------------------------
      *)
     Lemma net_induction :
-      forall [NP : Net -> Prop] [P : Node -> Prop] [chans : list Name] ,
+      forall [NP : Net -> Prop] [P : Node -> Prop] [PP] [chans : list Name],
+        PP [] ->
+        (forall npath0 npath1, PP npath0 -> PP npath1 -> PP (npath0 ++ npath1)) ->
         (forall n N0,
             NP N0 ->
             exists npath N1,
               (N0 =[ npath ]=> N1)
               /\ (forall m, (n = m \/ P (NetMod.get m N0)) -> P (NetMod.get m N1))
+              /\ PP npath
               /\ NP N1
         ) ->
         (forall N0,
@@ -636,15 +639,16 @@ Module Type NET_F(Import Conf : NET_CONF)(Import Params : NET_PARAMS(Conf)).
             exists npath N1,
               (N0 =[ npath ]=> N1)
               /\ (forall n, P (NetMod.get n N1))
+              /\ PP npath
               /\ NP N1
         ).
 
-      intros NP P chans HLoc0.
+      intros NP P PP chans HNil HApp HLoc0.
       induction chans; intros N0 HStay0 HGlob0.
-      exists []. exists N0. repeat split; auto. constructor.
+      1: { exists [], N0. repeat split; auto. constructor. }
 
       rename a into n.
-      specialize (HLoc0 n N0 HGlob0) as (npath0 & N0' & TN0 & HLoc0' & HGlob0').
+      specialize (HLoc0 n N0 HGlob0) as (npath0 & N0' & TN0 & HLoc0' & HP' & HGlob0').
 
       assert (forall n : Name, ~ In n chans -> P (NetMod.get n N0')) as Ind_in.
       intros.
@@ -668,21 +672,25 @@ Module Type NET_F(Import Conf : NET_CONF)(Import Params : NET_PARAMS(Conf)).
 
     (** Simplified variant of [net_induction] which disregards the global property *)
     Lemma net_induction' :
-      forall [P : Node -> Prop] [chans : list Name],
+      forall [P : Node -> Prop] [PP] [chans : list Name],
+        PP [] ->
+        (forall npath0 npath1, PP npath0 -> PP npath1 -> PP (npath0 ++ npath1)) ->
         (forall n N0,
           exists npath N1,
             (N0 =[ npath ]=> N1)
+            /\ PP npath
             /\ (forall m, (n = m \/ P (NetMod.get m N0)) -> P (NetMod.get m N1))
         ) ->
         (forall N0,
             (forall n, not (In n chans) -> P (NetMod.get n N0)) ->
             exists npath N1,
               (N0 =[ npath ]=> N1)
+              /\ PP npath
               /\ (forall n, P (NetMod.get n N1))
         ).
 
     Proof.
-      intros P chans HLoc N0 HStay.
+      intros P PP chans HNil HApp HLoc N0 HStay.
 
       assert
         (forall n N0,
@@ -690,19 +698,21 @@ Module Type NET_F(Import Conf : NET_CONF)(Import Params : NET_PARAMS(Conf)).
             exists npath N1,
               (N0 =[ npath ]=> N1)
               /\ (forall m, (n = m \/ P (NetMod.get m N0)) -> P (NetMod.get m N1))
+              /\ PP npath
               /\ ((fun (_ : Net) => True) N1)
         ) as HLoc'.
-      intros n N0' _.
-      specialize (HLoc n N0') as (npath' & N1' & T' & F').
-      exists npath', N1'. repeat split; auto.
-      clear HLoc.
+      {
+        intros n N0' _.
+        specialize (HLoc n N0') as (npath' & N1' & T' & F').
+        attac.
+      }
 
-      specialize (net_induction HLoc' N0 HStay)
+      specialize (net_induction HNil HApp HLoc' N0 HStay)
         as (npath & N1 & T & F & _G); auto.
       clear HLoc'.
 
       exists npath, N1.
-      repeat split; auto.
+      attac.
     Qed.
 
 
