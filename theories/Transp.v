@@ -2506,8 +2506,8 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
         apply HFN3'.
       }
 
-      destruct (flushed_ready' MN3 HRd3)
-        as (mnpath2 & MN4 & TN3 & HRd4 & (HEq & HFN4) & HND4); auto.
+      destruct (flushed_ready MN3 HRd3)
+        as (mnpath2 & MN4 & TN3 & HRd4 & (HEq & HND4) & (HEq3 & HFN4)); auto.
 
       destruct (flushed_ready_instr HFN4 HRd4)
         as (I & Eq).
@@ -2543,7 +2543,7 @@ Module Type TRANSP_F(Import Conf : TRANSP_CONF)(Import Params : TRANSP_PARAMS(Co
           simpl.
           rewrite MNPath_to_PNPath_app.
           rewrite H0.
-          rewrite HND4.
+          rewrite HEq.
           auto.
         }
         split.
