@@ -168,6 +168,135 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
 
   Hint Resolve dm_nonzero_flush dm_nonzero_pass : LTS.
 
+  Lemma dm_ltb_pass : forall dm0 dm1, dm_pass dm0 < dm_pass dm1 ->
+                                 dm_ltb dm0 dm1 = true.
+  Proof.
+    intros.
+    destruct dm0, dm1; simpl in *.
+    unfold dm_ltb in *; simpl.
+    destruct (dm_pass0 =? dm_pass1) eqn:?.
+    - rewrite PeanoNat.Nat.eqb_eq in *; lia.
+    - now rewrite PeanoNat.Nat.ltb_lt.
+  Qed.
+
+  Hint Resolve dm_ltb_pass : LTS.
+
+  Lemma dm_leb_asim : forall dm0 dm1,
+      dm_leb dm0 dm1 = true ->
+      dm_leb dm1 dm0 = true ->
+      dm0 = dm1.
+  Proof.
+    intros.
+    destruct dm0, dm1.
+    unfold dm_leb in *.
+    simpl in *.
+    blast_cases; attac.
+    all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+    all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+    all: try (rewrite PeanoNat.Nat.leb_le in * ).
+    all: subst; auto.
+    all: bs.
+  Qed.
+
+  Lemma dm_leb_trans : forall dm0 dm1 dm2,
+      dm_leb dm0 dm1 = true ->
+      dm_leb dm1 dm2 = true ->
+      dm_leb dm0 dm2 = true.
+  Proof.
+    intros.
+    destruct dm0, dm1, dm2.
+    unfold dm_leb in *.
+    simpl in *.
+    destruct (dm_pass0 =? dm_pass1) eqn:?;
+      destruct (dm_pass1 =? dm_pass2) eqn:?;
+      destruct (dm_pass0 =? dm_pass2) eqn:?;
+      destruct (dm_flush0 =? dm_flush1) eqn:?;
+      destruct (dm_flush1 =? dm_flush2) eqn:?;
+      destruct (dm_flush0 =? dm_flush2) eqn:?.
+    all: auto.
+
+    all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+    all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+    all: rewrite PeanoNat.Nat.leb_le in *; lia.
+  Qed.
+
+  Lemma dm_leb_ltp : forall dm0 dm1,
+      dm_leb dm0 dm1 = dm_eqb dm0 dm1 || dm_ltb dm0 dm1.
+  Proof.
+    intros.
+    destruct dm0, dm1.
+    unfold dm_leb, dm_ltb, dm_eqb, andb, orb in *.
+    simpl in *.
+    blast_cases; auto.
+
+    all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+    all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+    all: try (rewrite PeanoNat.Nat.leb_le in * ).
+    all: try (rewrite PeanoNat.Nat.ltb_lt in * ).
+    all: subst.
+    all: doubt.
+    - destruct (dm_flush0 <? dm_flush1) eqn:?.
+      + rewrite PeanoNat.Nat.leb_le in *.
+        rewrite PeanoNat.Nat.ltb_lt in *.
+        lia.
+      + rewrite PeanoNat.Nat.leb_nle in *.
+        rewrite PeanoNat.Nat.ltb_nlt in *.
+        lia.
+    - destruct (dm_pass0 <? dm_pass1) eqn:?.
+      + rewrite PeanoNat.Nat.leb_le in *.
+        rewrite PeanoNat.Nat.ltb_lt in *.
+        lia.
+      + rewrite PeanoNat.Nat.leb_nle in *.
+        rewrite PeanoNat.Nat.ltb_nlt in *.
+        lia.
+    - destruct (dm_pass0 <? dm_pass1) eqn:?.
+      + rewrite PeanoNat.Nat.leb_le in *.
+        rewrite PeanoNat.Nat.ltb_lt in *.
+        lia.
+      + rewrite PeanoNat.Nat.leb_nle in *.
+        rewrite PeanoNat.Nat.ltb_nlt in *.
+        lia.
+  Qed.
+
+
+  Lemma dm_leb_not_ltp : forall dm0 dm1, dm_leb dm0 dm1 = negb (dm_ltb dm1 dm0).
+  Proof.
+    intros.
+    destruct dm0, dm1.
+    unfold dm_ltb, dm_leb, negb.
+    simpl.
+    blast_cases.
+
+    all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+    all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+    all: subst; try (congruence).
+    all: try (rewrite PeanoNat.Nat.leb_le in * ).
+    all: try (rewrite PeanoNat.Nat.leb_nle in * ).
+    all: try (rewrite PeanoNat.Nat.ltb_lt in * ).
+    all: try (rewrite PeanoNat.Nat.ltb_nlt in * ).
+    all: attac.
+  Qed.
+
+  Lemma dm_ltb_neq : forall dm0 dm1,
+      dm_ltb dm0 dm1 = true ->
+      dm_eqb dm0 dm1 = false.
+  Proof.
+    intros.
+    destruct dm0, dm1.
+    unfold dm_ltb, dm_eqb in *.
+    simpl in *.
+    blast_cases; attac.
+  Qed.
+
+  Lemma measure_zero_lowest : forall dm, dm_leb dm_zero dm = true.
+  Proof.
+    intros.
+    destruct dm.
+    unfold dm_zero, dm_leb.
+    simpl.
+    blast_cases; attac.
+  Qed.
+
 
   Definition probe_eqb (p0 p1 : MProbe) :=
     NAME.eqb (origin p0) (origin p1) && (lock_id p0 =? lock_id p1)%nat.
@@ -1821,20 +1950,6 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     eauto using measure_ms_send_zero.
   Qed.
 
-  Lemma dm_ltb_pass : forall dm0 dm1, dm_pass dm0 < dm_pass dm1 ->
-                                 dm_ltb dm0 dm1 = true.
-  Proof.
-    intros.
-    destruct dm0, dm1; simpl in *.
-    unfold dm_ltb in *; simpl.
-    destruct (dm_pass0 =? dm_pass1) eqn:?.
-    attac.
-    now rewrite PeanoNat.Nat.ltb_lt.
-  Qed.
-
-  Hint Resolve dm_ltb_pass : LTS.
-
-
   Lemma measure_lock_chain_extend : forall (MN0 : MNet) L n0 m0 m1 dmm p,
       measure_lock_chain MN0 n0 L m0 p = None ->
       measure_ms m0 p (MN0 m1) = Some dmm ->
@@ -3440,6 +3555,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     - now constructor 1 with (m0:=m0)(m1:=m1)(L:=L).
   Qed.
 
+
   Lemma measures_end : forall MN n,
       Measures MN n dm_zero ->
       alarm (MN n) = true.
@@ -3533,10 +3649,92 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     constructor 1 with (m0:=m0')(m1:=m1')(L:=L); auto.
   Qed.
 
-  Check measures_deadlock.
-  Check measures_end.
-  Check measures_noincr.
-  Check measures_decr.
-  Check flush_irrefutable.
+
+  Lemma dm_ltb_wf : well_founded (fun dm0 dm1 => dm_ltb dm0 dm1 = true).
+  Proof.
+    unfold well_founded.
+    intros dm0.
+    destruct dm0.
+    generalize dependent dm_flush0.
+
+    induction (PeanoNat.Nat.lt_wf_0 dm_pass0).
+    intros.
+
+    induction (PeanoNat.Nat.lt_wf_0 dm_flush0).
+
+    constructor.
+    intros dm1 **.
+    destruct dm1; simpl in *.
+    unfold dm_ltb in *; simpl in *.
+
+    destruct (dm_pass0 =? x) eqn:?.
+    - rewrite PeanoNat.Nat.eqb_eq in *.
+      subst.
+      eapply H2.
+      destruct (dm_flush0 =? x0) eqn:?; attac.
+      now rewrite PeanoNat.Nat.ltb_lt in *.
+    - rewrite PeanoNat.Nat.ltb_lt in *.
+      eauto.
+  Qed.
+
+
+  (** [dm_leb] is a total order (note that [bool] is decidable) *)
+  Check dm_leb_refl : forall dm,
+      dm_leb dm dm = true.
+
+  Check dm_leb_asim : forall dm0 dm1,
+      dm_leb dm0 dm1 = true ->
+      dm_leb dm1 dm0 = true ->
+      dm0 = dm1.
+
+  Check dm_leb_trans : forall dm0 dm1 dm2,
+      dm_leb dm0 dm1 = true ->
+      dm_leb dm1 dm2 = true ->
+      dm_leb dm0 dm2 = true.
+
+  (** [dm_leb] is equivalent to the disjunction of [dm_ltb] and [dm_eqb]. *)
+  Check dm_leb_ltp : forall dm0 dm1,
+      dm_leb dm0 dm1 = dm_eqb dm0 dm1 || dm_ltb dm0 dm1.
+
+
+  (** Every deadlocked set has a member with a measure. *)
+  Check measures_deadlock : forall MN DS,
+      KIC MN ->
+      dead_set DS '' MN ->
+      exists n dm,
+        In n DS /\ Measures MN n dm.
+
+  (** If the measure reaches zero, then the member has reported a deadlock. *)
+  Check measures_end : forall MN n,
+      Measures MN n dm_zero ->
+      alarm (MN n) = true.
+
+  (** Measure never increases nor disappears. *)
+  Check measures_noincr : forall MN0 MN1 n a dm0,
+      KIC MN0 ->
+      (MN0 =( a )=> MN1) ->
+      Measures MN0 n dm0 ->
+      exists dm1, Measures MN1 n dm1 /\ dm_leb dm1 dm0 = true.
+
+  (** There is always a service who can perform a flushing action which strictly
+      decreases the measure. *)
+  Check measures_decr : forall MN0 n dm0,
+      KIC MN0 ->
+      Measures MN0 n dm0 ->
+      alarm (MN0 n) = true
+      \/ (exists m a MN1 dm1,
+            (MN0 =( a )=> MN1)
+            /\ Flushing_NAct m a
+            /\ Measures MN1 n dm1
+            /\ dm_ltb dm1 dm0 = true
+        ).
+
+  (** Flushing actions remain available until executed. *)
+  Check flush_irrefutable : forall MN0 MN1 MN1' af a n,
+      Flushing_NAct n af ->
+      (MN0 =( af )=> MN1) ->
+      (MN0 =( a )=> MN1') ->
+      a <> af ->
+      exists MN2, MN1' =( af )=> MN2.
 
 End COMPL_STRONG_F.
