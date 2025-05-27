@@ -1171,30 +1171,29 @@ Check MNPath_do : forall (mpath : list (NAct (Act:=MAct))) (MN0 MN1 : MNet),
     MN0 =[ mpath ]=> MN1 -> deinstr MN0 =[ mpath ]=> deinstr MN1.
 
 
-(** We now show the statement from the submission. The only difference is that
-here we don't show that [mpath1] is a flushing path. Please refer to the updated
-repository at TODO for a variant that does not omit it. Note that the declared
-correctness criteria is unaffected by this oversight. *)
+(** We now show the statement from the submission. *)
 
 Goal forall (N0 : Net) (i0 : instr) mpath0 (MN1 : MNet),
     (i0 N0 =[ mpath0 ]=> MN1) ->
     exists mpath1 (i2 : instr) (N2 : Net),
       (MN1 =[ mpath1 ]=> i2 N2)
-    /\ (N0 =[ MNPath_to_PNPath (mpath0 ++ mpath1) ]=> N2).
+      /\ Forall (fun a => exists n, Flushing_NAct n a) mpath1
+      /\ (N0 =[ MNPath_to_PNPath (mpath0 ++ mpath1) ]=> N2).
 Proof.
   intros.
   specialize @transp_sound_instr with (mnpath0:=mpath0)(I0:=i0)(N0:=N0)(MN1:=MN1)
     as (mpath1 & ppath & i2 & N2 & ? & ?); auto.
   exists mpath1, i2, N2.
-  split; auto.
+  split; attac.
   assert (deinstr (i0 N0) =[mpath0 ++ mpath1]=> deinstr (i2 N2))
     by eauto using MNPath_do with LTS.
   repeat (rewrite instr_inv in * ).
+  rewrite <- MNPath_to_PNPath_app in *.
   remember (mpath0 ++ mpath1) as mpath; clear Heqmpath.
-  clear - H2.
+  clear - H3.
   generalize dependent N0.
   induction mpath; attac.
-  apply IHmpath in H3.
+  apply IHmpath in H4.
   consider (N0 =(a)=> N1); attac.
   - destruct_ma a0; eattac.
     apply path_seq1 with (middle:=(NetMod.put n &S N0)); attac.
@@ -1211,7 +1210,13 @@ Lemma oopsla_transp_soundness : forall N0 i0,
 Proof.
   unfold CorrectnessCriteria.transp_soundness.
   intros.
-  eauto using transp_sound_instr.
+  consider (exists mnpath1 pnpath (I2 : instr) N2,
+               Forall (fun a => exists n, Flushing_NAct n a) mnpath1
+               /\ (MN1 =[ mnpath1 ]=> I2 N2)
+               /\ (N0 =[ pnpath ]=> N2))
+    by eauto using transp_sound_instr.
+
+  now exists mnpath1, pnpath, I2, N2.
 Qed.
 
 (** * A Distributed Black-Box Monitoring Algorithm for Deadlock Detection *)
