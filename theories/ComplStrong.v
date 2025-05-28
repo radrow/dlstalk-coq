@@ -30,6 +30,7 @@ From Coq Require Import Structures.Equalities.
 
 From Coq Require Import Bool.
 From Coq Require Import Nat.
+From Coq Require Import Structures.Orders.
 From Coq Require Import Structures.OrderedTypeEx.
 Require Import OrderedType.
 
@@ -72,6 +73,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
 
   Definition dm_eqb (dm0 dm1 : DetectMeasure) : bool :=
     (dm_flush dm0 =? dm_flush dm1)%nat && (dm_pass dm0 =? dm_pass dm1)%nat.
+
 
   Lemma dm_eqb_eq : forall dm0 dm1, dm_eqb dm0 dm1 = true <-> dm0 = dm1.
   Proof.
@@ -296,6 +298,107 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     simpl.
     blast_cases; attac.
   Qed.
+
+  Lemma dm_ltb_wf : well_founded (fun dm0 dm1 => dm_ltb dm0 dm1 = true).
+  Proof.
+    unfold well_founded.
+    intros dm0.
+    destruct dm0.
+    generalize dependent dm_flush0.
+
+    induction (PeanoNat.Nat.lt_wf_0 dm_pass0).
+    intros.
+
+    induction (PeanoNat.Nat.lt_wf_0 dm_flush0).
+
+    constructor.
+    intros dm1 **.
+    destruct dm1; simpl in *.
+    unfold dm_ltb in *; simpl in *.
+
+    destruct (dm_pass0 =? x) eqn:?.
+    - rewrite PeanoNat.Nat.eqb_eq in *.
+      subst.
+      eapply H2.
+      destruct (dm_flush0 =? x0) eqn:?; attac.
+      now rewrite PeanoNat.Nat.ltb_lt in *.
+    - rewrite PeanoNat.Nat.ltb_lt in *.
+      eauto.
+  Qed.
+
+
+  Module DetectMeasureT <: UsualTotalOrder' with Definition t := DetectMeasure.
+    Definition t := DetectMeasure.
+    Definition lt := fun dm0 dm1 => dm_ltb dm0 dm1 = true.
+    Definition le := fun dm0 dm1 => dm_leb dm0 dm1 = true.
+    Definition eq := fun dm0 dm1 : t => dm0 = dm1.
+    Instance eq_equiv : Equivalence eq := ltac:(constructor; attac).
+
+    Instance lt_strorder : StrictOrder lt.
+    constructor.
+    - unfold Irreflexive, Reflexive, complement, lt, dm_ltb. intros.
+      destruct x; blast_cases; attac.
+    - unfold Transitive, lt, dm_ltb; intros.
+      destruct x, y, z; simpl in *.
+      destruct
+        (dm_pass0 =? dm_pass1) eqn:?,
+        (dm_pass1 =? dm_pass2) eqn:?,
+        (dm_pass0 =? dm_pass2) eqn:?,
+        (dm_flush0 =? dm_flush1) eqn:?,
+        (dm_flush1 =? dm_flush2) eqn:?,
+        (dm_flush0 =? dm_flush2) eqn:?.
+      all: try (congruence).
+      all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+      all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+      all: try (rewrite PeanoNat.Nat.ltb_lt in * ).
+      all: subst.
+      all: attac.
+    Qed.
+
+    Instance lt_compat : Proper (eq ==> eq ==> iff) lt := ltac:(attac).
+
+    Lemma le_lteq : forall x y : t, le x y <-> lt x y \/ x = y.
+    Proof.
+      split; intros.
+      - unfold lt, le in *.
+        rewrite dm_leb_ltp in H.
+        apply orb_prop in H.
+        destruct `(_ \/ _); eauto.
+        rewrite dm_eqb_eq in H.
+        eauto.
+      - unfold lt, le, dm_ltb, dm_leb in *.
+        destruct x, y.
+        attac.
+        destruct (dm_pass0 =? dm_pass1) eqn:?, (dm_flush0 =? dm_flush1) eqn:?; auto.
+        all: try (destruct `(_ \/ _)).
+        all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+        all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+        all: try (rewrite PeanoNat.Nat.ltb_lt in * ).
+        all: try (rewrite PeanoNat.Nat.leb_le in * ).
+        all: lia.
+    Qed.
+
+    Lemma lt_total : forall x y : t, lt x y \/ x = y \/ lt y x.
+    Proof.
+      intros.
+      destruct x, y.
+      unfold lt, dm_ltb.
+      simpl.
+      destruct
+        (dm_pass0 =? dm_pass1) eqn:?, (dm_flush0 =? dm_flush1) eqn:?,
+        (dm_pass1 =? dm_pass0) eqn:?, (dm_flush1 =? dm_flush0) eqn:?,
+        (dm_pass0 <? dm_pass1) eqn:?, (dm_flush0 <? dm_flush1) eqn:?; auto.
+      all: hsimpl.
+      all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+      all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+      all: try (rewrite PeanoNat.Nat.ltb_lt in * ).
+      all: try (rewrite PeanoNat.Nat.leb_le in * ).
+      all: try (rewrite PeanoNat.Nat.ltb_nlt in * ).
+      all: try (rewrite PeanoNat.Nat.leb_nle in * ).
+      all: subst.
+      all: attac.
+    Qed.
+  End DetectMeasureT.
 
 
   Definition probe_eqb (p0 p1 : MProbe) :=
@@ -3650,35 +3753,24 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
   Qed.
 
 
-  Lemma dm_ltb_wf : well_founded (fun dm0 dm1 => dm_ltb dm0 dm1 = true).
-  Proof.
-    unfold well_founded.
-    intros dm0.
-    destruct dm0.
-    generalize dependent dm_flush0.
+  (** ** Measure *)
 
-    induction (PeanoNat.Nat.lt_wf_0 dm_pass0).
-    intros.
+  (** [DetectMeasure] is an object used to measure the "distance" to an alarm.
+      We establish a total order and well-founded order on it and prove that:
+      - It is defined in every deadlock
+      - It never increases
+      - It eventually decreases if the network is fair
+      - If it reaches its infimum, an alarm is raised
+   *)
+  Check DetectMeasure : Set.
 
-    induction (PeanoNat.Nat.lt_wf_0 dm_flush0).
+  (** [dm_eqb] reflects equality *)
+  Check dm_eqb_eq : forall dm0 dm1 : DetectMeasure,
+      dm_eqb dm0 dm1 = true <-> dm0 = dm1.
+  Check dm_eqb_neq : forall dm0 dm1 : DetectMeasure,
+      dm_eqb dm0 dm1 = false <-> dm0 <> dm1.
 
-    constructor.
-    intros dm1 **.
-    destruct dm1; simpl in *.
-    unfold dm_ltb in *; simpl in *.
-
-    destruct (dm_pass0 =? x) eqn:?.
-    - rewrite PeanoNat.Nat.eqb_eq in *.
-      subst.
-      eapply H2.
-      destruct (dm_flush0 =? x0) eqn:?; attac.
-      now rewrite PeanoNat.Nat.ltb_lt in *.
-    - rewrite PeanoNat.Nat.ltb_lt in *.
-      eauto.
-  Qed.
-
-
-  (** [dm_leb] is a total order (note that [bool] is decidable) *)
+  (** [dm_leb] (lesser-equal) is a total order (note that [bool] is decidable) *)
   Check dm_leb_refl : forall dm,
       dm_leb dm dm = true.
 
@@ -3691,6 +3783,9 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       dm_leb dm0 dm1 = true ->
       dm_leb dm1 dm2 = true ->
       dm_leb dm0 dm2 = true.
+
+  (** [dm_ltb] (lesser-than) is a well-founded order. *)
+  Check dm_ltb_wf : well_founded (fun dm0 dm1 => dm_ltb dm0 dm1 = true).
 
   (** [dm_leb] is equivalent to the disjunction of [dm_ltb] and [dm_eqb]. *)
   Check dm_leb_ltp : forall dm0 dm1,
