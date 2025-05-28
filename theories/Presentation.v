@@ -23,6 +23,7 @@ Require Import DlStalk.SRPCNet.
 Require Import DlStalk.Transp.
 Require Import DlStalk.Sound.
 Require Import DlStalk.Compl.
+Require Import DlStalk.ComplStrong.
 Require Import DlStalk.GenFramework.
 
 From Coq Require Import Lists.List.
@@ -1523,6 +1524,76 @@ Qed.
 Print Assumptions oopsla_correct.
 
 
+(** *** _Theorem 6.14_ *)
+
+Module EventualReport.
+  Import Coq.Structures.Orders.
+  Import Coq.Structures.OrdersFacts.
+
+  Module Import ComplStrong := DetConf <+ DETECT_PARAMS <+ COMPL_STRONG_F.
+
+  (** [DetectMeasure] is an object used to measure the "distance" to an alarm.
+      We establish a total order and well-founded order on it and prove that:
+      - It is defined in every deadlock
+      - It never increases
+      - It eventually decreases if the network is fair
+      - If it reaches its infimum, an alarm is raised
+   *)
+  Check DetectMeasure : Set.
+
+  (** [DetectMeasure] has a total order. *)
+  Module DetectMeasure_OrderedType :
+    OrderedTypeFull' with Definition t := DetectMeasure
+    := DetectMeasureOrder'.
+  Module DetectMeasure_TotalOrder :
+    TotalOrder with Definition t := DetectMeasure
+    := DetectMeasureTO.
+  Import DetectMeasureOrder'.
+
+  (** [dm_ltb] (lesser-than) is a well-founded order. *)
+  Check dm_ltb_wf : well_founded DetectMeasureOrder.lt.
+
+  (** Every deadlocked set has a member with a measure. *)
+  Check measures_deadlock : forall MN DS,
+      KIC MN ->
+      dead_set DS '' MN ->
+      exists n dm,
+        In n DS /\ Measures MN n dm.
+
+  (** If the measure reaches zero, then the member has reported a deadlock. *)
+  Check measures_end : forall MN n,
+      Measures MN n dm_zero ->
+      alarm (MN n) = true.
+
+  (** Measure never increases nor disappears. *)
+  Check measures_noincr : forall MN0 MN1 n a dm0,
+      KIC MN0 ->
+      (MN0 =( a )=> MN1) ->
+      Measures MN0 n dm0 ->
+      exists dm1, Measures MN1 n dm1 /\ dm1 <= dm0.
+
+  (** There is always a service which can perform a flushing action which strictly
+    decreases the measure. *)
+  Check measures_decr : forall MN0 n dm0,
+      KIC MN0 ->
+      Measures MN0 n dm0 ->
+      alarm (MN0 n) = true
+      \/ (exists m a MN1 dm1,
+            (MN0 =( a )=> MN1)
+            /\ Flushing_NAct m a
+            /\ Measures MN1 n dm1
+            /\ dm1 < dm0
+        ).
+
+  (** Flushing actions remain available until executed. *)
+  Check flush_irrefutable : forall MN0 MN1 MN1' af a n,
+      Flushing_NAct n af ->
+      (MN0 =( af )=> MN1) ->
+      (MN0 =( a )=> MN1') ->
+      a <> af ->
+      exists MN2, MN1' =( af )=> MN2.
+End EventualReport.
+
 (** * Appendix: A Coq Framework for Modelling Erlang/OTP-Style SRPC Networks *)
 
 (** _Contents of this section are not addressed in the submission_ *)
@@ -1535,7 +1606,7 @@ services. All services begin as [Ready] with empty input and output queues. The
 network can start progressing via one or more _initiators_, which act as
 external clients that send queries to the services. *)
 
-Section Framework. 
+Section Framework.
   Import String.
   Open Scope string.
 

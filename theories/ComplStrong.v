@@ -31,6 +31,7 @@ From Coq Require Import Structures.Equalities.
 From Coq Require Import Bool.
 From Coq Require Import Nat.
 From Coq Require Import Structures.Orders.
+From Coq Require Import Structures.OrdersFacts.
 From Coq Require Import Structures.OrderedTypeEx.
 Require Import OrderedType.
 
@@ -222,6 +223,10 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     all: rewrite PeanoNat.Nat.leb_le in *; lia.
   Qed.
 
+  Lemma dm_leb_total : forall dm0 dm1,
+      dm_leb dm0 dm1 = true \/ dm_leb dm0 dm1 = false.
+  Proof. intros. destruct (dm_leb dm0 dm1) eqn:?; auto. Qed.
+
   Lemma dm_leb_ltp : forall dm0 dm1,
       dm_leb dm0 dm1 = dm_eqb dm0 dm1 || dm_ltb dm0 dm1.
   Proof.
@@ -327,12 +332,15 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
   Qed.
 
 
-  Module DetectMeasureT <: UsualTotalOrder' with Definition t := DetectMeasure.
+  Module DetectMeasureOrder <: OrderedTypeFull with Definition t := DetectMeasure.
     Definition t := DetectMeasure.
     Definition lt := fun dm0 dm1 => dm_ltb dm0 dm1 = true.
     Definition le := fun dm0 dm1 => dm_leb dm0 dm1 = true.
-    Definition eq := fun dm0 dm1 : t => dm0 = dm1.
-    Instance eq_equiv : Equivalence eq := ltac:(constructor; attac).
+    Definition eq := fun dm0 dm1 => dm_eqb dm0 dm1 = true.
+
+    Instance eq_equiv : Equivalence eq.
+    constructor; repeat (intros ?); unfold eq in *; rewrite dm_eqb_eq in *; attac.
+    Qed.
 
     Instance lt_strorder : StrictOrder lt.
     constructor.
@@ -351,22 +359,61 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
       all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
       all: try (rewrite PeanoNat.Nat.ltb_lt in * ).
-      all: subst.
-      all: attac.
+      all: subst; lia.
     Qed.
 
-    Instance lt_compat : Proper (eq ==> eq ==> iff) lt := ltac:(attac).
+    Instance lt_compat : Proper (eq ==> eq ==> iff) lt.
+    split; attac; unfold eq, lt in *; rewrite dm_eqb_eq in *; attac.
+    Qed.
 
-    Lemma le_lteq : forall x y : t, le x y <-> lt x y \/ x = y.
+    Definition compare dm0 dm1 : comparison :=
+      if dm_ltb dm0 dm1 then Lt
+      else if dm_ltb dm1 dm0 then Gt
+           else Eq.
+
+    Lemma compare_spec : forall dm0 dm1,
+        CompareSpec
+          (eq dm0 dm1)
+          (lt dm0 dm1)
+          (lt dm1 dm0)
+          (compare dm0 dm1).
+    Proof.
+      unfold compare.
+      intros.
+      destruct (dm_ltb dm0 dm1) eqn:?.
+      1: { constructor; attac. }
+      destruct (dm_ltb dm1 dm0) eqn:?.
+      1: { constructor; attac. }
+      constructor.
+      unfold eq.
+      destruct (dm_eqb dm0 dm1) eqn:?; auto.
+      unfold dm_ltb in *.
+      rewrite dm_eqb_neq in Heqb1.
+      destruct dm0, dm1; simpl in *.
+      destruct
+        (dm_pass0 =? dm_pass1) eqn:?, (dm_flush0 =? dm_flush1) eqn:?,
+        (dm_pass1 =? dm_pass0) eqn:?, (dm_flush1 =? dm_flush0) eqn:?; auto.
+      all: simpl in *.
+      all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
+      all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
+      all: try (rewrite PeanoNat.Nat.ltb_lt in * ).
+      all: try (rewrite PeanoNat.Nat.ltb_nlt in * ).
+      all: subst.
+      all: try (lia).
+      attac.
+    Qed.
+
+    Lemma eq_dec : forall dm0 dm1, {eq dm0 dm1}+{~ eq dm0 dm1}.
+    Proof. unfold eq; intros; destruct (dm_eqb dm0 dm1); eauto. Qed.
+
+    Lemma le_lteq : forall x y : t, le x y <-> lt x y \/ eq x y.
     Proof.
       split; intros.
       - unfold lt, le in *.
         rewrite dm_leb_ltp in H.
         apply orb_prop in H.
         destruct `(_ \/ _); eauto.
-        rewrite dm_eqb_eq in H.
-        eauto.
-      - unfold lt, le, dm_ltb, dm_leb in *.
+      - unfold lt, le, eq, dm_ltb, dm_leb in *.
         destruct x, y.
         attac.
         destruct (dm_pass0 =? dm_pass1) eqn:?, (dm_flush0 =? dm_flush1) eqn:?; auto.
@@ -377,28 +424,36 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
         all: try (rewrite PeanoNat.Nat.leb_le in * ).
         all: lia.
     Qed.
+  End DetectMeasureOrder.
 
-    Lemma lt_total : forall x y : t, lt x y \/ x = y \/ lt y x.
-    Proof.
-      intros.
-      destruct x, y.
-      unfold lt, dm_ltb.
-      simpl.
-      destruct
-        (dm_pass0 =? dm_pass1) eqn:?, (dm_flush0 =? dm_flush1) eqn:?,
-        (dm_pass1 =? dm_pass0) eqn:?, (dm_flush1 =? dm_flush0) eqn:?,
-        (dm_pass0 <? dm_pass1) eqn:?, (dm_flush0 <? dm_flush1) eqn:?; auto.
-      all: hsimpl.
-      all: try (rewrite PeanoNat.Nat.eqb_eq in * ).
-      all: try (rewrite PeanoNat.Nat.eqb_neq in * ).
-      all: try (rewrite PeanoNat.Nat.ltb_lt in * ).
-      all: try (rewrite PeanoNat.Nat.leb_le in * ).
-      all: try (rewrite PeanoNat.Nat.ltb_nlt in * ).
-      all: try (rewrite PeanoNat.Nat.leb_nle in * ).
-      all: subst.
-      all: attac.
+  Module DetectMeasureOrder' <: OrderedTypeFull' with Definition t := DetectMeasure
+    := DetectMeasureOrder <+ EqLtLeNotation.
+
+  Module DetectMeasureTO := OTF_to_TotalOrder(DetectMeasureOrder).
+
+  Module DetectMeasureOF <: OrderFunctions(DetectMeasureOrder).
+    Import DetectMeasureOrder.
+    Module Import DetectMeasureOrderFacts := OrderedTypeFullFacts(DetectMeasureOrder').
+
+    Definition eqb := dm_eqb.
+    Definition ltb := dm_ltb.
+    Definition leb := dm_leb.
+    Lemma eqb_eq : forall x y : t, eqb x y = true <-> eq x y. split; intros; auto. Qed.
+    Definition ltb_lt : forall x y : t, ltb x y = true <-> lt x y. split; intros; auto. Qed.
+    Definition leb_le : forall x y : t, leb x y = true <-> le x y. split; intros; auto. Qed.
+    Definition compare := compare.
+
+    Lemma compare_spec : forall dm0 dm1,
+        CompareSpec
+          (eq dm0 dm1)
+          (lt dm0 dm1)
+          (lt dm1 dm0)
+          (compare dm0 dm1).
+      exact compare_spec.
     Qed.
-  End DetectMeasureT.
+  End DetectMeasureOF.
+
+  Import DetectMeasureOrder'.
 
 
   Definition probe_eqb (p0 p1 : MProbe) :=
@@ -603,14 +658,14 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     - intros.
       generalize dependent dm.
       induction ws; attac.
-      destruct (alarm (MSend (a, &t) p (MSend_all ws &t p M))) eqn:?; hsimpl in H; attac.
+      destruct (alarm (MSend (a, t0) p (MSend_all ws t0 p M))) eqn:?; hsimpl in H; attac.
       unfold option_map in *.
       destruct MQ; attac.
       unfold option_map in *.
-      destruct (measure_mon_fin (MSend_all ws &t p M)) eqn:?.
+      destruct (measure_mon_fin (MSend_all ws t0 p M)) eqn:?.
       consider (m0 = m).
       {
-        transitivity '(next_state (MSend_all ws &t p M)).
+        transitivity '(next_state (MSend_all ws t0 p M)).
         - attac.
         - rewrite next_state_Send_all.
           attac.
@@ -629,7 +684,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       + attac.
         unfold option_map in *.
         destruct (measure_mq_fin (mon_handle e m0) l) eqn:?; attac.
-        destruct ( measure_mon_fin (MSend_all ws &t p M) ) eqn:?; attac.
+        destruct ( measure_mon_fin (MSend_all ws t0 p M) ) eqn:?; attac.
         rewrite `(measure_mq_fin _ _ = _) in *.
         repeat (rewrite PeanoNat.Nat.add_succ_r in * ).
         do 2 f_equal.
@@ -673,7 +728,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     all: simpl in *; compat_hsimpl in *.
     - blast_cases; attac; unfold option_map in *; blast_cases; attac.
     - blast_cases; attac; unfold option_map in *; blast_cases; attac.
-    - destruct (measure_mon_fin (MSend (n, &t) v M3)) eqn:?.
+    - destruct (measure_mon_fin (MSend (n, t0) v M3)) eqn:?.
       destruct MQ; attac; unfold option_map in *; blast_cases; attac.
     - blast_cases; attac; unfold option_map in *; blast_cases; attac.
   Qed.
@@ -682,7 +737,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
   Lemma measure_ms_fin_noincr : forall (MS0 MS1 : MServ) a dm0,
       (MS0 =(a)=> MS1) ->
       measure_ms_fin MS0 = Some dm0 ->
-      exists dm1, measure_ms_fin MS1 = Some dm1 /\ dm1 <= dm0.
+      exists dm1, measure_ms_fin MS1 = Some dm1 /\ (dm1 <= dm0)%nat.
 
   Proof.
     intros.
@@ -928,7 +983,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
 
   Lemma measure_mq_Send_all_finito : forall (M : MProc) MQ n ws p,
       In n ws ->
-      exists dm, measure_mq n p (MSend_all ws R p M) MQ = Some dm /\ dm <= length ws.
+      exists dm, measure_mq n p (MSend_all ws R p M) MQ = Some dm /\ (dm <= length ws)%nat.
   Proof.
     attac.
     induction ws; attac.
@@ -983,7 +1038,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     all: simpl in *; compat_hsimpl in *.
     - blast_cases; attac; blast_cases; attac.
     - blast_cases; attac; blast_cases; attac.
-    - destruct (measure_mon n p (MSend (n0, &t) v M3)) eqn:?.
+    - destruct (measure_mon n p (MSend (n0, t0) v M3)) eqn:?.
       attac.
       blast_cases; eattac.
     - blast_cases; attac.
@@ -1020,7 +1075,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
                                               hsimpl in $h; attac; blast_cases; attac
                          end
           ).
-    - destruct (measure_mon n p (MSend (n0, &t) v M3)) eqn:?.
+    - destruct (measure_mon n p (MSend (n0, t0) v M3)) eqn:?.
       attac.
       blast_cases; eattac.
       + destruct M3; attac; blast_cases; attac.
@@ -1043,7 +1098,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
   Lemma measure_ms_noincr : forall n (MS0 MS1 : MServ) a dm0 p,
       (MS0 =(a)=> MS1) ->
       measure_ms n p MS0 = Some dm0 ->
-      (exists dm1, measure_ms n p MS1 = Some dm1 /\ dm1 <= dm0) \/ a = send (n, R) ^ p.
+      (exists dm1, measure_ms n p MS1 = Some dm1 /\ dm1 <= dm0)%nat \/ a = send (n, R) ^ p.
 
   Proof.
     intros.
@@ -1054,7 +1109,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     all: unfold measure_ms in *.
     all: simpl in *; compat_hsimpl in *.
     all: blast_cases; attac; blast_cases; attac.
-    destruct (measure_mon n p (MSend (n0, &t) v M3)) eqn:?.
+    destruct (measure_mon n p (MSend (n0, t0) v M3)) eqn:?.
     attac; blast_cases; eattac; unfold andb in *; blast_cases; attac.
   Qed.
 
@@ -1111,7 +1166,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
   Lemma measure_ms_net_noincr : forall n0 n1 (MN0 MN1 : MNet) a dm0 p,
       (MN0 =(a)=> MN1) ->
       measure_ms n1 p (MN0 n0) = Some dm0 ->
-      (exists dm1, measure_ms n1 p (MN1 n0) = Some dm1 /\ dm1 <= dm0) \/
+      (exists dm1, measure_ms n1 p (MN1 n0) = Some dm1 /\ dm1 <= dm0)%nat \/
         a = (NComm n0 n1 R ^ p).
 
   Proof.
@@ -1349,7 +1404,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
   Lemma measure_ms_fin_net_noincr : forall (MN0 MN1 : MNet) n a dm0,
       (MN0 =(a)=> MN1) ->
       measure_ms_fin (MN0 n) = Some dm0 ->
-      exists dm1, measure_ms_fin (MN1 n) = Some dm1 /\ dm1 <= dm0.
+      exists dm1, measure_ms_fin (MN1 n) = Some dm1 /\ (dm1 <= dm0)%nat.
 
   Proof.
     intros.
@@ -2141,6 +2196,8 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
   Qed.
 
 
+  Import DetectMeasureOrder'.
+
   Lemma measure_lock_chain_pass : forall (MN0 MN1 : MNet) (n0 n1 m0 m1 : Name)
                                    (L : list Name) p dm0,
       KIC MN0 ->
@@ -2153,7 +2210,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       origin p <> m0 ->
       exists m' dm1,
         measure_lock_chain MN1 n0 L n1 p = Some (m', m0, dm1)
-        /\ dm_ltb dm1 dm0 = true.
+        /\ dm1 < dm0.
 
   Proof.
     intros.
@@ -2214,7 +2271,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       origin p <> m0 ->
       exists m' dm1,
         measure_lock_chain MN1 n0 L n1 p = Some (m', m0, dm1)
-        /\ dm_ltb dm1 dm0 = true.
+        /\ dm1 < dm0.
   Proof.
     intros.
     apply measure_lock_chain_split_tip in H4; auto.
@@ -2284,7 +2341,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       origin p <> m0 ->
       exists m0' m1' dm1,
         measure_lock_chain MN1 n0 L n1 p = Some (m0', m1', dm1)
-        /\ dm_ltb dm1 dm0 = true.
+        /\ dm1 < dm0.
 
   Proof.
     intros.
@@ -2310,7 +2367,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       subst.
       enough (exists m' dm1,
                  measure_lock_chain MN1 n0 (L0 ++ m0 :: m1 :: L1) n1 p = Some (m', m0, dm1) /\
-                 dm_ltb dm1 dm0 = true)
+                 dm1 < dm0)
         by attac.
 
       re_have eauto using measure_lock_chain_pass with LTS.
@@ -2322,7 +2379,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
         clear; destruct a; attac.
         destruct p0; attac;
           destruct (MProbe_eq_dec m p); attac;
-          smash_eq n m1; smash_eq n0 m0; attac; destruct t; attac. right; intros ?; attac.
+          smash_eq n m1; smash_eq n0 m0; attac; destruct t0; attac. right; intros ?; attac.
       }
       1: { subst; eapply measure_ms_net_send_zero in H6; bs. }
 
@@ -2510,7 +2567,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       Flushing_NAct m1 a ->
       (MN0 =(a)=> MN1) ->
       (exists dm, measure_ms_fin (MN1 n0) = Some dm) \/
-        exists dm1, measure_lock_chain MN1 n0 L n1 (active_probe_of MN0 n0) = Some (n0, m1, dm1) /\ dm_ltb dm1 dm0 = true.
+        exists dm1, measure_lock_chain MN1 n0 L n1 (active_probe_of MN0 n0) = Some (n0, m1, dm1) /\ dm1 < dm0.
 
   Proof.
     intros.
@@ -2604,7 +2661,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       alarm (MN0 n) = false ->
       (MN0 =(a)=> MN1) ->
       exists m0' m1' dm1, measure_loop MN1 n L = Some (m0', m1', dm1)
-                     /\ dm_ltb dm1 dm0 = true.
+                     /\ dm1 < dm0.
   Proof.
     intros.
 
@@ -2633,7 +2690,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       unfold dm_ltb; attac.
 
     - smash_eq n m0.
-      + assert (0 < dm_pass dm0) by (destruct L; attac; blast_cases; attac).
+      + assert (0 < dm_pass dm0)%nat by (destruct L; attac; blast_cases; attac).
         eapply measure_lock_chain_finish in H3 as [|]; eauto; hsimpl in *.
         * eexists _, _, _.
           split; eauto.
@@ -2647,7 +2704,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           -- eexists _, _, _; eauto.
 
       + smash_eq n m1.
-        * assert (0 < dm_pass dm0) by (destruct L; attac; blast_cases; attac).
+        * assert (0 < dm_pass dm0)%nat by (destruct L; attac; blast_cases; attac).
           destruct (measure_ms_fin (MN1 n)).
           1: { eexists _, _, _; attac. }
 
@@ -2693,7 +2750,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
                clear - Heqo0.
                destruct L1. 1: attac.
                simpl in *.
-               enough (length L1 < length L0) by lia.
+               enough (length L1 < length L0)%nat by lia.
                kill Heqo0.
                generalize dependent L1 L2 m0' m1'.
                induction L0; intros; simpl in *.
@@ -2735,7 +2792,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
   Qed.
 
 
-  Lemma dm_leb_refl : forall dm, dm_leb dm dm = true.
+  Lemma dm_leb_refl : forall dm, dm <= dm.
   Proof. intros. unfold dm_leb. attac. Qed.
 
 
@@ -2770,7 +2827,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       consider (_ =(_)=> _); attac.
       consider (_ =(_)=> _); attac.
       destruct n.
-      destruct &t.
+      destruct t0.
       + specialize H3 with (n:=n).
         attac.
       + specialize H3 with (n:=n).
@@ -2820,7 +2877,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
         all: rewrite `(NetMod.get _ _ = _) in *.
         all: unfold measure_ms in *; simpl in *.
         all: blast_cases; attac.
-        destruct (measure_mon n0 p (MSend (n1, &t) v M1)) eqn:?.
+        destruct (measure_mon n0 p (MSend (n1, t0) v M1)) eqn:?.
         attac. blast_cases; attac.
   Qed.
 
@@ -2834,7 +2891,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       ~ In n3 L ->
       NoDup L ->
       measure_lock_chain MN0 n0 L n3 p = Some (n1, n2, dm0) ->
-      exists m0' m1' dm1, measure_lock_chain MN1 n0 L n3 p = Some (m0', m1', dm1) /\ dm_leb dm1 dm0 = true.
+      exists m0' m1' dm1, measure_lock_chain MN1 n0 L n3 p = Some (m0', m1', dm1) /\ dm1 <= dm0.
 
   Proof.
     intros.
@@ -2917,7 +2974,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       alarm (MN0 n) = false ->
       (MN0 =(a)=> MN1) ->
       exists m0' m1' dm1, measure_loop MN1 n L = Some (m0', m1', dm1)
-                     /\ dm_leb dm1 dm0 = true.
+                     /\ dm1 <= dm0.
 
   Proof.
     intros.
@@ -2925,7 +2982,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     1: {
       consider (exists m0' m1' dm1,
             measure_loop MN1 n L = Some (m0', m1', dm1)
-            /\ dm_ltb dm1 dm0 = true) by eauto using measure_loop_decr.
+            /\ dm1 < dm0) by eauto using measure_loop_decr.
       exists m0', m1', dm1.
       split; eauto.
       unfold dm_ltb, dm_leb in *.
@@ -3413,16 +3470,16 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       3: rewrite Heqm. 3: eapply (MTRecvP); attac.
       all: eattac.
     - smash_eq n n0.
-      + eexists (NComm n n &t # v), _.
+      + eexists (NComm n n t0 # v), _.
         attac; econstructor; eattac. rewrite Heqm; eattac. eattac. compat_hsimpl; eattac.
       + destruct (NetMod.get n0 MN0) eqn:?.
-        eexists (NComm n n0 &t # v), _.
+        eexists (NComm n n0 t0 # v), _.
         attac; econstructor; eattac. rewrite Heqm; eattac. compat_hsimpl; eattac.
     - smash_eq n n0.
-      + eexists (NComm n n &t ^ v), _.
+      + eexists (NComm n n t0 ^ v), _.
         attac; econstructor; eattac. rewrite Heqm; eattac. eattac. compat_hsimpl; eattac.
       + destruct (NetMod.get n0 MN0) eqn:?.
-        eexists (NComm n n0 &t ^ v), _.
+        eexists (NComm n n0 t0 ^ v), _.
         attac; econstructor; eattac. rewrite Heqm; eattac. compat_hsimpl; eattac.
     - eexists (NTau n _), _.
       split.
@@ -3673,7 +3730,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       KIC MN0 ->
       (MN0 =(a)=> MN1) ->
       Measures MN0 n dm0 ->
-      exists dm1, Measures MN1 n dm1 /\ dm_leb dm1 dm0 = true.
+      exists dm1, Measures MN1 n dm1 /\ dm1 <= dm0.
 
   Proof.
     intros.
@@ -3701,7 +3758,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
       unfold measure_loop, measure_ms_fin.
       rewrite unfold_measure_mq_fin_alarm; attac.
 
-    - consider (exists m0' m1' dm1, measure_loop MN1 n L = Some (m0', m1', dm1) /\ dm_leb dm1 dm0 = true) by eauto using measure_loop_noincr.
+    - consider (exists m0' m1' dm1, measure_loop MN1 n L = Some (m0', m1', dm1) /\ dm1 <= dm0) by eauto using measure_loop_noincr.
       exists dm1.
 
       split; auto.
@@ -3717,7 +3774,7 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
           (MN0 =(a)=> MN1)
           /\ Flushing_NAct m a
           /\ Measures MN1 n dm1
-          /\ dm_ltb dm1 dm0 = true.
+          /\ dm1 < dm0.
 
   Proof.
     intros.
@@ -3751,85 +3808,5 @@ Module Type COMPL_STRONG_F(Import Conf : DETECT_CONF)(Import Params : DETECT_PAR
     repeat split; auto.
     constructor 1 with (m0:=m0')(m1:=m1')(L:=L); auto.
   Qed.
-
-
-  (** ** Measure *)
-
-  (** [DetectMeasure] is an object used to measure the "distance" to an alarm.
-      We establish a total order and well-founded order on it and prove that:
-      - It is defined in every deadlock
-      - It never increases
-      - It eventually decreases if the network is fair
-      - If it reaches its infimum, an alarm is raised
-   *)
-  Check DetectMeasure : Set.
-
-  (** [dm_eqb] reflects equality *)
-  Check dm_eqb_eq : forall dm0 dm1 : DetectMeasure,
-      dm_eqb dm0 dm1 = true <-> dm0 = dm1.
-  Check dm_eqb_neq : forall dm0 dm1 : DetectMeasure,
-      dm_eqb dm0 dm1 = false <-> dm0 <> dm1.
-
-  (** [dm_leb] (lesser-equal) is a total order (note that [bool] is decidable) *)
-  Check dm_leb_refl : forall dm,
-      dm_leb dm dm = true.
-
-  Check dm_leb_asim : forall dm0 dm1,
-      dm_leb dm0 dm1 = true ->
-      dm_leb dm1 dm0 = true ->
-      dm0 = dm1.
-
-  Check dm_leb_trans : forall dm0 dm1 dm2,
-      dm_leb dm0 dm1 = true ->
-      dm_leb dm1 dm2 = true ->
-      dm_leb dm0 dm2 = true.
-
-  (** [dm_ltb] (lesser-than) is a well-founded order. *)
-  Check dm_ltb_wf : well_founded (fun dm0 dm1 => dm_ltb dm0 dm1 = true).
-
-  (** [dm_leb] is equivalent to the disjunction of [dm_ltb] and [dm_eqb]. *)
-  Check dm_leb_ltp : forall dm0 dm1,
-      dm_leb dm0 dm1 = dm_eqb dm0 dm1 || dm_ltb dm0 dm1.
-
-
-  (** Every deadlocked set has a member with a measure. *)
-  Check measures_deadlock : forall MN DS,
-      KIC MN ->
-      dead_set DS '' MN ->
-      exists n dm,
-        In n DS /\ Measures MN n dm.
-
-  (** If the measure reaches zero, then the member has reported a deadlock. *)
-  Check measures_end : forall MN n,
-      Measures MN n dm_zero ->
-      alarm (MN n) = true.
-
-  (** Measure never increases nor disappears. *)
-  Check measures_noincr : forall MN0 MN1 n a dm0,
-      KIC MN0 ->
-      (MN0 =( a )=> MN1) ->
-      Measures MN0 n dm0 ->
-      exists dm1, Measures MN1 n dm1 /\ dm_leb dm1 dm0 = true.
-
-  (** There is always a service who can perform a flushing action which strictly
-      decreases the measure. *)
-  Check measures_decr : forall MN0 n dm0,
-      KIC MN0 ->
-      Measures MN0 n dm0 ->
-      alarm (MN0 n) = true
-      \/ (exists m a MN1 dm1,
-            (MN0 =( a )=> MN1)
-            /\ Flushing_NAct m a
-            /\ Measures MN1 n dm1
-            /\ dm_ltb dm1 dm0 = true
-        ).
-
-  (** Flushing actions remain available until executed. *)
-  Check flush_irrefutable : forall MN0 MN1 MN1' af a n,
-      Flushing_NAct n af ->
-      (MN0 =( af )=> MN1) ->
-      (MN0 =( a )=> MN1') ->
-      a <> af ->
-      exists MN2, MN1' =( af )=> MN2.
 
 End COMPL_STRONG_F.
