@@ -1,6 +1,6 @@
-# Some random project
+# DlStalk — Coq edition
 
-This project mechanises the theory described in the paper along with proofs of theorems marked with a rooster.
+This project mechanises the theory described in the paper.
 
 ## Build
 
